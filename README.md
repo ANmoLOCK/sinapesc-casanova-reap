@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.6**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6) |
+| Versão atual | [**v1.7.7**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.7) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.6)
+## Download do EXE (v1.7.7)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.6/SinapescREAP-Windows-v1.7.6.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.7/SinapescREAP-Windows-v1.7.7.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.7
 
-Versão anterior: [v1.7.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5) · [v1.7.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.4)
+Versão anterior: [v1.7.6](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6) · [v1.7.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,10 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.7
+
+- Declaração Defeso: **sempre** gera o PDF oficial do MTE com nome/CPF/endereço etc. em azul por cima (Padrão · Allura · Architects)
 
 ## O que há na v1.7.6
 
@@ -190,6 +194,7 @@ Mesma planilha: EXE grava (Editor); site só lê (Leitor).
 
 | Versão | O que entrou | EXE |
 |--------|----------------|-----|
+| **v1.7.7** | Declaração sempre no PDF oficial MTE (Times/Allura/Architects) | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.7/SinapescREAP-Windows-v1.7.7.zip) |
 | **v1.7.6** | Pasta Drive anexos: exemplo em D: | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.6/SinapescREAP-Windows-v1.7.6.zip) |
 | **v1.7.5** | Fontes manuscritas na declaração Defeso (Allura / Architects) | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.5/SinapescREAP-Windows-v1.7.5.zip) |
 | **v1.7.4** | Pasta Google Drive sync para anexos Defeso | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.4/SinapescREAP-Windows-v1.7.4.zip) |

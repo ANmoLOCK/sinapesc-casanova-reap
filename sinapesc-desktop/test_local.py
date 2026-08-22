@@ -494,10 +494,20 @@ def test_defeso_fontes_e_pdf() -> None:
         telefone="74999998877",
         email="a@b.com",
     )
+    pdf0 = preencher_pdf(ficha, fonte_id="padrao", size=16)
+    assert pdf0.exists() and pdf0.suffix == ".pdf"
     pdf = preencher_pdf(ficha, fonte_id="allura", size=16)
     assert pdf.exists() and pdf.suffix == ".pdf"
     pdf2 = preencher_pdf(ficha, fonte_id="architects", size=16)
     assert pdf2.exists()
+    # Confirma que o texto foi escrito por cima do modelo (não é HTML)
+    import pymupdf as fitz
+
+    doc = fitz.open(pdf0)
+    txt = doc[0].get_text("text")
+    doc.close()
+    assert "MINISTÉRIO DO TRABALHO" in txt or "MINISTERIO DO TRABALHO" in txt.upper()
+    assert "Jose Da Silva Santos" in txt or "JOSE DA SILVA SANTOS" in txt.upper()
 
 
 if __name__ == "__main__":

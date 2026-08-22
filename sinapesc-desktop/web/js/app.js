@@ -1530,9 +1530,9 @@
     const list = fontes.length
       ? fontes
       : [
-          { id: "padrao", label: "Padrão (Times)", descricao: "Texto formal atual" },
-          { id: "allura", label: "Allura (manuscrita)", descricao: "Cursiva manuscrita pura" },
-          { id: "architects", label: "Architects Daughter", descricao: "Letra de caderno" },
+          { id: "padrao", label: "Padrão (Times)", descricao: "Times azul no PDF oficial" },
+          { id: "allura", label: "Allura (manuscrita)", descricao: "Cursiva no PDF oficial" },
+          { id: "architects", label: "Architects Daughter", descricao: "Caderno no PDF oficial" },
         ];
     const options = list.map((f) => {
       const disabled = f.disponivel === false ? "disabled" : "";

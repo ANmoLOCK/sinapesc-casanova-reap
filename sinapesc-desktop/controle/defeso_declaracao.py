@@ -1,4 +1,4 @@
-"""Declaração de Residência — PDF no modelo oficial + escolha de fonte."""
+"""Declaração de Residência — sempre no PDF oficial do MTE + escolha de fonte."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from controle.defeso import FichaDefeso, pasta_declaracoes
 from ui.formatters import display_nome, format_cpf, only_digits
@@ -19,24 +19,26 @@ def _app_root() -> Path:
 
 
 # Opções de fonte (id -> metadados)
+# padrao = Times embutido do PDF; demais = TTF em assets/defeso/fonts
 FONTES: Dict[str, Dict[str, str]] = {
     "padrao": {
         "id": "padrao",
         "label": "Padrão (Times)",
-        "descricao": "Texto formal atual do programa",
+        "descricao": "Times azul nos espaços do PDF oficial",
         "file": "",
+        "pdf_font": "times-roman",
     },
     "allura": {
         "id": "allura",
         "label": "Allura (manuscrita)",
-        "descricao": "Cursiva manuscrita pura",
+        "descricao": "Cursiva manuscrita pura no PDF oficial",
         "file": "Allura-Pura.ttf",
         "fallback": "Allura-Regular.ttf",
     },
     "architects": {
         "id": "architects",
         "label": "Architects Daughter",
-        "descricao": "Letra de caderno / manuscrita",
+        "descricao": "Letra de caderno no PDF oficial",
         "file": "ArchitectsDaughter-Regular.ttf",
     },
 }
@@ -138,13 +140,27 @@ def _fit_size(font: Any, text: str, max_w: float, want: float) -> float:
     return 8.0
 
 
+def _bind_font(page: Any, fitz: Any, fonte_id: str) -> Tuple[str, Any]:
+    """Retorna (fontname para insert_text, objeto Font para medir)."""
+    meta = FONTES.get(fonte_id) or {}
+    builtin = meta.get("pdf_font") or ""
+    if builtin:
+        return builtin, fitz.Font(builtin)
+
+    font_path = _resolve_font_file(fonte_id)
+    if not font_path:
+        raise ValueError(f"Fonte '{fonte_id}' não encontrada nos assets.")
+    page.insert_font(fontname="hand", fontfile=str(font_path))
+    return "hand", fitz.Font(fontfile=str(font_path))
+
+
 def preencher_pdf(
     ficha: FichaDefeso,
     *,
-    fonte_id: str = "allura",
+    fonte_id: str = "padrao",
     size: float = 16.0,
 ) -> Path:
-    """Gera PDF do modelo oficial com texto azul na fonte escolhida."""
+    """Gera PDF do modelo oficial com texto azul na fonte escolhida (sempre overlay)."""
     try:
         import pymupdf as fitz
     except ImportError as exc:  # pragma: no cover
@@ -153,12 +169,6 @@ def preencher_pdf(
         ) from exc
 
     fonte_id = normalize_fonte(fonte_id)
-    if fonte_id == "padrao":
-        raise ValueError("Fonte padrão usa HTML, não PDF.")
-
-    font_path = _resolve_font_file(fonte_id)
-    if not font_path:
-        raise ValueError(f"Fonte '{fonte_id}' não encontrada nos assets.")
 
     modelo = modelo_pdf_path()
     if not modelo.is_file():
@@ -167,8 +177,7 @@ def preencher_pdf(
     valores = valores_da_ficha(ficha)
     doc = fitz.open(modelo)
     page = doc[0]
-    page.insert_font(fontname="hand", fontfile=str(font_path))
-    font = fitz.Font(fontfile=str(font_path))
+    fontname, font = _bind_font(page, fitz, fonte_id)
 
     for key, (x0, yu, x1) in FIELDS.items():
         text = (valores.get(key) or "").strip()
@@ -185,7 +194,7 @@ def preencher_pdf(
         page.insert_text(
             (x, yu - 3.4),
             text,
-            fontname="hand",
+            fontname=fontname,
             fontsize=fs,
             color=PEN_BLUE,
         )

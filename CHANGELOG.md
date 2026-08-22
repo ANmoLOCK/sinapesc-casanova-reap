@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.7] — 2026-08-22 — Declaração sempre no PDF oficial
+
+**Tag:** [`v1.7.7`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.7)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.7/SinapescREAP-Windows-v1.7.7.zip
+
+### O que entrou
+- **Imprimir declaração** sempre preenche o PDF oficial do MTE (texto azul nos espaços)
+- Fonte **Padrão (Times)** também no PDF — não gera mais HTML separado
+- Allura / Architects Daughter continuam no mesmo modelo
+
+---
+
 ## [v1.7.6] — 2026-08-22 — Pasta Drive padrão em D:
 
 **Tag:** [`v1.7.6`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6)  

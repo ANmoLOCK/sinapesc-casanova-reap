@@ -17,7 +17,6 @@ from config import import_credentials_file, is_sheets_configured, load_config, s
 from controle.auditoria import combina_busca
 from controle.backup import backup_root, gravar_backup, listar_backups
 from controle.calendario import meses_para_texto
-from controle.defeso import montar_declaracao_html, salvar_declaracao_html
 from controle.defeso_anexos import (
     anexos_mode,
     is_storage_quota_error,
@@ -969,12 +968,8 @@ class SinapescApi:
 
             cfg = load_config()
             fonte = normalize_fonte(str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE))
-
-            if fonte == "padrao":
-                html_txt = montar_declaracao_html(ficha, org_full=ORG_FULL)
-                path = salvar_declaracao_html(html_txt, cpf=ficha.cpf, nome=ficha.nome)
-            else:
-                path = preencher_pdf(ficha, fonte_id=fonte, size=16.0)
+            # Sempre preenche o PDF oficial do MTE (texto azul por cima do modelo)
+            path = preencher_pdf(ficha, fonte_id=fonte, size=16.0)
 
             try:
                 if os.name == "nt":
@@ -1001,11 +996,10 @@ class SinapescApi:
     def set_defeso_fonte(self, fonte_id: str = "") -> Dict[str, Any]:
         cfg = load_config()
         fonte = normalize_fonte(fonte_id)
-        if fonte != "padrao":
-            from controle.defeso_declaracao import _resolve_font_file
+        from controle.defeso_declaracao import _resolve_font_file
 
-            if _resolve_font_file(fonte) is None:
-                return err(f"Fonte '{fonte}' indisponível neste EXE.")
+        if fonte != "padrao" and _resolve_font_file(fonte) is None:
+            return err(f"Fonte '{fonte}' indisponível neste EXE.")
         cfg["defeso_declaracao_fonte"] = fonte
         save_config(cfg)
         return ok(fonte=fonte, fontes=listar_fontes())
