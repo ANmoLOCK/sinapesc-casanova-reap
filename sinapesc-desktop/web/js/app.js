@@ -1465,10 +1465,23 @@
           <div><label>Telefone</label><input id="df-tel" /></div>
           <div><label>E-mail</label><input id="df-email" /></div>
         </div>
-        <div class="form-actions" style="margin-top:14px">
+        <div class="form-actions defeso-actions" style="margin-top:14px">
           <button type="button" class="btn btn-outline-dark" id="df-back">← Lista</button>
           <button type="button" class="btn btn-primary" id="df-save">Salvar na planilha</button>
-          <button type="button" class="btn btn-primary" id="df-print">Gerar declaração / Imprimir</button>
+          <button type="button" class="btn btn-primary" id="df-print">Gerar declaração</button>
+          <button type="button" class="btn btn-primary" id="df-pacote" title="Junta declaração e anexos num único PDF">Juntar PDF</button>
+        </div>
+        <div class="defeso-pacote-box" id="df-pacote-box">
+          <div class="defeso-pacote-head">
+            <strong>Montar pacote PDF</strong>
+            <span class="page-sub">Marque o que entra no arquivo único</span>
+          </div>
+          <div class="defeso-pacote-checks" id="df-pacote-checks">
+            <label class="pacote-check"><input type="checkbox" name="df-pacote-item" value="declaracao" checked /> Declaração</label>
+            <label class="pacote-check"><input type="checkbox" name="df-pacote-item" value="identidade" checked /> Identidade</label>
+            <label class="pacote-check"><input type="checkbox" name="df-pacote-item" value="pesca" checked /> Carteira de pescador</label>
+            <label class="pacote-check"><input type="checkbox" name="df-pacote-item" value="caf" checked /> CAF</label>
+          </div>
         </div>
         <div class="defeso-anexos" id="df-anexos">
           <h4>Anexos</h4>
@@ -1482,8 +1495,12 @@
           <ul id="df-anexo-list" class="defeso-anexo-list"></ul>
         </div>
         <div class="defeso-fonte-bar">
-          <button type="button" class="btn-gear" id="df-fonte-gear" title="Fonte da declaração">⚙</button>
-          <span class="page-sub" id="df-fonte-label">Fonte da declaração: Padrão</span>
+          <button type="button" class="btn-fonte" id="df-fonte-btn" title="Letra da declaração" aria-label="Letra da declaração">
+            <svg class="icone-fonte" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="currentColor" d="M4 19h3.2l.7-2h4.2l.7 2H16l-4.1-11h-3.8L4 19zm4.6-4.2L10.3 10h.2l1.7 4.8H8.6zM17.2 8.2c1.7 0 2.9.8 2.9 2.1 0 1-.6 1.7-1.8 2.1l1.2 1.6H18l-1-1.4h-.4v1.4h-1.5V8.2h2.1zm0 1.3h-.5v1.8h.5c.7 0 1.1-.3 1.1-.9s-.4-.9-1.1-.9z"/>
+            </svg>
+          </button>
+          <span class="page-sub" id="df-fonte-label">Letra da declaração: Manuscrita (Allura)</span>
         </div>
       </div>
     `);
@@ -1498,15 +1515,31 @@
         "allura";
       api("print_defeso_declaracao", payload.id || "", payload, fonte);
     });
+    $("#df-pacote")?.addEventListener("click", () => {
+      const payload = collectDefesoPayload();
+      const fonte = state.bootstrap?.defeso_declaracao_fonte || "allura";
+      const itens = collectDefesoPacoteItens();
+      if (!itens.length) {
+        toast("Marque pelo menos um item do pacote.");
+        return;
+      }
+      api("print_defeso_pacote", payload.id || "", payload, itens.join(","), fonte);
+    });
     bindDefesoUpload("df-file-id", "identidade");
     bindDefesoUpload("df-file-pesca", "pesca");
     bindDefesoUpload("df-file-caf", "caf");
     $("#df-open-anexos")?.addEventListener("click", () => {
       api("open_defeso_anexos_dir").then((r) => { if (!r.ok) toast(r.error); });
     });
-    $("#df-fonte-gear")?.addEventListener("click", () => openDefesoFonteModal());
+    $("#df-fonte-btn")?.addEventListener("click", () => openDefesoFonteModal());
     refreshDefesoFonteLabel();
     api("load_defeso_ficha", ref.person_id || "", ref.cpf || "", ref.ficha_id || "");
+  }
+
+  function collectDefesoPacoteItens() {
+    return Array.from(document.querySelectorAll('input[name="df-pacote-item"]:checked'))
+      .map((el) => el.value)
+      .filter(Boolean);
   }
 
   function fonteLabelFromId(id) {
@@ -1524,7 +1557,7 @@
     const el = $("#df-fonte-label");
     if (!el) return;
     const id = state.bootstrap?.defeso_declaracao_fonte || "allura";
-    el.textContent = `Fonte da declaração: ${fonteLabelFromId(id)}`;
+    el.textContent = `Letra da declaração: ${fonteLabelFromId(id)}`;
   }
 
   async function openDefesoFonteModal() {
@@ -1555,7 +1588,7 @@
     }).join("");
 
     const backdrop = createModal(`
-      <div class="modal-head">Fonte da declaração</div>
+      <div class="modal-head">Letra da declaração</div>
       <div class="modal-body">
         <p class="page-sub" style="margin:0 0 10px">Escolha a letra (efeito de caneta no formulário oficial).</p>
         <div class="fonte-list">${options}</div>
@@ -1575,7 +1608,7 @@
       const saved = r.fonte || r.data?.fonte || chosen;
       if (state.bootstrap) state.bootstrap.defeso_declaracao_fonte = saved;
       refreshDefesoFonteLabel();
-      toast(`Fonte: ${fonteLabelFromId(saved)}`);
+      toast(`Letra: ${fonteLabelFromId(saved)}`);
       backdrop._close(true);
     });
   }
@@ -1843,6 +1876,15 @@
     AppEvents.on("defeso_print", (r) => {
       if (r.ok) {
         toast("Declaração aberta para imprimir.");
+        if (r.data?.ficha_id && $("#df-id")) $("#df-id").value = r.data.ficha_id;
+      } else toast(r.error);
+    });
+    AppEvents.on("defeso_pacote", (r) => {
+      if (r.ok) {
+        const n = r.data?.incluidos?.length || 0;
+        const pages = r.data?.pages || "?";
+        toast(`Pacote PDF aberto (${n} doc(s), ${pages} pág.).`);
+        if (r.data?.aviso) toast(r.data.aviso, 7000);
         if (r.data?.ficha_id && $("#df-id")) $("#df-id").value = r.data.ficha_id;
       } else toast(r.error);
     });

@@ -67,4 +67,6 @@ ID limpo (sem `?hl=pt-br`):
 
 ## Fluxo
 
-Home → **Defeso Fácil** → login → Abrir ficha → Salvar → Imprimir declaração → Anexar docs
+Home → **Defeso Fácil** → login → Abrir ficha → Salvar → Anexar docs → **Gerar declaração** e/ou **Juntar PDF** (marque Declaração / Identidade / Carteira / CAF)
+
+A letra da declaração fica no botão **Aa** (não na engrenagem).

@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.10] — 2026-08-22 — Pacote PDF Defeso + ícone de letra
+
+**Tag:** [`v1.7.10`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.10)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.10/SinapescREAP-Windows-v1.7.10.zip
+
+### O que entrou
+- Engrenagem da declaração trocada por ícone **Aa** (letra), no azul do app
+- Botão **Juntar PDF** ao lado de Gerar declaração
+- Caixinhas: Declaração · Identidade · Carteira de pescador · CAF → um único PDF
+
+---
+
 ## [v1.7.9] — 2026-08-22 — Declaração com letra de mão (caneta)
 
 **Tag:** [`v1.7.9`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.9)  

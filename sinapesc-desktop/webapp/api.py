@@ -30,6 +30,7 @@ from controle.defeso_declaracao import (
     normalize_fonte,
     preencher_pdf,
 )
+from controle.defeso_pacote import listar_opcoes_pacote, montar_pacote_pdf, normalize_selecao
 from controle.pendencias import classificar
 from controle.relatorio import itens_para_relatorio, montar_html, nome_arquivo_relatorio, salvar_html
 from drive import DriveDefesoClient
@@ -988,6 +989,54 @@ class SinapescApi:
             return {"path": str(path), "ficha_id": ficha.id, "fonte": fonte}
 
         return self._run_async("defeso_print", work, "Gerando declaração…")
+
+    def print_defeso_pacote(
+        self,
+        ficha_id: str = "",
+        payload: Optional[Dict[str, Any]] = None,
+        itens: Optional[Any] = None,
+        fonte_id: str = "",
+    ) -> Dict[str, Any]:
+        """Junta declaração + anexos escolhidos num único PDF e abre."""
+
+        def work():
+            defeso = self._ensure_defeso()
+            ficha = defeso.por_id(ficha_id) if ficha_id else None
+            if ficha is None and isinstance(payload, dict) and payload:
+                ficha = defeso.salvar(payload)
+            if ficha is None:
+                raise ValueError("Salve a ficha antes de montar o pacote.")
+
+            cfg = load_config()
+            if isinstance(itens, str):
+                # pywebview pode mandar CSV
+                raw_itens = [x.strip() for x in itens.split(",") if x.strip()]
+            elif isinstance(itens, list):
+                raw_itens = itens
+            else:
+                raw_itens = normalize_selecao(None)
+
+            fonte = (fonte_id or "").strip() or str(
+                cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE
+            )
+            result = montar_pacote_pdf(
+                ficha, itens=raw_itens, fonte_id=fonte, cfg=cfg
+            )
+            path = Path(result["path"])
+            try:
+                if os.name == "nt":
+                    os.startfile(str(path))  # type: ignore[attr-defined]
+                else:
+                    webbrowser.open(path.resolve().as_uri())
+            except OSError as exc:
+                raise ValueError(f"Não foi possível abrir o pacote PDF: {exc}") from exc
+            result["ficha_id"] = ficha.id
+            return result
+
+        return self._run_async("defeso_pacote", work, "Montando pacote PDF…")
+
+    def get_defeso_pacote_opcoes(self) -> Dict[str, Any]:
+        return ok({"itens": listar_opcoes_pacote()})
 
     def get_defeso_fontes(self) -> Dict[str, Any]:
         cfg = load_config()

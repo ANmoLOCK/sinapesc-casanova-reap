@@ -233,18 +233,25 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "function formatNome(" in js
     assert "function bindCpfMask(" in js
     assert 'api("print_qr"' in js
-    assert "df-fonte-gear" in js
+    assert "df-fonte-btn" in js
     assert "openDefesoFonteModal" in js
     assert "set_defeso_fonte" in js
     assert 'api("print_defeso_declaracao"' in js
+    assert 'api("print_defeso_pacote"' in js
+    assert "df-pacote" in js
+    assert "df-pacote-item" in js
     assert "defeso_declaracao_fonte" in js
     assert "window.open(\"\")" not in js
+    assert "df-fonte-gear" not in js
+    assert "btn-fonte" in js
+    assert "id=\"df-fonte-btn\"" in js
     assert "qr-url" not in js
     assert "000.000.000-00" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "self._queue" in api_py
     assert "queued" in api_py
     assert "def print_qr(" in api_py
+    assert "def print_defeso_pacote(" in api_py
     assert '<p class="url">' not in api_py
     qrutil = (ROOT / "ui" / "qrutil.py").read_text(encoding="utf-8")
     assert "url_show" not in qrutil
@@ -527,6 +534,106 @@ def test_defeso_fontes_e_pdf() -> None:
     assert len(hand_spans) >= 10  # efeito mão: vários glifos separados
 
 
+def test_defeso_pacote_pdf() -> None:
+    import tempfile
+    from pathlib import Path
+
+    import pymupdf as fitz
+
+    from controle.defeso import FichaDefeso
+    from controle.defeso_anexos import salvar_anexo_local
+    from controle.defeso_pacote import (
+        achar_anexo_arquivo,
+        listar_opcoes_pacote,
+        montar_pacote_pdf,
+        normalize_selecao,
+    )
+
+    assert {x["id"] for x in listar_opcoes_pacote()} >= {
+        "declaracao",
+        "identidade",
+        "pesca",
+        "caf",
+    }
+    assert normalize_selecao([]) == ["declaracao", "identidade", "pesca", "caf"]
+    assert normalize_selecao(["caf", "declaracao"]) == ["caf", "declaracao"]
+
+    ficha = FichaDefeso(
+        nome="JOSE PACOTE",
+        cpf="52998224725",
+        rg="1",
+        nacionalidade="Brasileira",
+        profissao="Pescador",
+        endereco="Rua X",
+        numero="1",
+        bairro="Centro",
+        municipio="Casa Nova",
+        uf="BA",
+        cep="47300-000",
+        telefone="74",
+        email="a@b.com",
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = {"defeso_anexos_dir": tmp}
+        # identidade PDF mínimo
+        id_doc = fitz.open()
+        id_doc.new_page()
+        id_doc[0].insert_text((72, 72), "IDENTIDADE", fontsize=14)
+        id_bytes = id_doc.tobytes()
+        id_doc.close()
+        import base64
+
+        salvar_anexo_local(
+            cpf=ficha.cpf,
+            kind="identidade",
+            filename="identidade.pdf",
+            data_b64=base64.b64encode(id_bytes).decode("ascii"),
+            cfg=cfg,
+        )
+        # CAF como PNG via pixmap
+        img_doc = fitz.open()
+        img_doc.new_page(width=200, height=200)
+        img_doc[0].insert_text((20, 100), "CAF", fontsize=24)
+        pix = img_doc[0].get_pixmap()
+        # salvar via API anexos
+        salvar_anexo_local(
+            cpf=ficha.cpf,
+            kind="caf",
+            filename="caf.png",
+            data_b64=base64.b64encode(pix.tobytes("png")).decode("ascii"),
+            cfg=cfg,
+        )
+        img_doc.close()
+
+        assert achar_anexo_arquivo(ficha.cpf, "identidade", cfg) is not None
+        assert achar_anexo_arquivo(ficha.cpf, "caf", cfg) is not None
+        assert achar_anexo_arquivo(ficha.cpf, "pesca", cfg) is None
+
+        pack = montar_pacote_pdf(
+            ficha,
+            itens=["declaracao", "identidade", "caf", "pesca"],
+            fonte_id="padrao",
+            cfg=cfg,
+        )
+        assert Path(pack["path"]).is_file()
+        assert pack["pages"] >= 3  # declaração + id + caf imagem
+        assert any(x["id"] == "declaracao" for x in pack["incluidos"])
+        assert "Carteira" in " ".join(pack["faltando"]) or pack["faltando"]
+
+        # só declaração
+        pack2 = montar_pacote_pdf(
+            ficha, itens=["declaracao"], fonte_id="padrao", cfg=cfg
+        )
+        assert pack2["pages"] >= 1
+        assert not pack2["faltando"]
+
+
+def only_digits_cpf_helper(cpf: str) -> str:
+    from ui.formatters import only_digits
+
+    return only_digits(cpf)
+
+
 def test_config_appdata_sobrescreve_exe() -> None:
     """UI salva em AppData; deve vencer o config.json ao lado do EXE."""
     import json
@@ -575,6 +682,7 @@ if __name__ == "__main__":
     test_drive_client_tem_upload()
     test_defeso_anexo_local()
     test_defeso_fontes_e_pdf()
+    test_defeso_pacote_pdf()
     test_config_appdata_sobrescreve_exe()
     test_backup_rotacao()
     test_chrome_routes()
