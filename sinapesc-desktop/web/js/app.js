@@ -443,12 +443,12 @@
         <label>ID da planilha Defeso Fácil</label>
         <input id="cfg-defeso-sheet" value="${esc(s.defeso_spreadsheet_id || "")}" placeholder="1UxDjb78h7tYUnKXPcLVniuqAfWwrbvyf" />
         <label>Pasta anexos Defeso (Google Drive no PC)</label>
-        <input id="cfg-defeso-anexos" value="${esc(s.defeso_anexos_dir || "")}" placeholder="G:\\Meu Drive\\Sinapesc-Defeso" />
+        <input id="cfg-defeso-anexos" value="${esc(s.defeso_anexos_dir || "")}" placeholder="D:\\Meu Drive\\Sinapesc-Defeso" />
         <div class="btn-row" style="margin:6px 0 12px">
           <button type="button" class="btn btn-outline-dark btn-sm" id="cfg-defeso-pick">Escolher pasta…</button>
           <button type="button" class="btn btn-ghost btn-sm" id="cfg-defeso-open">Abrir pasta</button>
         </div>
-        <p class="page-sub" style="margin-top:-6px">Recomendado: pasta dentro do Google Drive instalado (ex. unidade G:). O EXE grava ali e o Drive sincroniza com a sua cota.</p>
+        <p class="page-sub" style="margin-top:-6px">Recomendado: pasta dentro do Google Drive instalado (ex. unidade D:). O EXE grava ali e o Drive sincroniza com a sua cota.</p>
         <label>ID pasta Drive API (avançado / Shared Drive)</label>
         <input id="cfg-defeso-drive" value="${esc(s.defeso_drive_folder_id || "")}" placeholder="Só se usar Drive compartilhado via API" />
         <label>URL do site público (sem /consulta.html)</label>
@@ -1624,7 +1624,7 @@
       } else if (mode === "drive") {
         hint.textContent = "Anexos via API Drive (Shared Drive). Preferível: pasta do Google Drive no PC em Configurações.";
       } else {
-        hint.textContent = `Anexos locais: ${root || "pasta defeso_anexos"}. Em Configurações, escolha a pasta do Google Drive (G:).`;
+        hint.textContent = `Anexos locais: ${root || "pasta defeso_anexos"}. Em Configurações, escolha a pasta do Google Drive (D:).`;
       }
     }
     const ul = $("#df-anexo-list");

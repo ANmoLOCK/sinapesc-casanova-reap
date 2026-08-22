@@ -8,7 +8,7 @@ Na pasta do EXE (`C:\Sinapesc\config.json`), use (ou complete) assim:
 {
   "spreadsheet_id": "ID_DA_PLANILHA_REAP",
   "defeso_spreadsheet_id": "1UxDjb78h7tYUnKXPcLVniuqAfWwrbvyf",
-  "defeso_anexos_dir": "G:\\Meu Drive\\Sinapesc-Defeso",
+  "defeso_anexos_dir": "D:\\Meu Drive\\Sinapesc-Defeso",
   "defeso_drive_folder_id": "",
   "admin_email": "admin@sinapesc.local",
   "admin_password": "sinapesc",
@@ -23,7 +23,7 @@ Ou pela UI: **Configurações → Escolher pasta…** (recomendado).
 | Campo | O que é |
 |-------|---------|
 | `defeso_spreadsheet_id` | Planilha Defeso (dados da ficha) |
-| `defeso_anexos_dir` | **Pasta local sincronizada** (Google Drive no PC). Ex.: `G:\Meu Drive\Sinapesc-Defeso` |
+| `defeso_anexos_dir` | **Pasta local sincronizada** (Google Drive no PC). Ex.: `D:\Meu Drive\Sinapesc-Defeso` |
 | `defeso_declaracao_fonte` | Fonte da declaração: `padrao` · `allura` · `architects` (também pela engrenagem ⚙ na ficha) |
 | `defeso_drive_folder_id` | Avançado: ID de pasta via API (só Shared Drive / Workspace) |
 
@@ -35,7 +35,7 @@ A Conta de Serviço (**robô**) **não tem espaço** no “Meu Drive”. Upload 
 
 **Solução (v1.7.4):** use o **Google Drive para desktop** e aponte a pasta:
 
-1. Instale o Google Drive e espelhe/sincronize (ex. unidade **G:**)
+1. Instale o Google Drive e espelhe/sincronize (ex. unidade **D:**)
 2. Crie a pasta `Sinapesc-Defeso` dentro do Meu Drive
 3. No EXE → **Configurações** → **Escolher pasta…** → selecione essa pasta
 4. Anexe na ficha: o arquivo vai para `…\Sinapesc-Defeso\{CPF}\` e o Drive sobe com **sua** cota

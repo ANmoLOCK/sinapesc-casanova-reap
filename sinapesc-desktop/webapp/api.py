@@ -725,7 +725,7 @@ class SinapescApi:
             return err(str(exc))
 
     def pick_defeso_anexos_dir(self) -> Dict[str, Any]:
-        """Abre diálogo para escolher pasta sincronizada (ex.: G:\\Meu Drive\\Sinapesc-Defeso)."""
+        """Abre diálogo para escolher pasta sincronizada (ex.: D:\\Meu Drive\\Sinapesc-Defeso)."""
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -1070,7 +1070,7 @@ class SinapescApi:
                             "O Google bloqueou o upload pela API (conta de serviço sem cota). "
                             "Arquivo salvo na pasta local. "
                             "Melhor: em Configurações, escolha a pasta do Google Drive no PC "
-                            "(ex.: G:\\Meu Drive\\Sinapesc-Defeso)."
+                            "(ex.: D:\\Meu Drive\\Sinapesc-Defeso)."
                         )
                     else:
                         aviso = f"Drive falhou ({exc}). Anexo guardado localmente."
@@ -1085,7 +1085,7 @@ class SinapescApi:
                 )
                 aviso = (
                     "Anexo salvo na pasta local do EXE. "
-                    "Em Configurações → escolha a pasta do Google Drive (G:) para sincronizar."
+                    "Em Configurações → escolha a pasta do Google Drive (D:) para sincronizar."
                 )
 
             defeso.marcar_anexo(ficha.id, kind, True)

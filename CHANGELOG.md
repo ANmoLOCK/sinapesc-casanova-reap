@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.6] — 2026-08-22 — Pasta Drive padrão em D:
+
+**Tag:** [`v1.7.6`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.6/SinapescREAP-Windows-v1.7.6.zip
+
+### O que entrou
+- Exemplos/placeholders da pasta anexos Defeso: unidade **D:** (`D:\Meu Drive\Sinapesc-Defeso`)
+
+---
+
 ## [v1.7.5] — 2026-08-22 — Fontes manuscritas na declaração Defeso
 
 **Tag:** [`v1.7.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5)  
@@ -26,7 +36,7 @@ Formato: mais recente primeiro.
 
 ### O que entrou
 - Configurações: **Escolher pasta…** / **Abrir pasta** para anexos Defeso
-- Grava em pasta do Google Drive no PC (ex. `G:\Meu Drive\Sinapesc-Defeso\{CPF}\`) — sync usa a cota do usuário
+- Grava em pasta do Google Drive no PC (ex. `D:\Meu Drive\Sinapesc-Defeso\{CPF}\`) — sync usa a cota do usuário
 - Campo `defeso_anexos_dir` no `config.json`; ID Drive API fica avançado/opcional
 
 ---

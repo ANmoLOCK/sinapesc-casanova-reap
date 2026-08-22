@@ -49,7 +49,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.5)
+          SINAPESC REAP — COMO USAR (v1.7.6)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -67,7 +67,7 @@ jobs:
           7. Login admin: abas Sócios, Pendencias, Relatorio, Backup, Auditoria
           A primeira conexao cria as abas Auditoria e Config na planilha.
           8. Defeso Facil: em Configuracoes, Escolher pasta do Google Drive
-             (ex. G:\Meu Drive\Sinapesc-Defeso) para anexos sincronizarem.
+             (ex. D:\Meu Drive\Sinapesc-Defeso) para anexos sincronizarem.
           9. Na ficha Defeso, use a engrenagem para escolher a fonte da
              declaracao (Padrao, Allura ou Architects Daughter).
 

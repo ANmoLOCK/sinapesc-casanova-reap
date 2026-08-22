@@ -11,7 +11,7 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.5**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5) |
+| Versão atual | [**v1.7.6**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
@@ -56,7 +56,7 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ## O que há na v1.7.4
 
-- Anexos Defeso: **escolher pasta** do Google Drive no PC (ex. `G:\Meu Drive\Sinapesc-Defeso`) — o Drive sincroniza com a sua cota
+- Anexos Defeso: **escolher pasta** do Google Drive no PC (ex. `D:\Meu Drive\Sinapesc-Defeso`) — o Drive sincroniza com a sua cota
 - Sem pasta: continua em AppData local; ID Drive API fica opcional/avançado
 
 ## O que há na v1.7.3
