@@ -1493,7 +1493,10 @@
     });
     $("#df-print").addEventListener("click", () => {
       const payload = collectDefesoPayload();
-      api("print_defeso_declaracao", payload.id || "", payload);
+      const fonte =
+        state.bootstrap?.defeso_declaracao_fonte ||
+        "padrao";
+      api("print_defeso_declaracao", payload.id || "", payload, fonte);
     });
     bindDefesoUpload("df-file-id", "identidade");
     bindDefesoUpload("df-file-pesca", "pesca");
@@ -1524,7 +1527,7 @@
 
   async function openDefesoFonteModal() {
     const res = await api("get_defeso_fontes");
-    const data = res.ok ? (res.data || res) : {};
+    const data = res.ok ? { ...(res.data || {}), ...res } : {};
     const atual = data.fonte || state.bootstrap?.defeso_declaracao_fonte || "padrao";
     const fontes = (data.fontes || []).filter((f) => f && f.id);
     const list = fontes.length
@@ -1565,9 +1568,10 @@
         toast(r.error || "Não foi possível salvar a fonte.");
         return;
       }
-      if (state.bootstrap) state.bootstrap.defeso_declaracao_fonte = r.fonte || chosen;
+      const saved = r.fonte || r.data?.fonte || chosen;
+      if (state.bootstrap) state.bootstrap.defeso_declaracao_fonte = saved;
       refreshDefesoFonteLabel();
-      toast(`Fonte: ${fonteLabelFromId(r.fonte || chosen)}`);
+      toast(`Fonte: ${fonteLabelFromId(saved)}`);
       backdrop._close(true);
     });
   }

@@ -956,7 +956,10 @@ class SinapescApi:
         return self._run_async("defeso_saved", work, "Salvando ficha Defeso…")
 
     def print_defeso_declaracao(
-        self, ficha_id: str = "", payload: Optional[Dict[str, Any]] = None
+        self,
+        ficha_id: str = "",
+        payload: Optional[Dict[str, Any]] = None,
+        fonte_id: str = "",
     ) -> Dict[str, Any]:
         def work():
             defeso = self._ensure_defeso()
@@ -967,7 +970,11 @@ class SinapescApi:
                 raise ValueError("Salve a ficha antes de imprimir.")
 
             cfg = load_config()
-            fonte = normalize_fonte(str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE))
+            # Preferência: fonte passada pela UI; senão a salva no config
+            raw = (fonte_id or "").strip() or str(
+                cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE
+            )
+            fonte = normalize_fonte(raw)
             # Sempre preenche o PDF oficial do MTE (texto azul por cima do modelo)
             path = preencher_pdf(ficha, fonte_id=fonte, size=16.0)
 

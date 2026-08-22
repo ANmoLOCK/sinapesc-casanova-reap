@@ -236,6 +236,8 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "df-fonte-gear" in js
     assert "openDefesoFonteModal" in js
     assert "set_defeso_fonte" in js
+    assert 'api("print_defeso_declaracao"' in js
+    assert "defeso_declaracao_fonte" in js
     assert "window.open(\"\")" not in js
     assert "qr-url" not in js
     assert "000.000.000-00" in js
@@ -510,6 +512,40 @@ def test_defeso_fontes_e_pdf() -> None:
     assert "Jose Da Silva Santos" in txt or "JOSE DA SILVA SANTOS" in txt.upper()
 
 
+def test_config_appdata_sobrescreve_exe() -> None:
+    """UI salva em AppData; deve vencer o config.json ao lado do EXE."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    import config as cfgmod
+
+    root = Path(tempfile.mkdtemp())
+    exe = root / "exe"
+    app = root / "appdata"
+    exe.mkdir()
+    app.mkdir()
+    (exe / "config.json").write_text(
+        json.dumps({"spreadsheet_id": "SHEET", "defeso_declaracao_fonte": "padrao"}),
+        encoding="utf-8",
+    )
+
+    old_exe, old_app = cfgmod.exe_dir, cfgmod.app_data_dir
+    cfgmod.exe_dir = lambda: exe  # type: ignore[assignment]
+    cfgmod.app_data_dir = lambda: app  # type: ignore[assignment]
+    try:
+        assert cfgmod.load_config()["defeso_declaracao_fonte"] == "padrao"
+        c = cfgmod.load_config()
+        c["defeso_declaracao_fonte"] = "allura"
+        cfgmod.save_config(c)
+        assert (app / "config.json").is_file()
+        assert cfgmod.load_config()["defeso_declaracao_fonte"] == "allura"
+        assert cfgmod.load_config()["spreadsheet_id"] == "SHEET"
+    finally:
+        cfgmod.exe_dir = old_exe  # type: ignore[assignment]
+        cfgmod.app_data_dir = old_app  # type: ignore[assignment]
+
+
 if __name__ == "__main__":
     test_formatters()
     test_display_nome()
@@ -524,6 +560,7 @@ if __name__ == "__main__":
     test_drive_client_tem_upload()
     test_defeso_anexo_local()
     test_defeso_fontes_e_pdf()
+    test_config_appdata_sobrescreve_exe()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

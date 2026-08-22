@@ -91,15 +91,24 @@ def _apply_credentials_file(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    path = config_path()
+    """Carrega config: defaults → config ao lado do EXE → AppData (UI ganha)."""
     merged = dict(DEFAULT_CONFIG)
-    if path.exists():
+
+    def _read(path: Path) -> None:
+        if not path.exists():
+            return
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 merged.update(data)
         except (json.JSONDecodeError, OSError):
             pass
+
+    # 1) config.json distribuído / editado ao lado do .exe
+    _read(exe_dir() / CONFIG_FILENAME)
+    # 2) prefs salvas pela UI (fonte da declaração, pasta anexos, etc.)
+    #    Sem isso, save_config em AppData nunca era lido quando existia config ao lado do EXE.
+    _read(app_data_dir() / CONFIG_FILENAME)
     return _apply_credentials_file(merged)
 
 
@@ -108,6 +117,7 @@ def save_config(cfg: Dict[str, Any]) -> None:
     path = app_data_dir() / CONFIG_FILENAME
     # Não grava a chave privada duplicada se já temos o arquivo JSON ao lado do exe
     to_save = dict(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(to_save, ensure_ascii=False, indent=2), encoding="utf-8")
 
 

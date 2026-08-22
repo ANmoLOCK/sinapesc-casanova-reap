@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.8] — 2026-08-22 — Fonte da declaração passa a gravar de verdade
+
+**Tag:** [`v1.7.8`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.8)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.8/SinapescREAP-Windows-v1.7.8.zip
+
+### O que entrou
+- Fix: engrenagem ⚙ salvava a fonte no AppData, mas a impressão lia só o `config.json` ao lado do EXE — sempre saía a mesma fonte
+- Agora o AppData sobrescreve as prefs da UI; a impressão também envia a fonte escolhida na hora
+
+---
+
 ## [v1.7.7] — 2026-08-22 — Declaração sempre no PDF oficial
 
 **Tag:** [`v1.7.7`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.7)  
