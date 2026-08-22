@@ -24,6 +24,7 @@ Ou pela UI: **Configurações → Escolher pasta…** (recomendado).
 |-------|---------|
 | `defeso_spreadsheet_id` | Planilha Defeso (dados da ficha) |
 | `defeso_anexos_dir` | **Pasta local sincronizada** (Google Drive no PC). Ex.: `G:\Meu Drive\Sinapesc-Defeso` |
+| `defeso_declaracao_fonte` | Fonte da declaração: `padrao` · `allura` · `architects` (também pela engrenagem ⚙ na ficha) |
 | `defeso_drive_folder_id` | Avançado: ID de pasta via API (só Shared Drive / Workspace) |
 
 ---

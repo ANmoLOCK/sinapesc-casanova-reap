@@ -1481,6 +1481,10 @@
           </div>
           <ul id="df-anexo-list" class="defeso-anexo-list"></ul>
         </div>
+        <div class="defeso-fonte-bar">
+          <button type="button" class="btn-gear" id="df-fonte-gear" title="Fonte da declaração">⚙</button>
+          <span class="page-sub" id="df-fonte-label">Fonte da declaração: Padrão</span>
+        </div>
       </div>
     `);
     $("#df-back").addEventListener("click", () => navigate("defeso", { push: false }));
@@ -1497,7 +1501,75 @@
     $("#df-open-anexos")?.addEventListener("click", () => {
       api("open_defeso_anexos_dir").then((r) => { if (!r.ok) toast(r.error); });
     });
+    $("#df-fonte-gear")?.addEventListener("click", () => openDefesoFonteModal());
+    refreshDefesoFonteLabel();
     api("load_defeso_ficha", ref.person_id || "", ref.cpf || "", ref.ficha_id || "");
+  }
+
+  function fonteLabelFromId(id) {
+    const map = {
+      padrao: "Padrão (Times)",
+      allura: "Allura (manuscrita)",
+      architects: "Architects Daughter",
+    };
+    return map[id] || id || "Padrão (Times)";
+  }
+
+  function refreshDefesoFonteLabel() {
+    const el = $("#df-fonte-label");
+    if (!el) return;
+    const id = state.bootstrap?.defeso_declaracao_fonte || "padrao";
+    el.textContent = `Fonte da declaração: ${fonteLabelFromId(id)}`;
+  }
+
+  async function openDefesoFonteModal() {
+    const res = await api("get_defeso_fontes");
+    const data = res.ok ? (res.data || res) : {};
+    const atual = data.fonte || state.bootstrap?.defeso_declaracao_fonte || "padrao";
+    const fontes = (data.fontes || []).filter((f) => f && f.id);
+    const list = fontes.length
+      ? fontes
+      : [
+          { id: "padrao", label: "Padrão (Times)", descricao: "Texto formal atual" },
+          { id: "allura", label: "Allura (manuscrita)", descricao: "Cursiva manuscrita pura" },
+          { id: "architects", label: "Architects Daughter", descricao: "Letra de caderno" },
+        ];
+    const options = list.map((f) => {
+      const disabled = f.disponivel === false ? "disabled" : "";
+      const checked = f.id === atual ? "checked" : "";
+      return `
+        <label class="fonte-option ${disabled}">
+          <input type="radio" name="df-fonte" value="${esc(f.id)}" ${checked} ${disabled} />
+          <span>
+            <strong>${esc(f.label || f.id)}</strong>
+            <small>${esc(f.descricao || "")}</small>
+          </span>
+        </label>`;
+    }).join("");
+
+    const backdrop = createModal(`
+      <div class="modal-head">Fonte da declaração</div>
+      <div class="modal-body">
+        <p class="page-sub" style="margin:0 0 10px">Escolha como o texto preenchido aparece no formulário oficial.</p>
+        <div class="fonte-list">${options}</div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="df-fonte-save">Salvar</button>
+      </div>
+    `);
+    backdrop.querySelector("#df-fonte-save")?.addEventListener("click", async () => {
+      const chosen = backdrop.querySelector('input[name="df-fonte"]:checked')?.value || "padrao";
+      const r = await api("set_defeso_fonte", chosen);
+      if (!r.ok) {
+        toast(r.error || "Não foi possível salvar a fonte.");
+        return;
+      }
+      if (state.bootstrap) state.bootstrap.defeso_declaracao_fonte = r.fonte || chosen;
+      refreshDefesoFonteLabel();
+      toast(`Fonte: ${fonteLabelFromId(r.fonte || chosen)}`);
+      backdrop._close(true);
+    });
   }
 
   function collectDefesoPayload() {

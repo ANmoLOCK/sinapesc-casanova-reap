@@ -567,6 +567,73 @@ body { overflow: hidden; }
   color: var(--muted);
 }
 
+.defeso-fonte-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.btn-gear {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #f7f7f7;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-gear:hover {
+  background: #eee;
+  border-color: #999;
+}
+
+.fonte-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fonte-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fonte-option:hover {
+  border-color: #888;
+  background: #fafafa;
+}
+
+.fonte-option.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fonte-option strong {
+  display: block;
+  font-size: 14px;
+}
+
+.fonte-option small {
+  display: block;
+  color: #555;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.fonte-option input {
+  margin-top: 3px;
+}
+
 @media (max-width: 900px) {
   .defeso-form .defeso-grid { grid-template-columns: 1fr; }
 }

@@ -49,7 +49,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.4)
+          SINAPESC REAP — COMO USAR (v1.7.5)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -68,8 +68,10 @@ jobs:
           A primeira conexao cria as abas Auditoria e Config na planilha.
           8. Defeso Facil: em Configuracoes, Escolher pasta do Google Drive
              (ex. G:\Meu Drive\Sinapesc-Defeso) para anexos sincronizarem.
+          9. Na ficha Defeso, use a engrenagem para escolher a fonte da
+             declaracao (Padrao, Allura ou Architects Daughter).
 
-          9. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
+          10. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar
              ou modificar sem autorizacao.
 

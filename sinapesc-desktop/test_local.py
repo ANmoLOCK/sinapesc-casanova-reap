@@ -233,6 +233,9 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "function formatNome(" in js
     assert "function bindCpfMask(" in js
     assert 'api("print_qr"' in js
+    assert "df-fonte-gear" in js
+    assert "openDefesoFonteModal" in js
+    assert "set_defeso_fonte" in js
     assert "window.open(\"\")" not in js
     assert "qr-url" not in js
     assert "000.000.000-00" in js
@@ -460,6 +463,43 @@ def test_defeso_anexo_local() -> None:
     assert anexos_mode({"defeso_anexos_dir": "", "defeso_drive_folder_id": ""}) == "local"
 
 
+def test_defeso_fontes_e_pdf() -> None:
+    from controle.defeso import FichaDefeso
+    from controle.defeso_declaracao import (
+        DEFAULT_FONTE,
+        listar_fontes,
+        modelo_pdf_path,
+        normalize_fonte,
+        preencher_pdf,
+    )
+
+    fontes = listar_fontes()
+    ids = {f["id"] for f in fontes}
+    assert {"padrao", "allura", "architects"} <= ids
+    assert normalize_fonte("") == DEFAULT_FONTE
+    assert normalize_fonte("ALLURA") == "allura"
+    assert modelo_pdf_path().is_file()
+    ficha = FichaDefeso(
+        nome="JOSE DA SILVA SANTOS",
+        cpf="10582575524",
+        rg="123",
+        nacionalidade="Brasileira",
+        profissao="Pescador",
+        endereco="Rua A",
+        numero="10",
+        bairro="Centro",
+        municipio="Casa Nova",
+        uf="BA",
+        cep="47300-000",
+        telefone="74999998877",
+        email="a@b.com",
+    )
+    pdf = preencher_pdf(ficha, fonte_id="allura", size=16)
+    assert pdf.exists() and pdf.suffix == ".pdf"
+    pdf2 = preencher_pdf(ficha, fonte_id="architects", size=16)
+    assert pdf2.exists()
+
+
 if __name__ == "__main__":
     test_formatters()
     test_display_nome()
@@ -473,6 +513,7 @@ if __name__ == "__main__":
     test_normalize_sheet_id()
     test_drive_client_tem_upload()
     test_defeso_anexo_local()
+    test_defeso_fontes_e_pdf()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

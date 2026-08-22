@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.5] — 2026-08-22 — Fontes manuscritas na declaração Defeso
+
+**Tag:** [`v1.7.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.5/SinapescREAP-Windows-v1.7.5.zip
+
+### O que entrou
+- Engrenagem ⚙ na ficha Defeso Fácil para escolher fonte da declaração
+- Fontes: **Padrão (Times)**, **Allura (manuscrita)**, **Architects Daughter**
+- Allura/Architects preenchem o PDF oficial do MTE (azul nos espaços); Padrão mantém o HTML atual
+- Sem município/data automática na linha de assinatura (fica em branco)
+
+---
+
 ## [v1.7.4] — 2026-08-21 — Pasta Google Drive sync para anexos
 
 **Tag:** [`v1.7.4`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.4)  

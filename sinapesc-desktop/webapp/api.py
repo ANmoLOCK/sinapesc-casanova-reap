@@ -25,6 +25,12 @@ from controle.defeso_anexos import (
     pasta_anexos_root,
     salvar_anexo_local,
 )
+from controle.defeso_declaracao import (
+    DEFAULT_FONTE,
+    listar_fontes,
+    normalize_fonte,
+    preencher_pdf,
+)
 from controle.pendencias import classificar
 from controle.relatorio import itens_para_relatorio, montar_html, nome_arquivo_relatorio, salvar_html
 from drive import DriveDefesoClient
@@ -84,6 +90,9 @@ class SinapescApi:
                 "defeso_spreadsheet_id": str(cfg.get("defeso_spreadsheet_id") or ""),
                 "defeso_anexos_dir": str(cfg.get("defeso_anexos_dir") or ""),
                 "defeso_drive_folder_id": str(cfg.get("defeso_drive_folder_id") or ""),
+                "defeso_declaracao_fonte": normalize_fonte(
+                    str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
+                ),
                 "public_site_url": site,
                 "ultimo_backup_em": str(cfg.get("ultimo_backup_em") or "Nunca"),
                 "credentials_label": cred_label,
@@ -124,6 +133,10 @@ class SinapescApi:
                 "defeso_spreadsheet_id": str(cfg.get("defeso_spreadsheet_id") or ""),
                 "defeso_anexos_dir": str(cfg.get("defeso_anexos_dir") or ""),
                 "defeso_drive_folder_id": str(cfg.get("defeso_drive_folder_id") or ""),
+                "defeso_declaracao_fonte": normalize_fonte(
+                    str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
+                ),
+                "defeso_fontes": listar_fontes(),
                 "public_site_url": normalize_public_base(
                     cfg.get("public_site_url") or cfg.get("public_base_url") or ""
                 ),
@@ -156,6 +169,10 @@ class SinapescApi:
         if "defeso_drive_folder_id" in payload:
             cfg["defeso_drive_folder_id"] = normalize_sheet_id(
                 str(payload.get("defeso_drive_folder_id") or "")
+            )
+        if "defeso_declaracao_fonte" in payload:
+            cfg["defeso_declaracao_fonte"] = normalize_fonte(
+                str(payload.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             )
         if "public_site_url" in payload:
             base = normalize_public_base(str(payload.get("public_site_url") or ""))
@@ -949,8 +966,16 @@ class SinapescApi:
                 ficha = defeso.salvar(payload)
             if ficha is None:
                 raise ValueError("Salve a ficha antes de imprimir.")
-            html_txt = montar_declaracao_html(ficha, org_full=ORG_FULL)
-            path = salvar_declaracao_html(html_txt, cpf=ficha.cpf, nome=ficha.nome)
+
+            cfg = load_config()
+            fonte = normalize_fonte(str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE))
+
+            if fonte == "padrao":
+                html_txt = montar_declaracao_html(ficha, org_full=ORG_FULL)
+                path = salvar_declaracao_html(html_txt, cpf=ficha.cpf, nome=ficha.nome)
+            else:
+                path = preencher_pdf(ficha, fonte_id=fonte, size=16.0)
+
             try:
                 if os.name == "nt":
                     os.startfile(str(path))  # type: ignore[attr-defined]
@@ -958,9 +983,32 @@ class SinapescApi:
                     webbrowser.open(path.resolve().as_uri())
             except OSError as exc:
                 raise ValueError(f"Não foi possível abrir a declaração: {exc}") from exc
-            return {"path": str(path), "ficha_id": ficha.id}
+            return {"path": str(path), "ficha_id": ficha.id, "fonte": fonte}
 
         return self._run_async("defeso_print", work, "Gerando declaração…")
+
+    def get_defeso_fontes(self) -> Dict[str, Any]:
+        cfg = load_config()
+        return ok(
+            {
+                "fonte": normalize_fonte(
+                    str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
+                ),
+                "fontes": listar_fontes(),
+            }
+        )
+
+    def set_defeso_fonte(self, fonte_id: str = "") -> Dict[str, Any]:
+        cfg = load_config()
+        fonte = normalize_fonte(fonte_id)
+        if fonte != "padrao":
+            from controle.defeso_declaracao import _resolve_font_file
+
+            if _resolve_font_file(fonte) is None:
+                return err(f"Fonte '{fonte}' indisponível neste EXE.")
+        cfg["defeso_declaracao_fonte"] = fonte
+        save_config(cfg)
+        return ok(fonte=fonte, fontes=listar_fontes())
 
     def upload_defeso_anexo(
         self,
