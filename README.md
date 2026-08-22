@@ -17,15 +17,15 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 
 ---
 
-## Download do EXE (v1.7.5)
+## Download do EXE (v1.7.6)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.5/SinapescREAP-Windows-v1.7.5.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.6/SinapescREAP-Windows-v1.7.6.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.6
 
-Versão anterior: [v1.7.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.4) · [v1.7.3](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.3)
+Versão anterior: [v1.7.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.5) · [v1.7.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.4)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,10 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.6
+
+- Pasta anexos Defeso: exemplos apontam para unidade **D:** (`D:\Meu Drive\Sinapesc-Defeso`)
 
 ## O que há na v1.7.5
 
@@ -186,6 +190,7 @@ Mesma planilha: EXE grava (Editor); site só lê (Leitor).
 
 | Versão | O que entrou | EXE |
 |--------|----------------|-----|
+| **v1.7.6** | Pasta Drive anexos: exemplo em D: | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.6/SinapescREAP-Windows-v1.7.6.zip) |
 | **v1.7.5** | Fontes manuscritas na declaração Defeso (Allura / Architects) | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.5/SinapescREAP-Windows-v1.7.5.zip) |
 | **v1.7.4** | Pasta Google Drive sync para anexos Defeso | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.4/SinapescREAP-Windows-v1.7.4.zip) |
 | **v1.7.3** | Anexos: fallback local se Drive SA sem cota | [ZIP](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.3/SinapescREAP-Windows-v1.7.3.zip) |
