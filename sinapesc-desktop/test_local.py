@@ -477,7 +477,7 @@ def test_defeso_fontes_e_pdf() -> None:
 
     fontes = listar_fontes()
     ids = {f["id"] for f in fontes}
-    assert {"padrao", "allura", "architects"} <= ids
+    assert {"padrao", "allura", "architects", "bairro", "mao"} <= ids
     assert normalize_fonte("") == DEFAULT_FONTE
     assert normalize_fonte("ALLURA") == "allura"
     assert modelo_pdf_path().is_file()
@@ -496,20 +496,35 @@ def test_defeso_fontes_e_pdf() -> None:
         telefone="74999998877",
         email="a@b.com",
     )
-    pdf0 = preencher_pdf(ficha, fonte_id="padrao", size=16)
+    pdf0 = preencher_pdf(ficha, fonte_id="padrao")
     assert pdf0.exists() and pdf0.suffix == ".pdf"
-    pdf = preencher_pdf(ficha, fonte_id="allura", size=16)
+    pdf = preencher_pdf(ficha, fonte_id="allura")
     assert pdf.exists() and pdf.suffix == ".pdf"
-    pdf2 = preencher_pdf(ficha, fonte_id="architects", size=16)
+    pdf_b = preencher_pdf(ficha, fonte_id="bairro")
+    assert pdf_b.exists()
+    pdf_m = preencher_pdf(ficha, fonte_id="mao")
+    assert pdf_m.exists()
+    pdf2 = preencher_pdf(ficha, fonte_id="architects")
     assert pdf2.exists()
     # Confirma que o texto foi escrito por cima do modelo (não é HTML)
     import pymupdf as fitz
 
-    doc = fitz.open(pdf0)
-    txt = doc[0].get_text("text")
+    doc = fitz.open(pdf)
+    page = doc[0]
+    txt = page.get_text("text")
+    # letra a letra → vários spans manuscritos
+    spans = [
+        s
+        for b in page.get_text("dict")["blocks"]
+        if b.get("type") == 0
+        for line in b["lines"]
+        for s in line["spans"]
+        if s.get("color") and s["color"] != 0
+    ]
+    hand_spans = [s for s in spans if s["size"] >= 12 and len(s["text"]) <= 3]
     doc.close()
     assert "MINISTÉRIO DO TRABALHO" in txt or "MINISTERIO DO TRABALHO" in txt.upper()
-    assert "Jose Da Silva Santos" in txt or "JOSE DA SILVA SANTOS" in txt.upper()
+    assert len(hand_spans) >= 10  # efeito mão: vários glifos separados
 
 
 def test_config_appdata_sobrescreve_exe() -> None:

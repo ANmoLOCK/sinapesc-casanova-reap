@@ -24,7 +24,7 @@ Ou pela UI: **Configurações → Escolher pasta…** (recomendado).
 |-------|---------|
 | `defeso_spreadsheet_id` | Planilha Defeso (dados da ficha) |
 | `defeso_anexos_dir` | **Pasta local sincronizada** (Google Drive no PC). Ex.: `D:\Meu Drive\Sinapesc-Defeso` |
-| `defeso_declaracao_fonte` | Fonte no PDF oficial: `padrao` · `allura` · `architects` (engrenagem ⚙ na ficha). **Sempre** gera o modelo MTE com texto azul por cima. |
+| `defeso_declaracao_fonte` | Letra no PDF: `allura` (padrão) · `bairro` · `mao` · `architects` · `padrao`. Engrenagem ⚙. Manuscritas usam efeito de caneta (letra a letra). |
 | `defeso_drive_folder_id` | Avançado: ID de pasta via API (só Shared Drive / Workspace) |
 
 ---

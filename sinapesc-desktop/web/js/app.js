@@ -1495,7 +1495,7 @@
       const payload = collectDefesoPayload();
       const fonte =
         state.bootstrap?.defeso_declaracao_fonte ||
-        "padrao";
+        "allura";
       api("print_defeso_declaracao", payload.id || "", payload, fonte);
     });
     bindDefesoUpload("df-file-id", "identidade");
@@ -1511,31 +1511,35 @@
 
   function fonteLabelFromId(id) {
     const map = {
+      allura: "Manuscrita (Allura)",
+      bairro: "Letra de bairro",
+      mao: "Mão suja",
+      architects: "Caderno (Architects)",
       padrao: "Padrão (Times)",
-      allura: "Allura (manuscrita)",
-      architects: "Architects Daughter",
     };
-    return map[id] || id || "Padrão (Times)";
+    return map[id] || id || "Manuscrita (Allura)";
   }
 
   function refreshDefesoFonteLabel() {
     const el = $("#df-fonte-label");
     if (!el) return;
-    const id = state.bootstrap?.defeso_declaracao_fonte || "padrao";
+    const id = state.bootstrap?.defeso_declaracao_fonte || "allura";
     el.textContent = `Fonte da declaração: ${fonteLabelFromId(id)}`;
   }
 
   async function openDefesoFonteModal() {
     const res = await api("get_defeso_fontes");
     const data = res.ok ? { ...(res.data || {}), ...res } : {};
-    const atual = data.fonte || state.bootstrap?.defeso_declaracao_fonte || "padrao";
+    const atual = data.fonte || state.bootstrap?.defeso_declaracao_fonte || "allura";
     const fontes = (data.fontes || []).filter((f) => f && f.id);
     const list = fontes.length
       ? fontes
       : [
-          { id: "padrao", label: "Padrão (Times)", descricao: "Times azul no PDF oficial" },
-          { id: "allura", label: "Allura (manuscrita)", descricao: "Cursiva no PDF oficial" },
-          { id: "architects", label: "Architects Daughter", descricao: "Caderno no PDF oficial" },
+          { id: "allura", label: "Manuscrita (Allura)", descricao: "Cursiva de caneta" },
+          { id: "bairro", label: "Letra de bairro", descricao: "Manuscrita informal" },
+          { id: "mao", label: "Mão suja", descricao: "Letra irregular" },
+          { id: "architects", label: "Caderno (Architects)", descricao: "Letra de caderno" },
+          { id: "padrao", label: "Padrão (Times)", descricao: "Times limpo" },
         ];
     const options = list.map((f) => {
       const disabled = f.disponivel === false ? "disabled" : "";
@@ -1553,7 +1557,7 @@
     const backdrop = createModal(`
       <div class="modal-head">Fonte da declaração</div>
       <div class="modal-body">
-        <p class="page-sub" style="margin:0 0 10px">Escolha como o texto preenchido aparece no formulário oficial.</p>
+        <p class="page-sub" style="margin:0 0 10px">Escolha a letra (efeito de caneta no formulário oficial).</p>
         <div class="fonte-list">${options}</div>
       </div>
       <div class="modal-foot">
@@ -1562,7 +1566,7 @@
       </div>
     `);
     backdrop.querySelector("#df-fonte-save")?.addEventListener("click", async () => {
-      const chosen = backdrop.querySelector('input[name="df-fonte"]:checked')?.value || "padrao";
+      const chosen = backdrop.querySelector('input[name="df-fonte"]:checked')?.value || "allura";
       const r = await api("set_defeso_fonte", chosen);
       if (!r.ok) {
         toast(r.error || "Não foi possível salvar a fonte.");

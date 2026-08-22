@@ -1,7 +1,9 @@
-"""Declaração de Residência — sempre no PDF oficial do MTE + escolha de fonte."""
+"""Declaração de Residência — PDF oficial MTE com letra de mão (azul)."""
 
 from __future__ import annotations
 
+import hashlib
+import random
 import re
 import sys
 from datetime import datetime
@@ -18,35 +20,61 @@ def _app_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-# Opções de fonte (id -> metadados)
-# padrao = Times embutido do PDF; demais = TTF em assets/defeso/fonts
-FONTES: Dict[str, Dict[str, str]] = {
-    "padrao": {
-        "id": "padrao",
-        "label": "Padrão (Times)",
-        "descricao": "Times azul nos espaços do PDF oficial",
-        "file": "",
-        "pdf_font": "times-roman",
-    },
+# Fontes manuscritas (id -> metadados). Padrão = Times limpo; demais = letra de mão.
+FONTES: Dict[str, Dict[str, Any]] = {
     "allura": {
         "id": "allura",
-        "label": "Allura (manuscrita)",
-        "descricao": "Cursiva manuscrita pura no PDF oficial",
+        "label": "Manuscrita (Allura)",
+        "descricao": "Cursiva de caneta — igual aos previews",
         "file": "Allura-Pura.ttf",
         "fallback": "Allura-Regular.ttf",
+        "hand": True,
+        "size_nome": 22.0,
+        "size": 18.0,
+    },
+    "bairro": {
+        "id": "bairro",
+        "label": "Letra de bairro",
+        "descricao": "Manuscrita informal (caneta)",
+        "file": "SinapescLetraBairro.ttf",
+        "hand": True,
+        "size_nome": 20.0,
+        "size": 18.0,
+    },
+    "mao": {
+        "id": "mao",
+        "label": "Mão suja",
+        "descricao": "Letra irregular, mais “feita à mão”",
+        "file": "SinapescMaoSuja.ttf",
+        "hand": True,
+        "size_nome": 18.0,
+        "size": 17.0,
     },
     "architects": {
         "id": "architects",
-        "label": "Architects Daughter",
-        "descricao": "Letra de caderno no PDF oficial",
+        "label": "Caderno (Architects)",
+        "descricao": "Letra de caderno / bloco",
         "file": "ArchitectsDaughter-Regular.ttf",
+        "hand": True,
+        "size_nome": 17.0,
+        "size": 16.0,
+    },
+    "padrao": {
+        "id": "padrao",
+        "label": "Padrão (Times)",
+        "descricao": "Times limpo no PDF (sem efeito de mão)",
+        "file": "",
+        "pdf_font": "times-roman",
+        "hand": False,
+        "size_nome": 16.0,
+        "size": 16.0,
     },
 }
 
-DEFAULT_FONTE = "padrao"
+DEFAULT_FONTE = "allura"
 
-# Azul caneta esferográfica
-PEN_BLUE = (0.05, 0.22, 0.68)
+# Azul caneta (~#0d38ad) — igual aos PDFs de preview do chat
+PEN_BLUE = (0.051, 0.220, 0.678)
 
 # Espaços do PDF oficial (x0, y_underline, x1) — sem data/município embaixo
 FIELDS = {
@@ -84,10 +112,10 @@ def listar_fontes() -> List[Dict[str, str]]:
         item = {
             "id": meta["id"],
             "label": meta["label"],
-            "descricao": meta.get("descricao") or "",
+            "descricao": str(meta.get("descricao") or ""),
             "disponivel": True,
         }
-        if meta["id"] != "padrao":
+        if not meta.get("pdf_font"):
             item["disponivel"] = _resolve_font_file(meta["id"]) is not None
         out.append(item)
     return out
@@ -97,13 +125,17 @@ def normalize_fonte(fonte_id: str) -> str:
     key = (fonte_id or "").strip().lower()
     if key in FONTES:
         return key
+    # aliases antigos
+    aliases = {"manuscrita": "allura", "pura": "allura", "caderno": "architects"}
+    if key in aliases:
+        return aliases[key]
     return DEFAULT_FONTE
 
 
 def _resolve_font_file(fonte_id: str) -> Optional[Path]:
     meta = FONTES.get(fonte_id) or {}
-    primary = meta.get("file") or ""
-    fallback = meta.get("fallback") or ""
+    primary = str(meta.get("file") or "")
+    fallback = str(meta.get("fallback") or "")
     for name in (primary, fallback):
         if not name:
             continue
@@ -132,18 +164,18 @@ def valores_da_ficha(f: FichaDefeso) -> Dict[str, str]:
 
 
 def _fit_size(font: Any, text: str, max_w: float, want: float) -> float:
-    for size in (want, want - 1, want - 2, 14, 12, 11, 10, 9, 8):
+    for size in (want, want - 1, want - 2, want - 3, 14, 12, 11, 10, 9, 8):
         if size < 8:
             break
         if font.text_length(text, fontsize=size) <= max_w:
-            return size
+            return float(size)
     return 8.0
 
 
 def _bind_font(page: Any, fitz: Any, fonte_id: str) -> Tuple[str, Any]:
     """Retorna (fontname para insert_text, objeto Font para medir)."""
     meta = FONTES.get(fonte_id) or {}
-    builtin = meta.get("pdf_font") or ""
+    builtin = str(meta.get("pdf_font") or "")
     if builtin:
         return builtin, fitz.Font(builtin)
 
@@ -154,13 +186,97 @@ def _bind_font(page: Any, fitz: Any, fonte_id: str) -> Tuple[str, Any]:
     return "hand", fitz.Font(fontfile=str(font_path))
 
 
+def _rng_for(fonte_id: str, field: str, text: str) -> random.Random:
+    """Semente estável: mesma ficha + fonte = mesma “mão”."""
+    raw = f"{fonte_id}|{field}|{text}".encode("utf-8")
+    seed = int(hashlib.sha256(raw).hexdigest()[:16], 16)
+    return random.Random(seed)
+
+
+def _draw_plain(
+    page: Any,
+    *,
+    fontname: str,
+    font: Any,
+    text: str,
+    x0: float,
+    yu: float,
+    x1: float,
+    size: float,
+    center: bool,
+) -> None:
+    max_w = max(8.0, x1 - x0 - 2)
+    fs = _fit_size(font, text, max_w, size)
+    tw = font.text_length(text, fontsize=fs)
+    x = x0 + max(0.0, (max_w - tw) / 2) if center else x0 + 1.2
+    page.insert_text((x, yu - 3.4), text, fontname=fontname, fontsize=fs, color=PEN_BLUE)
+
+
+def _draw_hand(
+    page: Any,
+    *,
+    fontname: str,
+    font: Any,
+    text: str,
+    field: str,
+    fonte_id: str,
+    x0: float,
+    yu: float,
+    x1: float,
+    size: float,
+    center: bool,
+) -> None:
+    """Desenha letra a letra com jitter de tamanho/Y — efeito caneta no formulário."""
+    max_w = max(8.0, x1 - x0 - 2)
+    base = _fit_size(font, text, max_w * 0.98, size)
+    rng = _rng_for(fonte_id, field, text)
+
+    # Mede largura total com jitter médio para decidir start X
+    widths: List[float] = []
+    sizes: List[float] = []
+    for ch in text:
+        fs = base * rng.uniform(0.93, 1.08)
+        fs = max(11.0, min(fs, base + 2.8))
+        sizes.append(fs)
+        # espaço um pouco irregular
+        if ch == " ":
+            widths.append(font.text_length(" ", fontsize=base) * rng.uniform(0.8, 1.25))
+        else:
+            widths.append(font.text_length(ch, fontsize=fs) * rng.uniform(0.96, 1.04))
+
+    total = sum(widths)
+    # Se estourou, reduz proporcionalmente
+    if total > max_w and total > 0:
+        scale = max_w / total
+        widths = [w * scale for w in widths]
+        sizes = [max(10.0, s * scale) for s in sizes]
+        total = sum(widths)
+
+    x = x0 + max(0.0, (max_w - total) / 2) if center else x0 + 1.0
+    # reinicia rng na mesma semente para Y/jitter alinhado às medidas
+    rng = _rng_for(fonte_id, field, text)
+    for i, ch in enumerate(text):
+        fs = sizes[i]
+        # vertical: senta na linha com leve “tremor” de mão
+        y = yu - 3.2 + rng.uniform(-1.35, 1.05)
+        if ch != " ":
+            page.insert_text(
+                (x, y),
+                ch,
+                fontname=fontname,
+                fontsize=fs,
+                color=PEN_BLUE,
+            )
+        x += widths[i]
+
+
 def preencher_pdf(
     ficha: FichaDefeso,
     *,
-    fonte_id: str = "padrao",
-    size: float = 16.0,
+    fonte_id: str = "allura",
+    size: float = 0.0,
 ) -> Path:
-    """Gera PDF do modelo oficial com texto azul na fonte escolhida (sempre overlay)."""
+    """Gera PDF do modelo oficial com texto azul (letra de mão quando aplicável)."""
     try:
         import pymupdf as fitz
     except ImportError as exc:  # pragma: no cover
@@ -169,6 +285,7 @@ def preencher_pdf(
         ) from exc
 
     fonte_id = normalize_fonte(fonte_id)
+    meta = FONTES[fonte_id]
 
     modelo = modelo_pdf_path()
     if not modelo.is_file():
@@ -178,26 +295,42 @@ def preencher_pdf(
     doc = fitz.open(modelo)
     page = doc[0]
     fontname, font = _bind_font(page, fitz, fonte_id)
+    hand = bool(meta.get("hand"))
+    size_nome = float(size or meta.get("size_nome") or 18)
+    size_campo = float(size or meta.get("size") or 16)
 
     for key, (x0, yu, x1) in FIELDS.items():
         text = (valores.get(key) or "").strip()
         if not text:
             continue
-        max_w = max(8.0, x1 - x0 - 2)
-        fs = _fit_size(font, text, max_w, size)
-        tw = font.text_length(text, fontsize=fs)
-        if key in ("nome", "numero", "uf"):
-            x = x0 + max(0.0, (max_w - tw) / 2)
+        want = size_nome if key == "nome" else size_campo
+        center = key in ("nome", "numero", "uf")
+        if hand:
+            _draw_hand(
+                page,
+                fontname=fontname,
+                font=font,
+                text=text,
+                field=key,
+                fonte_id=fonte_id,
+                x0=x0,
+                yu=yu,
+                x1=x1,
+                size=want,
+                center=center,
+            )
         else:
-            x = x0 + 1.2
-        # senta na linha do formulário
-        page.insert_text(
-            (x, yu - 3.4),
-            text,
-            fontname=fontname,
-            fontsize=fs,
-            color=PEN_BLUE,
-        )
+            _draw_plain(
+                page,
+                fontname=fontname,
+                font=font,
+                text=text,
+                x0=x0,
+                yu=yu,
+                x1=x1,
+                size=want,
+                center=center,
+            )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", (ficha.nome or "pescador"))[:40].strip("-") or "pescador"

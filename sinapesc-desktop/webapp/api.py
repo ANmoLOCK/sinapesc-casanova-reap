@@ -976,7 +976,7 @@ class SinapescApi:
             )
             fonte = normalize_fonte(raw)
             # Sempre preenche o PDF oficial do MTE (texto azul por cima do modelo)
-            path = preencher_pdf(ficha, fonte_id=fonte, size=16.0)
+            path = preencher_pdf(ficha, fonte_id=fonte, size=0.0)
 
             try:
                 if os.name == "nt":
@@ -1003,9 +1003,10 @@ class SinapescApi:
     def set_defeso_fonte(self, fonte_id: str = "") -> Dict[str, Any]:
         cfg = load_config()
         fonte = normalize_fonte(fonte_id)
-        from controle.defeso_declaracao import _resolve_font_file
+        from controle.defeso_declaracao import FONTES, _resolve_font_file
 
-        if fonte != "padrao" and _resolve_font_file(fonte) is None:
+        meta = FONTES.get(fonte) or {}
+        if not meta.get("pdf_font") and _resolve_font_file(fonte) is None:
             return err(f"Fonte '{fonte}' indisponível neste EXE.")
         cfg["defeso_declaracao_fonte"] = fonte
         save_config(cfg)

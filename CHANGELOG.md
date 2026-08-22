@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.9] — 2026-08-22 — Declaração com letra de mão (caneta)
+
+**Tag:** [`v1.7.9`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.9)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.9/SinapescREAP-Windows-v1.7.9.zip
+
+### O que entrou
+- Texto da declaração desenhado **letra a letra** com leve variação (tamanho/altura) — parece escrito à mão
+- Fontes: **Manuscrita (Allura)** padrão · **Letra de bairro** · **Mão suja** · Caderno · Times
+- Tamanho maior (~18–22) e azul de caneta igual aos previews do chat
+
+---
+
 ## [v1.7.8] — 2026-08-22 — Fonte da declaração passa a gravar de verdade
 
 **Tag:** [`v1.7.8`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.8)  
