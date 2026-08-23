@@ -33,7 +33,7 @@ cria o objeto que chama endpoints REST:
 
 PASSO 3 — Abas (tabs)
 ------------------------------------
-Pessoas:    id | nome | cpf | criadoEm | municipio
+Pessoas:    id | nome | cpf | criadoEm | municipio | telefone
 Reap:       id | personId | ano | jan..dez | atualizadoEm
 Auditoria:  id | em | usuario | acao | detalhe | personId | nome | ano | meses
 Config:     chave | valor   (calendário REAP compartilhado entre admins)
@@ -80,7 +80,7 @@ REAP_TAB = "Reap"
 AUDITORIA_TAB = "Auditoria"
 CONFIG_TAB = "Config"
 
-PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm", "municipio"]
+PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm", "municipio", "telefone"]
 REAP_HEADER = ["id", "personId", "ano", *MESES, "atualizadoEm"]
 AUDITORIA_HEADER = [
     "id",
@@ -202,18 +202,27 @@ class GoogleSheetsClient:
             if title not in existing:
                 self.update_values(f"{title}!A1", [header])
 
-        # Planilhas antigas: acrescenta coluna municipio em Pessoas
-        p_header = self.get_values(f"{PESSOAS_TAB}!A1:E1")
+        # Planilhas antigas: acrescenta municipio / telefone em Pessoas
+        p_header = self.get_values(f"{PESSOAS_TAB}!A1:F1")
         if p_header and p_header[0]:
             row = list(p_header[0])
             while len(row) < 4:
                 row.append("")
+            changed = False
             if len(row) == 4:
                 row.append("municipio")
-                self.update_values(f"{PESSOAS_TAB}!A1:E1", [row])
+                changed = True
             elif len(row) >= 5 and not str(row[4]).strip():
                 row[4] = "municipio"
-                self.update_values(f"{PESSOAS_TAB}!A1:E1", [row[:5]])
+                changed = True
+            if len(row) == 5:
+                row.append("telefone")
+                changed = True
+            elif len(row) >= 6 and not str(row[5]).strip():
+                row[5] = "telefone"
+                changed = True
+            if changed:
+                self.update_values(f"{PESSOAS_TAB}!A1:F1", [row[:6]])
 
         self._tabs_ready = True
 

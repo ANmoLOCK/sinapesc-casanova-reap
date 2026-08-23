@@ -38,6 +38,7 @@ class Pessoa:
     cpf: str
     criado_em: str
     municipio: str = ""
+    telefone: str = ""
 
 
 @dataclass

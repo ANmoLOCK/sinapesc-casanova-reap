@@ -322,13 +322,18 @@ class SinapescApi:
             svc = self._ensure_service(require_login=False)
             ultimo = _ultimo_toggle_map(svc)
             pessoas = svc.get_all_pessoas_com_reap()
-            # Município do Defeso quando REAP ainda não tem (só exibição até salvar/sync)
+            # Município / telefone do Defeso quando REAP ainda não tem
             defeso_mun: Dict[str, str] = {}
+            defeso_tel: Dict[str, str] = {}
             try:
                 for f in self._ensure_defeso().listar():
                     cpf = only_digits(f.cpf)
-                    if cpf and str(f.municipio or "").strip():
+                    if not cpf:
+                        continue
+                    if str(f.municipio or "").strip():
                         defeso_mun[cpf] = str(f.municipio).strip()
+                    if str(f.telefone or "").strip():
+                        defeso_tel[cpf] = str(f.telefone).strip()
             except Exception:
                 pass
             out = []
@@ -339,6 +344,11 @@ class SinapescApi:
                     if alt:
                         d["municipio"] = alt
                         d["municipio_origem"] = "defeso"
+                if not (d.get("telefone") or "").strip():
+                    alt_t = defeso_tel.get(d.get("cpf_raw") or "")
+                    if alt_t:
+                        d["telefone"] = alt_t
+                        d["telefone_origem"] = "defeso"
                 out.append(d)
             return out
 
@@ -348,6 +358,7 @@ class SinapescApi:
         nome = format_nome(str(payload.get("nome") or ""))
         cpf = only_digits(str(payload.get("cpf") or ""))
         municipio = str(payload.get("municipio") or "").strip()
+        telefone = str(payload.get("telefone") or payload.get("numero") or "").strip()
         person_id = str(payload.get("id") or "").strip()
         if not nome:
             return err("Informe o nome completo.")
@@ -357,9 +368,9 @@ class SinapescApi:
         def work():
             svc = self._ensure_service()
             if person_id:
-                svc.update_pessoa(person_id, nome, cpf, municipio)
+                svc.update_pessoa(person_id, nome, cpf, municipio, telefone)
                 return person_id
-            return svc.add_pessoa(nome, cpf, municipio).id
+            return svc.add_pessoa(nome, cpf, municipio, telefone).id
 
         return self._run_async("pessoa_saved", work, "Salvando…")
 
@@ -970,6 +981,11 @@ class SinapescApi:
                     base["municipio_origem"] = "reap"
                 elif f_mun and not p_mun:
                     base["municipio_origem"] = "defeso"
+                p_tel = str(getattr(pessoa, "telefone", "") or "").strip()
+                f_tel = str(base.get("telefone") or "").strip()
+                if not f_tel and p_tel:
+                    base["telefone"] = p_tel
+                    base["telefone_origem"] = "reap"
 
             anexos: List[Dict[str, str]] = []
             cfg = load_config()
@@ -1220,8 +1236,10 @@ class SinapescApi:
         return ok()
 
 
-def _lote_itens_from_rows(rows: Any) -> List[tuple[str, str]]:
-    """Aceita lista de dicts OU JSON string (ponte JS do pywebview)."""
+def _lote_itens_from_rows(rows: Any) -> List[tuple]:
+    """Aceita lista de dicts OU JSON string (ponte JS do pywebview).
+    Retorna [(nome, cpf, municipio, telefone), ...].
+    """
     if isinstance(rows, str):
         text = rows.strip()
         if not text:
@@ -1230,18 +1248,22 @@ def _lote_itens_from_rows(rows: Any) -> List[tuple[str, str]]:
             rows = json.loads(text)
         except json.JSONDecodeError as exc:
             raise ValueError("Lista do lote inválida.") from exc
-    itens: List[tuple[str, str]] = []
+    itens: List[tuple] = []
     for row in rows or []:
         if isinstance(row, (list, tuple)) and len(row) >= 2:
             nome = str(row[0] or "").strip()
             cpf = only_digits(str(row[1] or ""))
+            mun = str(row[2] if len(row) > 2 else "").strip()
+            tel = str(row[3] if len(row) > 3 else "").strip()
         elif isinstance(row, dict):
             nome = str(row.get("nome") or "").strip()
             cpf = only_digits(str(row.get("cpf") or ""))
+            mun = str(row.get("municipio") or "").strip()
+            tel = str(row.get("telefone") or row.get("numero") or "").strip()
         else:
             continue
         if nome or cpf:
-            itens.append((nome, cpf))
+            itens.append((nome, cpf, mun, tel))
     return itens
 
 

@@ -50,6 +50,8 @@ def test_row_parsers() -> None:
     assert p.nome == "Maria"
     p2 = _row_to_pessoa(["id2", "Joao", "98765432100", "2024-01-02", "Casa Nova"])
     assert p2.municipio == "Casa Nova"
+    p3 = _row_to_pessoa(["id3", "Ana", "11122233344", "2024-01-03", "Juazeiro", "(74) 98888-1111"])
+    assert p3.telefone == "(74) 98888-1111"
     r = _row_to_reap(
         ["rid", "id1", "2024", "TRUE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE",
          "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "now"]
@@ -295,7 +297,7 @@ def test_lote_50_socios_e_ponte_json() -> None:
     assert len(payload) > 722
     parsed = _lote_itens_from_rows(payload)
     assert len(parsed) == 50
-    assert parsed[0] == ("Pessoa 01", "00000000001")
+    assert parsed[0] == ("Pessoa 01", "00000000001", "", "")
     assert parsed[49][0] == "Pessoa 50"
 
     svc = SheetsService(FakeClient())  # type: ignore[arg-type]
@@ -306,6 +308,16 @@ def test_lote_50_socios_e_ponte_json() -> None:
     assert len(svc.client.pessoas) == 50
     assert len(svc.client.reap) == 50
     assert svc.client.pessoas[0][2] == "000.000.000-01"
+    assert len(svc.client.pessoas[0]) >= 6
+
+    rich = _lote_itens_from_rows(
+        [{"nome": "Ana", "cpf": "33333333333", "municipio": "Casa Nova", "telefone": "(74) 90000-0000"}]
+    )
+    assert rich[0] == ("Ana", "33333333333", "Casa Nova", "(74) 90000-0000")
+    rich_ok = svc.add_pessoas_lote(rich, ano=2026)
+    assert rich_ok["ok"] == 1
+    assert svc.client.pessoas[-1][4] == "Casa Nova"
+    assert svc.client.pessoas[-1][5] == "(74) 90000-0000"
 
     dup = svc.add_pessoas_lote([("Pessoa 01", "00000000001")], ano=2026)
     assert dup["ok"] == 0
@@ -726,12 +738,18 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert 'api("sync_planilhas_municipio")' in js
     assert "refreshDefesoLocalidadeSelect" in js
     assert "defesoLocalidades" in js
+    assert 'id="m-tel"' in js
+    assert "Número (telefone)" in js
+    assert "l-mun" in js
+    assert "l-tel" in js
+    assert "Nome;CPF;Município;Número" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "def sync_planilhas_municipio" in api_py
     assert '"localidades"' in api_py
     assert '"confirmada"' in api_py
     ser = (ROOT / "webapp" / "serialize.py").read_text(encoding="utf-8")
     assert '"municipio"' in ser
+    assert '"telefone"' in ser
 
 
 def test_config_appdata_sobrescreve_exe() -> None:

@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.11** — Filtros Defeso (Localidade, confirmadas) + sync município REAP ↔ Defeso.
+**v1.7.12** — Número (telefone) + município no lote e atalhos.
 
 ## Requisitos (Windows)
 

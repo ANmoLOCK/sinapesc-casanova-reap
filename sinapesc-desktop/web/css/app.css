@@ -858,8 +858,8 @@ body { overflow: hidden; }
 /* ---- Lote rows ---- */
 .lote-head, .lote-row {
   display: grid;
-  grid-template-columns: 1fr 180px 36px;
-  gap: 8px;
+  grid-template-columns: minmax(120px, 1.4fr) 140px minmax(90px, 1fr) minmax(100px, 1fr) 36px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -948,5 +948,7 @@ body { overflow: hidden; }
 
 @media (max-width: 800px) {
   .home-cards { grid-template-columns: 1fr; }
-  .lote-head, .lote-row { grid-template-columns: 1fr 1fr 36px; }
+  .lote-head, .lote-row {
+    grid-template-columns: minmax(100px, 1fr) 120px minmax(80px, 0.8fr) minmax(80px, 0.8fr) 36px;
+  }
 }

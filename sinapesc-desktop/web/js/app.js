@@ -712,7 +712,7 @@
           <div class="avatar">${esc(p.iniciais)}</div>
           <div class="card-info" data-toggle="${p.id}">
             <p class="card-name">${esc(p.nome_display)}${touchBadgeHtml(p)}</p>
-            <p class="card-cpf">CPF: ${esc(formatCpf(p.cpf_raw || p.cpf))}${p.municipio ? ` · ${esc(p.municipio)}` : ""}</p>
+            <p class="card-cpf">CPF: ${esc(formatCpf(p.cpf_raw || p.cpf))}${p.municipio ? ` · ${esc(p.municipio)}` : ""}${p.telefone ? ` · ${esc(p.telefone)}` : ""}</p>
           </div>
           <div class="card-actions">
             ${actions}
@@ -816,6 +816,8 @@
         <input id="m-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" value="${esc(formatCpf(pessoa?.cpf_raw || pessoa?.cpf || ""))}" />
         <label>Município</label>
         <input id="m-mun" placeholder="Ex.: Casa Nova" value="${esc(pessoa?.municipio || "")}" />
+        <label>Número (telefone)</label>
+        <input id="m-tel" inputmode="tel" placeholder="Ex.: (74) 99999-0000" value="${esc(pessoa?.telefone || "")}" />
         ${pessoa?.municipio_origem === "defeso" && !pessoa?.municipio ? `<p class="page-sub">Sugestão do Defeso (salve ou use Sinc. Planilhas)</p>` : ""}
       </div>
       <div class="modal-foot">
@@ -831,6 +833,7 @@
         nome: formatNome(backdrop.querySelector("#m-nome").value),
         cpf: backdrop.querySelector("#m-cpf").value,
         municipio: backdrop.querySelector("#m-mun")?.value || "",
+        telefone: backdrop.querySelector("#m-tel")?.value || "",
       });
       if (!r.pending && !r.ok) toast(r.error);
       else backdrop._close(true);
@@ -843,18 +846,41 @@
       const t = line.trim();
       if (!t || /^nome/i.test(t)) return;
       let parts;
-      if (t.includes(";")) parts = t.split(";", 2);
-      else if (t.includes("\t")) parts = t.split("\t", 2);
+      if (t.includes(";")) parts = t.split(";");
+      else if (t.includes("\t")) parts = t.split("\t");
       else if (t.includes(",")) {
-        const i = t.lastIndexOf(",");
-        parts = [t.slice(0, i), t.slice(i + 1)];
+        const segs = t.split(",");
+        if (segs.length >= 2) {
+          parts = [segs.slice(0, -1).join(",").trim(), segs[segs.length - 1].trim()];
+          if (segs.length >= 3) {
+            const last = segs[segs.length - 1].trim();
+            const mid = segs[segs.length - 2].trim();
+            const cpfLike = last.replace(/\D/g, "").length === 11;
+            if (cpfLike) {
+              parts = [segs.slice(0, -1).join(",").trim(), last];
+            } else {
+              const cpfIdx = segs.findIndex((s, i) => i > 0 && String(s).replace(/\D/g, "").length === 11);
+              if (cpfIdx > 0) {
+                parts = [
+                  segs.slice(0, cpfIdx).join(",").trim(),
+                  segs[cpfIdx].trim(),
+                  ...(segs.slice(cpfIdx + 1).map((s) => s.trim())),
+                ];
+              } else {
+                parts = [segs[0].trim(), mid, last];
+              }
+            }
+          }
+        }
       } else {
-        parts = t.split(/\s{2,}/, 2);
+        parts = t.split(/\s{2,}/);
       }
       if (!parts || parts.length < 2) return;
       const nome = String(parts[0] || "").replace(/^"|"$/g, "").trim();
       const cpf = String(parts[1] || "").replace(/^"|"$/g, "").trim();
-      if (nome || cpf) itens.push({ nome, cpf });
+      const municipio = String(parts[2] || "").replace(/^"|"$/g, "").trim();
+      const telefone = String(parts[3] || "").replace(/^"|"$/g, "").trim();
+      if (nome || cpf) itens.push({ nome, cpf, municipio, telefone });
     });
     return itens;
   }
@@ -868,7 +894,7 @@
     const backdrop = createModal(`
       <div class="modal-head">Cadastro em lote</div>
       <div class="modal-body">
-        <p class="page-sub">Uma linha = um sócio. Os dados ficam guardados se der erro — a janela só fecha depois de importar.</p>
+        <p class="page-sub">Uma linha = um sócio. Município e número são opcionais. Os dados ficam guardados se der erro.</p>
         ${banner}
         <div class="inline-row">
           <label>Ano REAP</label>
@@ -878,14 +904,16 @@
           ${presetButtons("lote-m")}
           <div class="month-grid">${monthChecksHtml("lote-m", [])}</div>
         `}
-        <label>Colar lista (Nome;CPF — uma pessoa por linha)</label>
-        <textarea id="l-paste" placeholder="Maria Silva;105.205.585-45"></textarea>
+        <label>Colar lista (Nome;CPF;Município;Número — uma pessoa por linha)</label>
+        <textarea id="l-paste" placeholder="Maria Silva;105.205.585-45;Casa Nova;(74) 99999-0000"></textarea>
         <div class="btn-row" style="margin:6px 0 8px">
           <button type="button" class="btn btn-ghost btn-sm" id="l-paste-btn">Colar nas linhas</button>
           <button type="button" class="btn btn-ghost btn-sm" id="l-add">+ Linha</button>
           <button type="button" class="btn btn-ghost btn-sm" id="l-add-10">+ 10 linhas</button>
         </div>
-        <div class="lote-head"><span>Nome completo</span><span>CPF</span><span></span></div>
+        <div class="lote-head">
+          <span>Nome completo</span><span>CPF</span><span>Município</span><span>Número</span><span></span>
+        </div>
         <div class="lote-rows" id="l-rows"></div>
         <p class="page-sub" id="l-status"></p>
       </div>
@@ -905,6 +933,8 @@
       return [...host.querySelectorAll(".lote-row")].map((r) => ({
         nome: formatNome(r.querySelector(".l-nome").value),
         cpf: r.querySelector(".l-cpf").value,
+        municipio: (r.querySelector(".l-mun")?.value || "").trim(),
+        telefone: (r.querySelector(".l-tel")?.value || "").trim(),
       })).filter((r) => r.nome.trim() || r.cpf.trim());
     }
 
@@ -917,26 +947,29 @@
       } catch (_e) {}
     }
 
-    function addRow(nome = "", cpf = "") {
+    function addRow(nome = "", cpf = "", municipio = "", telefone = "") {
       const row = document.createElement("div");
       row.className = "lote-row";
       row.innerHTML = `
         <input class="l-nome" value="${esc(formatNome(nome))}" placeholder="Nome completo" />
         <input class="l-cpf" value="${esc(formatCpf(cpf))}" placeholder="000.000.000-00" maxlength="14" />
+        <input class="l-mun" value="${esc(municipio)}" placeholder="Município" />
+        <input class="l-tel" value="${esc(telefone)}" placeholder="Número" />
         <button type="button" class="icon-btn danger l-del">🗑</button>
       `;
       row.querySelector(".l-del").addEventListener("click", () => {
         if (host.children.length <= 1) {
           row.querySelector(".l-nome").value = "";
           row.querySelector(".l-cpf").value = "";
+          if (row.querySelector(".l-mun")) row.querySelector(".l-mun").value = "";
+          if (row.querySelector(".l-tel")) row.querySelector(".l-tel").value = "";
           persistDraft();
           return;
         }
         row.remove();
         persistDraft();
       });
-      row.querySelector(".l-nome").addEventListener("input", persistDraft);
-      row.querySelector(".l-cpf").addEventListener("input", persistDraft);
+      row.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", persistDraft));
       host.appendChild(row);
       bindNomeMask(row.querySelector(".l-nome"));
       bindCpfMask(row.querySelector(".l-cpf"));
@@ -949,7 +982,7 @@
     } catch (_e) { restored = []; }
 
     if (restored.length) {
-      restored.forEach((r) => addRow(r.nome || "", r.cpf || ""));
+      restored.forEach((r) => addRow(r.nome || "", r.cpf || "", r.municipio || "", r.telefone || r.numero || ""));
       statusEl.textContent = `Rascunho restaurado: ${restored.length} linha(s).`;
     } else {
       for (let i = 0; i < 8; i++) addRow();
@@ -962,11 +995,11 @@
     backdrop.querySelector("#l-paste-btn").addEventListener("click", () => {
       const itens = parseLoteText(backdrop.querySelector("#l-paste").value);
       if (!itens.length) {
-        toast("Cole linhas no formato Nome;CPF.");
+        toast("Cole linhas no formato Nome;CPF;Município;Número.");
         return;
       }
       host.innerHTML = "";
-      itens.forEach((r) => addRow(r.nome, r.cpf));
+      itens.forEach((r) => addRow(r.nome, r.cpf, r.municipio || "", r.telefone || ""));
       persistDraft();
       statusEl.textContent = `${itens.length} linha(s) coladas.`;
     });
@@ -989,7 +1022,7 @@
           saveBtn.disabled = false;
         }
       } catch (_e) {
-        toast("Erro ao enviar o lote. Seus nomes e CPFs foram guardados.");
+        toast("Erro ao enviar o lote. Seus dados foram guardados.");
         statusEl.textContent = "Erro de envio. Rascunho guardado — pode tentar de novo.";
         saveBtn.disabled = false;
       }
@@ -1227,7 +1260,7 @@
 
       <div class="atalho-card">
         <h3>1) Lote com REAP já marcado</h3>
-        <p class="desc">Cadastra vários sócios de uma vez e já deixa os meses pagos no ano escolhido (ex.: março a outubro).</p>
+        <p class="desc">Cadastra vários sócios de uma vez (nome, CPF, município e número) e já deixa os meses pagos no ano escolhido.</p>
         <div class="inline-row">
           <label>Ano</label>
           <input type="number" id="at1-ano" value="${ano}" />

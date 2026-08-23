@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.12] — 2026-08-23 — Número + município no lote/atalhos
+
+**Tag:** [`v1.7.12`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.12)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.12/SinapescREAP-Windows-v1.7.12.zip
+
+### O que entrou
+- Campo **Número (telefone)** no cadastro/edição de sócio (+ Sócio)
+- **Município** e **Número** também no **Cadastro em lote** e no lote aberto por **Config.Atalhos**
+- Coluna `telefone` na planilha Pessoas (migração automática)
+- Colar lista: `Nome;CPF;Município;Número`
+
+---
+
 ## [v1.7.11] — 2026-08-23 — Filtros Defeso + sync município REAP ↔ Defeso
 
 **Tag:** [`v1.7.11`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.11)  

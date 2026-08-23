@@ -56,6 +56,7 @@ def _row_to_pessoa(row: List[str]) -> Pessoa:
         cpf=row[2] if len(row) > 2 else "",
         criado_em=row[3] if len(row) > 3 else "",
         municipio=row[4].strip() if len(row) > 4 else "",
+        telefone=row[5].strip() if len(row) > 5 else "",
     )
 
 
@@ -115,7 +116,7 @@ class SheetsService:
 
     def _pessoas_rows(self) -> tuple[List[List[str]], int]:
         self.client.ensure_tabs()
-        rows = self.client.get_values(f"{PESSOAS_TAB}!A2:E")
+        rows = self.client.get_values(f"{PESSOAS_TAB}!A2:F")
         return rows, 2  # dados começam na linha 2 (1 = cabeçalho)
 
     def _reap_rows(self) -> tuple[List[List[str]], int]:
@@ -149,6 +150,7 @@ class SheetsService:
                     cpf=p.cpf,
                     criado_em=p.criado_em,
                     municipio=p.municipio,
+                    telefone=getattr(p, "telefone", "") or "",
                     anos=anos,
                 )
             )
@@ -172,7 +174,9 @@ class SheetsService:
                 return p
         return None
 
-    def add_pessoa(self, nome: str, cpf: str, municipio: str = "") -> PessoaComReap:
+    def add_pessoa(
+        self, nome: str, cpf: str, municipio: str = "", telefone: str = ""
+    ) -> PessoaComReap:
         self.client.ensure_tabs()
         dup = self.pessoa_por_cpf(cpf)
         if dup:
@@ -184,9 +188,10 @@ class SheetsService:
         ano_atual = datetime.now().year
 
         mun = str(municipio or "").strip()
+        tel = str(telefone or "").strip()
         self.client.append_values(
             f"{PESSOAS_TAB}!A2",
-            [[person_id, nome, cpf, now, mun]],
+            [[person_id, nome, cpf, now, mun, tel]],
         )
 
         reap_id = str(uuid.uuid4())
@@ -202,6 +207,7 @@ class SheetsService:
             cpf=cpf,
             criado_em=now,
             municipio=mun,
+            telefone=tel,
             anos=[
                 ReapAno(
                     id=reap_id,
@@ -223,14 +229,14 @@ class SheetsService:
 
     def add_pessoas_lote(
         self,
-        itens: List[tuple[str, str]],
+        itens: List[tuple],
         *,
         ano: Optional[int] = None,
         meses_on: Optional[List[str]] = None,
     ) -> dict:
         """
         Cadastra vários sócios de uma vez (2 escritas na API: Pessoas + Reap).
-        itens = [(nome, cpf), ...]
+        itens = [(nome, cpf)] ou [(nome, cpf, municipio, telefone), ...]
         meses_on = meses já marcados no ano (ex.: ['mar','abr',...,'out']).
         """
         self.client.ensure_tabs()
@@ -251,7 +257,14 @@ class SheetsService:
         erros: List[str] = []
         vistos: set[str] = set()
 
-        for i, (nome, cpf) in enumerate(itens, start=1):
+        for i, item in enumerate(itens, start=1):
+            if not isinstance(item, (list, tuple)) or len(item) < 2:
+                erros.append(f"Linha {i}: dados inválidos.")
+                continue
+            nome = item[0]
+            cpf = item[1]
+            mun = str(item[2] if len(item) > 2 else "").strip()
+            tel = str(item[3] if len(item) > 3 else "").strip()
             nome = _format_nome(nome)
             cpf = "".join(ch for ch in (cpf or "") if ch.isdigit())[:11]
             if not nome:
@@ -266,7 +279,7 @@ class SheetsService:
             vistos.add(cpf)
             person_id = str(uuid.uuid4())
             reap_id = str(uuid.uuid4())
-            pessoas_rows.append([person_id, nome, _format_cpf(cpf), now, ""])
+            pessoas_rows.append([person_id, nome, _format_cpf(cpf), now, mun, tel])
             reap_rows.append([reap_id, person_id, ano_alvo, *flags, now])
             ids.append(person_id)
 
@@ -445,7 +458,12 @@ class SheetsService:
         }
 
     def update_pessoa(
-        self, person_id: str, nome: str, cpf: str, municipio: str = ""
+        self,
+        person_id: str,
+        nome: str,
+        cpf: str,
+        municipio: str = "",
+        telefone: str = "",
     ) -> None:
         dup = self.pessoa_por_cpf(cpf, except_id=person_id)
         if dup:
@@ -453,6 +471,7 @@ class SheetsService:
         nome = _format_nome(nome)
         cpf = _format_cpf(cpf)
         mun = str(municipio or "").strip()
+        tel = str(telefone or "").strip()
         rows, start = self._pessoas_rows()
         idx = next((i for i, r in enumerate(rows) if r and r[0] == person_id), -1)
         if idx < 0:
@@ -460,8 +479,8 @@ class SheetsService:
         row_number = start + idx
         criado = rows[idx][3] if len(rows[idx]) > 3 else ""
         self.client.update_values(
-            f"{PESSOAS_TAB}!B{row_number}:E{row_number}",
-            [[nome, cpf, criado, mun]],
+            f"{PESSOAS_TAB}!B{row_number}:F{row_number}",
+            [[nome, cpf, criado, mun, tel]],
         )
         self._registrar_auditoria(
             "editar",
