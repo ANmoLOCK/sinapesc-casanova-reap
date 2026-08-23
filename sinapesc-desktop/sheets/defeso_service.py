@@ -133,6 +133,20 @@ class DefesoService:
             self.client.append_values(f"{DEFESO_TAB}!A2", [ficha.to_row()])
         return ficha
 
+    def atualizar_municipio(self, ficha_id: str, municipio: str) -> FichaDefeso:
+        """Atualiza apenas o município na ficha existente."""
+        ficha = self.por_id(ficha_id)
+        if not ficha:
+            raise ValueError("Ficha Defeso não encontrada.")
+        ficha.municipio = str(municipio or "").strip()
+        ficha.atualizado_em = now_stamp()
+        row_idx = self._row_index(ficha.id)
+        if row_idx < 0:
+            raise ValueError("Linha da ficha não encontrada.")
+        self.client.update_values(f"{DEFESO_TAB}!L{row_idx}", [[ficha.municipio]])
+        self.client.update_values(f"{DEFESO_TAB}!T{row_idx}", [[ficha.atualizado_em]])
+        return ficha
+
     def marcar_anexo(self, ficha_id: str, kind: str, presente: bool = True) -> FichaDefeso:
         ficha = self.por_id(ficha_id)
         if not ficha:

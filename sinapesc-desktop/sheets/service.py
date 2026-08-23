@@ -55,6 +55,7 @@ def _row_to_pessoa(row: List[str]) -> Pessoa:
         nome=row[1] if len(row) > 1 else "",
         cpf=row[2] if len(row) > 2 else "",
         criado_em=row[3] if len(row) > 3 else "",
+        municipio=row[4].strip() if len(row) > 4 else "",
     )
 
 
@@ -114,7 +115,7 @@ class SheetsService:
 
     def _pessoas_rows(self) -> tuple[List[List[str]], int]:
         self.client.ensure_tabs()
-        rows = self.client.get_values(f"{PESSOAS_TAB}!A2:D")
+        rows = self.client.get_values(f"{PESSOAS_TAB}!A2:E")
         return rows, 2  # dados começam na linha 2 (1 = cabeçalho)
 
     def _reap_rows(self) -> tuple[List[List[str]], int]:
@@ -147,6 +148,7 @@ class SheetsService:
                     nome=p.nome,
                     cpf=p.cpf,
                     criado_em=p.criado_em,
+                    municipio=p.municipio,
                     anos=anos,
                 )
             )
@@ -170,7 +172,7 @@ class SheetsService:
                 return p
         return None
 
-    def add_pessoa(self, nome: str, cpf: str) -> PessoaComReap:
+    def add_pessoa(self, nome: str, cpf: str, municipio: str = "") -> PessoaComReap:
         self.client.ensure_tabs()
         dup = self.pessoa_por_cpf(cpf)
         if dup:
@@ -181,9 +183,10 @@ class SheetsService:
         now = _now_iso()
         ano_atual = datetime.now().year
 
+        mun = str(municipio or "").strip()
         self.client.append_values(
             f"{PESSOAS_TAB}!A2",
-            [[person_id, nome, cpf, now]],
+            [[person_id, nome, cpf, now, mun]],
         )
 
         reap_id = str(uuid.uuid4())
@@ -198,6 +201,7 @@ class SheetsService:
             nome=nome,
             cpf=cpf,
             criado_em=now,
+            municipio=mun,
             anos=[
                 ReapAno(
                     id=reap_id,
@@ -262,7 +266,7 @@ class SheetsService:
             vistos.add(cpf)
             person_id = str(uuid.uuid4())
             reap_id = str(uuid.uuid4())
-            pessoas_rows.append([person_id, nome, _format_cpf(cpf), now])
+            pessoas_rows.append([person_id, nome, _format_cpf(cpf), now, ""])
             reap_rows.append([reap_id, person_id, ano_alvo, *flags, now])
             ids.append(person_id)
 
@@ -440,27 +444,52 @@ class SheetsService:
             "erros": [],
         }
 
-    def update_pessoa(self, person_id: str, nome: str, cpf: str) -> None:
+    def update_pessoa(
+        self, person_id: str, nome: str, cpf: str, municipio: str = ""
+    ) -> None:
         dup = self.pessoa_por_cpf(cpf, except_id=person_id)
         if dup:
             raise ValueError(f"CPF já cadastrado: {dup.nome}")
         nome = _format_nome(nome)
         cpf = _format_cpf(cpf)
+        mun = str(municipio or "").strip()
         rows, start = self._pessoas_rows()
         idx = next((i for i, r in enumerate(rows) if r and r[0] == person_id), -1)
         if idx < 0:
             raise ValueError("Pessoa não encontrada.")
         row_number = start + idx
+        criado = rows[idx][3] if len(rows[idx]) > 3 else ""
         self.client.update_values(
-            f"{PESSOAS_TAB}!B{row_number}:C{row_number}",
-            [[nome, cpf]],
+            f"{PESSOAS_TAB}!B{row_number}:E{row_number}",
+            [[nome, cpf, criado, mun]],
         )
         self._registrar_auditoria(
             "editar",
-            f"editou sócio {nome}",
+            f"editou sócio {nome}" + (f" ({mun})" if mun else ""),
             person_id=person_id,
             nome=nome,
         )
+
+    def update_pessoa_municipio(self, person_id: str, municipio: str) -> None:
+        """Atualiza só a coluna municipio (sincronização Defeso → REAP)."""
+        mun = str(municipio or "").strip()
+        rows, start = self._pessoas_rows()
+        idx = next((i for i, r in enumerate(rows) if r and r[0] == person_id), -1)
+        if idx < 0:
+            raise ValueError("Pessoa não encontrada.")
+        row_number = start + idx
+        row = list(rows[idx])
+        while len(row) < 5:
+            row.append("")
+        nome = row[1] if len(row) > 1 else ""
+        self.client.update_values(f"{PESSOAS_TAB}!E{row_number}", [[mun]])
+        if mun:
+            self._registrar_auditoria(
+                "sync_municipio",
+                f"município → {mun} ({nome})",
+                person_id=person_id,
+                nome=nome,
+            )
 
     def delete_pessoa(self, person_id: str) -> None:
         self.client.ensure_tabs()
@@ -721,7 +750,7 @@ class SheetsService:
     def exportar_abas(self) -> dict:
         """Linhas brutas (com cabeçalho) para backup CSV."""
         self.client.ensure_tabs()
-        pessoas = self.client.get_values(f"{PESSOAS_TAB}!A1:D")
+        pessoas = self.client.get_values(f"{PESSOAS_TAB}!A1:E")
         last_col = _col_letter(3 + len(MESES))
         reap = self.client.get_values(f"{REAP_TAB}!A1:{last_col}")
         if not pessoas:

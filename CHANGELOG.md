@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.11] — 2026-08-23 — Filtros Defeso + sync município REAP ↔ Defeso
+
+**Tag:** [`v1.7.11`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.11)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.11/SinapescREAP-Windows-v1.7.11.zip
+
+### O que entrou
+- **Defeso Fácil:** filtros **Localidade**, **Entradas confirmadas** e botão **↻ Atualizar**
+- Coluna **município** na planilha REAP (Pessoas) — campo no cadastro de sócio
+- **Sinc. Planilhas** no módulo Sócios/REAP (ao lado de Lista pública): copia município REAP → Defeso e preenche vazios no REAP a partir do Defeso
+- Ao salvar ficha Defeso ou sócio, município sincroniza automaticamente entre os dois módulos
+
+---
+
 ## [v1.7.10] — 2026-08-22 — Pacote PDF Defeso + ícone de letra
 
 **Tag:** [`v1.7.10`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.10)  

@@ -33,6 +33,9 @@
     defesoItens: [],
     defesoFicha: null,
     defesoSearch: "",
+    defesoLocalidade: "",
+    defesoSomenteConfirmadas: false,
+    defesoLocalidades: [],
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -299,6 +302,11 @@
     if (state.loggedIn) {
       if (state.navHistory.length) {
         headerActions.appendChild(mkBtn("← Voltar", "btn-outline", goBack));
+      }
+      if (state.screen === "admin") {
+        headerActions.appendChild(mkBtn("Sinc. Planilhas", "btn-outline", () => {
+          api("sync_planilhas_municipio");
+        }));
       }
       headerActions.appendChild(mkBtn("Lista pública", "btn-outline", () => navigate("lista", { tab: "lista" })));
       headerActions.appendChild(mkBtn("⚙ Configurações", "btn-outline", () => navigate("settings")));
@@ -704,7 +712,7 @@
           <div class="avatar">${esc(p.iniciais)}</div>
           <div class="card-info" data-toggle="${p.id}">
             <p class="card-name">${esc(p.nome_display)}${touchBadgeHtml(p)}</p>
-            <p class="card-cpf">CPF: ${esc(formatCpf(p.cpf_raw || p.cpf))}</p>
+            <p class="card-cpf">CPF: ${esc(formatCpf(p.cpf_raw || p.cpf))}${p.municipio ? ` · ${esc(p.municipio)}` : ""}</p>
           </div>
           <div class="card-actions">
             ${actions}
@@ -806,6 +814,9 @@
         <input id="m-nome" value="${esc(formatNome(pessoa?.nome || ""))}" />
         <label>CPF</label>
         <input id="m-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" value="${esc(formatCpf(pessoa?.cpf_raw || pessoa?.cpf || ""))}" />
+        <label>Município</label>
+        <input id="m-mun" placeholder="Ex.: Casa Nova" value="${esc(pessoa?.municipio || "")}" />
+        ${pessoa?.municipio_origem === "defeso" && !pessoa?.municipio ? `<p class="page-sub">Sugestão do Defeso (salve ou use Sinc. Planilhas)</p>` : ""}
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
@@ -819,6 +830,7 @@
         id: pessoa?.id || "",
         nome: formatNome(backdrop.querySelector("#m-nome").value),
         cpf: backdrop.querySelector("#m-cpf").value,
+        municipio: backdrop.querySelector("#m-mun")?.value || "",
       });
       if (!r.pending && !r.ok) toast(r.error);
       else backdrop._close(true);
@@ -1375,7 +1387,21 @@
           <span class="search-icon">⌕</span>
           <input type="search" id="defeso-search" placeholder="Buscar nome ou CPF" value="${esc(state.defesoSearch)}" />
         </div>
-        <button type="button" class="btn btn-outline-dark btn-sm" id="defeso-refresh">↻ Atualizar</button>
+        <div class="btn-row defeso-filters">
+          <label class="filter-wrap">Localidade
+            <select id="defeso-localidade">
+              <option value="">Todas</option>
+              ${(state.defesoLocalidades || []).map((loc) => `
+                <option value="${esc(loc)}" ${loc === state.defesoLocalidade ? "selected" : ""}>${esc(loc)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label class="pacote-check filter-check">
+            <input type="checkbox" id="defeso-confirmadas" ${state.defesoSomenteConfirmadas ? "checked" : ""} />
+            Entradas confirmadas
+          </label>
+          <button type="button" class="btn btn-outline-dark btn-sm" id="defeso-refresh">↻ Atualizar</button>
+        </div>
       </div>
       <div id="defeso-list"></div>
     `);
@@ -1383,9 +1409,26 @@
       state.defesoSearch = e.target.value;
       paintDefesoLista();
     });
+    $("#defeso-localidade")?.addEventListener("change", (e) => {
+      state.defesoLocalidade = e.target.value || "";
+      paintDefesoLista();
+    });
+    $("#defeso-confirmadas")?.addEventListener("change", (e) => {
+      state.defesoSomenteConfirmadas = !!e.target.checked;
+      paintDefesoLista();
+    });
     $("#defeso-refresh").addEventListener("click", () => api("load_defeso_lista"));
     paintDefesoLista();
     api("load_defeso_lista");
+  }
+
+  function refreshDefesoLocalidadeSelect() {
+    const sel = $("#defeso-localidade");
+    if (!sel) return;
+    const cur = state.defesoLocalidade || "";
+    sel.innerHTML = `<option value="">Todas</option>${(state.defesoLocalidades || []).map((loc) => `
+      <option value="${esc(loc)}" ${loc === cur ? "selected" : ""}>${esc(loc)}</option>
+    `).join("")}`;
   }
 
   function paintDefesoLista() {
@@ -1395,6 +1438,13 @@
     const q = (state.defesoSearch || "").trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     let itens = state.defesoItens || [];
+    if (state.defesoLocalidade) {
+      const loc = state.defesoLocalidade.trim().toLowerCase();
+      itens = itens.filter((x) => String(x.municipio || "").trim().toLowerCase() === loc);
+    }
+    if (state.defesoSomenteConfirmadas) {
+      itens = itens.filter((x) => x.confirmada);
+    }
     if (q) {
       itens = itens.filter((x) =>
         String(x.nome || "").toLowerCase().includes(q)
@@ -1408,6 +1458,7 @@
     }
     list.innerHTML = itens.map((x) => {
       const st = x.tem_ficha ? (x.status || "salvo") : "sem ficha";
+      const conf = x.confirmada ? " · confirmada" : "";
       const docs = [
         x.tem_identidade ? "ID" : null,
         x.tem_carteira_pesca ? "Pesca" : null,
@@ -1418,7 +1469,7 @@
           <div class="card-head">
             <div class="card-info">
               <p class="card-name">${esc(x.nome_display || x.nome)}</p>
-              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${x.municipio ? ` · ${esc(x.municipio)}` : ""}</p>
+              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio ? ` · ${esc(x.municipio)}` : ""}</p>
               <p class="card-cpf">${esc(docs)}</p>
             </div>
             <div class="card-actions">
@@ -1737,6 +1788,16 @@
         if (state.screen === "lista") renderListaCards();
       } else toast(r.error);
     });
+    AppEvents.on("sync_planilhas", (r) => {
+      if (r.ok) {
+        const msg = r.data?.mensagem || "Planilhas sincronizadas.";
+        toast(msg, 5000);
+        loadPessoas();
+        if (state.screen === "defeso" || state.screen === "defeso_ficha") {
+          api("load_defeso_lista");
+        }
+      } else toast(r.error);
+    });
     AppEvents.on("pessoa_saved", (r) => {
       if (r.ok) { toast("Salvo."); loadPessoas(); }
       else toast(r.error);
@@ -1845,7 +1906,11 @@
     AppEvents.on("defeso_lista", (r) => {
       if (r.ok) {
         state.defesoItens = r.data?.itens || [];
-        if (state.screen === "defeso") paintDefesoLista();
+        state.defesoLocalidades = r.data?.localidades || [];
+        if (state.screen === "defeso") {
+          refreshDefesoLocalidadeSelect();
+          paintDefesoLista();
+        }
         if (r.data?.aviso) toast(r.data.aviso, 6000);
       } else toast(r.error);
     });

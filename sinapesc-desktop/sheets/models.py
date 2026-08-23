@@ -37,6 +37,7 @@ class Pessoa:
     nome: str
     cpf: str
     criado_em: str
+    municipio: str = ""
 
 
 @dataclass

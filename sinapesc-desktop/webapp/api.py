@@ -32,6 +32,7 @@ from controle.defeso_declaracao import (
 )
 from controle.defeso_pacote import listar_opcoes_pacote, montar_pacote_pdf, normalize_selecao
 from controle.pendencias import classificar
+from controle.sync_planilhas import sync_municipios_bidirecional
 from controle.relatorio import itens_para_relatorio, montar_html, nome_arquivo_relatorio, salvar_html
 from drive import DriveDefesoClient
 from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
@@ -321,13 +322,32 @@ class SinapescApi:
             svc = self._ensure_service(require_login=False)
             ultimo = _ultimo_toggle_map(svc)
             pessoas = svc.get_all_pessoas_com_reap()
-            return [pessoa_to_dict(p, ultimo_toggle=ultimo.get(p.id)) for p in pessoas]
+            # Município do Defeso quando REAP ainda não tem (só exibição até salvar/sync)
+            defeso_mun: Dict[str, str] = {}
+            try:
+                for f in self._ensure_defeso().listar():
+                    cpf = only_digits(f.cpf)
+                    if cpf and str(f.municipio or "").strip():
+                        defeso_mun[cpf] = str(f.municipio).strip()
+            except Exception:
+                pass
+            out = []
+            for p in pessoas:
+                d = pessoa_to_dict(p, ultimo_toggle=ultimo.get(p.id))
+                if not (d.get("municipio") or "").strip():
+                    alt = defeso_mun.get(d.get("cpf_raw") or "")
+                    if alt:
+                        d["municipio"] = alt
+                        d["municipio_origem"] = "defeso"
+                out.append(d)
+            return out
 
         return self._run_async("pessoas", work, "Carregando sócios…")
 
     def save_pessoa(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         nome = format_nome(str(payload.get("nome") or ""))
         cpf = only_digits(str(payload.get("cpf") or ""))
+        municipio = str(payload.get("municipio") or "").strip()
         person_id = str(payload.get("id") or "").strip()
         if not nome:
             return err("Informe o nome completo.")
@@ -337,11 +357,21 @@ class SinapescApi:
         def work():
             svc = self._ensure_service()
             if person_id:
-                svc.update_pessoa(person_id, nome, cpf)
+                svc.update_pessoa(person_id, nome, cpf, municipio)
                 return person_id
-            return svc.add_pessoa(nome, cpf).id
+            return svc.add_pessoa(nome, cpf, municipio).id
 
         return self._run_async("pessoa_saved", work, "Salvando…")
+
+    def sync_planilhas_municipio(self) -> Dict[str, Any]:
+        """Sincroniza município REAP ↔ Defeso (botão no módulo Sócios/REAP)."""
+
+        def work():
+            reap = self._ensure_service()
+            defeso = self._ensure_defeso()
+            return sync_municipios_bidirecional(reap, defeso)
+
+        return self._run_async("sync_planilhas", work, "Sincronizando planilhas…")
 
     def delete_pessoa(self, person_id: str) -> Dict[str, Any]:
         if not person_id:
@@ -799,6 +829,13 @@ class SinapescApi:
             for p in pessoas:
                 cpf = only_digits(p.cpf)
                 f = fichas.pop(cpf, None) if fichas else None
+                p_mun = str(getattr(p, "municipio", "") or "").strip()
+                f_mun = str(f.municipio).strip() if f else ""
+                municipio = f_mun or p_mun
+                confirmada = bool(
+                    f
+                    and str(f.status or "").strip().lower() in ("salvo", "confirmado", "confirmada")
+                )
                 rows.append(
                     {
                         "person_id": p.id,
@@ -808,8 +845,11 @@ class SinapescApi:
                         "cpf_formatado": format_cpf(cpf),
                         "tem_ficha": bool(f),
                         "ficha_id": f.id if f else "",
-                        "municipio": f.municipio if f else "",
+                        "municipio": municipio,
+                        "municipio_reap": p_mun,
+                        "municipio_defeso": f_mun,
                         "status": f.status if f else "sem_ficha",
+                        "confirmada": confirmada,
                         "atualizado_em": f.atualizado_em if f else "",
                         "tem_identidade": bool(f and f.tem_identidade),
                         "tem_carteira_pesca": bool(f and f.tem_carteira_pesca),
@@ -817,6 +857,12 @@ class SinapescApi:
                     }
                 )
             for f in fichas.values():
+                f_mun = str(f.municipio or "").strip()
+                confirmada = str(f.status or "").strip().lower() in (
+                    "salvo",
+                    "confirmado",
+                    "confirmada",
+                )
                 rows.append(
                     {
                         "person_id": f.person_id,
@@ -826,8 +872,11 @@ class SinapescApi:
                         "cpf_formatado": format_cpf(f.cpf),
                         "tem_ficha": True,
                         "ficha_id": f.id,
-                        "municipio": f.municipio,
+                        "municipio": f_mun,
+                        "municipio_reap": "",
+                        "municipio_defeso": f_mun,
                         "status": f.status or "rascunho",
+                        "confirmada": confirmada,
                         "atualizado_em": f.atualizado_em,
                         "tem_identidade": bool(f.tem_identidade),
                         "tem_carteira_pesca": bool(f.tem_carteira_pesca),
@@ -835,10 +884,15 @@ class SinapescApi:
                     }
                 )
             rows.sort(key=lambda r: str(r.get("nome_display") or "").lower())
+            localidades = sorted(
+                {str(r.get("municipio") or "").strip() for r in rows if str(r.get("municipio") or "").strip()},
+                key=lambda s: s.lower(),
+            )
             cfg = load_config()
             mode = anexos_mode(cfg)
             return {
                 "itens": rows,
+                "localidades": localidades,
                 "defeso_spreadsheet_id": normalize_sheet_id(
                     str(cfg.get("defeso_spreadsheet_id") or "")
                 ),
@@ -909,6 +963,13 @@ class SinapescApi:
                 base["nome_display"] = display_nome(str(base.get("nome") or pessoa.nome))
                 base["cpf"] = only_digits(pessoa.cpf)
                 base["cpf_formatado"] = format_cpf(pessoa.cpf)
+                p_mun = str(getattr(pessoa, "municipio", "") or "").strip()
+                f_mun = str(base.get("municipio") or "").strip()
+                if not f_mun and p_mun:
+                    base["municipio"] = p_mun
+                    base["municipio_origem"] = "reap"
+                elif f_mun and not p_mun:
+                    base["municipio_origem"] = "defeso"
 
             anexos: List[Dict[str, str]] = []
             cfg = load_config()
@@ -952,6 +1013,13 @@ class SinapescApi:
             if not isinstance(payload, dict):
                 raise ValueError("Dados inválidos.")
             ficha = self._ensure_defeso().salvar(payload)
+            mun = str(ficha.municipio or "").strip()
+            pid = str(ficha.person_id or payload.get("person_id") or "").strip()
+            if mun and pid:
+                try:
+                    self._ensure_service().update_pessoa_municipio(pid, mun)
+                except Exception:
+                    pass
             return ficha.to_dict()
 
         return self._run_async("defeso_saved", work, "Salvando ficha Defeso…")

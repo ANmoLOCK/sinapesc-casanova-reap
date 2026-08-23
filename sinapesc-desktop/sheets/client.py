@@ -33,7 +33,7 @@ cria o objeto que chama endpoints REST:
 
 PASSO 3 — Abas (tabs)
 ------------------------------------
-Pessoas:    id | nome | cpf | criadoEm
+Pessoas:    id | nome | cpf | criadoEm | municipio
 Reap:       id | personId | ano | jan..dez | atualizadoEm
 Auditoria:  id | em | usuario | acao | detalhe | personId | nome | ano | meses
 Config:     chave | valor   (calendário REAP compartilhado entre admins)
@@ -80,7 +80,7 @@ REAP_TAB = "Reap"
 AUDITORIA_TAB = "Auditoria"
 CONFIG_TAB = "Config"
 
-PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm"]
+PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm", "municipio"]
 REAP_HEADER = ["id", "personId", "ano", *MESES, "atualizadoEm"]
 AUDITORIA_HEADER = [
     "id",
@@ -201,6 +201,19 @@ class GoogleSheetsClient:
         for title, header in wanted:
             if title not in existing:
                 self.update_values(f"{title}!A1", [header])
+
+        # Planilhas antigas: acrescenta coluna municipio em Pessoas
+        p_header = self.get_values(f"{PESSOAS_TAB}!A1:E1")
+        if p_header and p_header[0]:
+            row = list(p_header[0])
+            while len(row) < 4:
+                row.append("")
+            if len(row) == 4:
+                row.append("municipio")
+                self.update_values(f"{PESSOAS_TAB}!A1:E1", [row])
+            elif len(row) >= 5 and not str(row[4]).strip():
+                row[4] = "municipio"
+                self.update_values(f"{PESSOAS_TAB}!A1:E1", [row[:5]])
 
         self._tabs_ready = True
 

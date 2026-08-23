@@ -27,6 +27,7 @@ hiddenimports = [
     "controle.defeso_anexos",
     "controle.defeso_declaracao",
     "controle.defeso_pacote",
+    "controle.sync_planilhas",
     "pymupdf",
     "fitz",
     "drive",

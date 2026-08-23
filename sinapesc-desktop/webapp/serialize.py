@@ -23,6 +23,7 @@ def pessoa_to_dict(
         "cpf_raw": only_digits(p.cpf),
         "iniciais": _iniciais(p.nome),
         "criado_em": p.criado_em or "",
+        "municipio": getattr(p, "municipio", "") or "",
         "anos": [
             {
                 "ano": a.ano,

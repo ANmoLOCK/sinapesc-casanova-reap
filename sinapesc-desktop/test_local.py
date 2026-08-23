@@ -48,6 +48,8 @@ def test_parse_lote() -> None:
 def test_row_parsers() -> None:
     p = _row_to_pessoa(["id1", "Maria", "12345678901", "2024-01-01"])
     assert p.nome == "Maria"
+    p2 = _row_to_pessoa(["id2", "Joao", "98765432100", "2024-01-02", "Casa Nova"])
+    assert p2.municipio == "Casa Nova"
     r = _row_to_reap(
         ["rid", "id1", "2024", "TRUE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE",
          "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "FALSE", "now"]
@@ -634,6 +636,104 @@ def only_digits_cpf_helper(cpf: str) -> str:
     return only_digits(cpf)
 
 
+def test_sync_municipios_bidirecional() -> None:
+    from controle.defeso import FichaDefeso
+    from controle.sync_planilhas import sync_municipios_bidirecional
+    from sheets.models import Pessoa
+
+    class FakeReap:
+        def __init__(self) -> None:
+            self.pessoas = [
+                Pessoa(id="p1", nome="Joao", cpf="12345678901", criado_em="", municipio="Salvador"),
+                Pessoa(id="p2", nome="Maria", cpf="98765432100", criado_em="", municipio=""),
+            ]
+            self.updates: list = []
+
+        def get_all_pessoas(self):
+            return list(self.pessoas)
+
+        def update_pessoa_municipio(self, person_id: str, municipio: str) -> None:
+            self.updates.append((person_id, municipio))
+            for p in self.pessoas:
+                if p.id == person_id:
+                    p.municipio = municipio
+
+    class FakeDefeso:
+        def __init__(self) -> None:
+            self.fichas = [
+                FichaDefeso(
+                    id="f1",
+                    person_id="p1",
+                    nome="Joao",
+                    cpf="12345678901",
+                    municipio="Camaçari",
+                    status="salvo",
+                ),
+                FichaDefeso(
+                    id="f2",
+                    person_id="p2",
+                    nome="Maria",
+                    cpf="98765432100",
+                    municipio="Feira de Santana",
+                    status="confirmada",
+                ),
+            ]
+            self.salvos: list = []
+            self.mun_updates: list = []
+
+        def listar(self):
+            return list(self.fichas)
+
+        def por_cpf(self, cpf: str):
+            from ui.formatters import only_digits
+
+            d = only_digits(cpf)
+            for f in self.fichas:
+                if only_digits(f.cpf) == d:
+                    return f
+            return None
+
+        def atualizar_municipio(self, ficha_id: str, municipio: str):
+            self.mun_updates.append((ficha_id, municipio))
+            for f in self.fichas:
+                if f.id == ficha_id:
+                    f.municipio = municipio
+                    return f
+            raise ValueError("ficha")
+
+        def salvar(self, payload):
+            self.salvos.append(payload)
+            return FichaDefeso(id="new", **{k: v for k, v in payload.items() if k != "person_id"}, person_id=payload.get("person_id", ""))
+
+    reap = FakeReap()
+    defeso = FakeDefeso()
+    out = sync_municipios_bidirecional(reap, defeso)
+
+    assert out["reap_para_defeso"]["atualizados"] == 1
+    assert defeso.fichas[0].municipio == "Salvador"
+    assert out["defeso_para_reap"]["atualizados"] == 1
+    assert reap.pessoas[1].municipio == "Feira de Santana"
+    assert reap.updates == [("p2", "Feira de Santana")]
+
+
+def test_js_filtros_defeso_e_sync_planilhas() -> None:
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "defeso-localidade" in js
+    assert "defeso-confirmadas" in js
+    assert "defeso-refresh" in js
+    assert "Entradas confirmadas" in js
+    assert "Sinc. Planilhas" in js
+    assert 'api("sync_planilhas_municipio")' in js
+    assert "refreshDefesoLocalidadeSelect" in js
+    assert "defesoLocalidades" in js
+    api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "def sync_planilhas_municipio" in api_py
+    assert '"localidades"' in api_py
+    assert '"confirmada"' in api_py
+    ser = (ROOT / "webapp" / "serialize.py").read_text(encoding="utf-8")
+    assert '"municipio"' in ser
+
+
 def test_config_appdata_sobrescreve_exe() -> None:
     """UI salva em AppData; deve vencer o config.json ao lado do EXE."""
     import json
@@ -683,6 +783,8 @@ if __name__ == "__main__":
     test_defeso_anexo_local()
     test_defeso_fontes_e_pdf()
     test_defeso_pacote_pdf()
+    test_sync_municipios_bidirecional()
+    test_js_filtros_defeso_e_sync_planilhas()
     test_config_appdata_sobrescreve_exe()
     test_backup_rotacao()
     test_chrome_routes()
