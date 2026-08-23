@@ -622,10 +622,14 @@ class SinapescApi:
             defeso = self._ensure_defeso()
             telefones: Dict[str, str] = {}
             municipios: Dict[str, str] = {}
+            nomes: Dict[str, str] = {}
+            cpfs: List[str] = []
             for p in reap.get_all_pessoas():
                 cpf = only_digits(p.cpf)
-                if not cpf:
+                if len(cpf) != 11:
                     continue
+                cpfs.append(cpf)
+                nomes[cpf] = str(p.nome or "").strip()
                 tel = str(getattr(p, "telefone", "") or "").strip()
                 mun = str(getattr(p, "municipio", "") or "").strip()
                 if tel:
@@ -638,6 +642,8 @@ class SinapescApi:
                 fichas,
                 telefones_reap=telefones,
                 municipios_reap=municipios,
+                nomes_reap=nomes,
+                cpfs_reap=cpfs,
                 localidade=loc,
                 somente_entrada=bool(somente_entrada),
             )
@@ -956,33 +962,8 @@ class SinapescApi:
                         "tem_caf": bool(f and f.tem_caf),
                     }
                 )
-            for f in fichas.values():
-                f_mun = str(f.municipio or "").strip()
-                entrada = entrada_confirmada_flag(f)
-                rows.append(
-                    {
-                        "person_id": f.person_id,
-                        "nome": f.nome,
-                        "nome_display": display_nome(f.nome),
-                        "cpf": only_digits(f.cpf),
-                        "cpf_formatado": format_cpf(f.cpf),
-                        "tem_ficha": True,
-                        "ficha_id": f.id,
-                        "municipio": f_mun,
-                        "municipio_reap": "",
-                        "municipio_defeso": f_mun,
-                        "telefone_reap": str(f.telefone_reap or "").strip(),
-                        "status": f.status or "rascunho",
-                        "confirmada": entrada,
-                        "entrada_confirmada": entrada,
-                        "parcelas_recebidas": f.parcelas_recebidas or "",
-                        "endereco_completo": endereco_completo(f),
-                        "atualizado_em": f.atualizado_em,
-                        "tem_identidade": bool(f.tem_identidade),
-                        "tem_carteira_pesca": bool(f.tem_carteira_pesca),
-                        "tem_caf": bool(f.tem_caf),
-                    }
-                )
+            # Não lista fichas órfãs (existem só no Defeso, sem CPF no REAP) —
+            # evita "sócio fantasma" no relatório / tela.
             rows.sort(key=lambda r: str(r.get("nome_display") or "").lower())
             localidades = sorted(
                 {str(r.get("municipio") or "").strip() for r in rows if str(r.get("municipio") or "").strip()},

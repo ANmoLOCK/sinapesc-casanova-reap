@@ -349,8 +349,8 @@ def test_licenca_proprietaria() -> None:
     assert "PROIBI" in lic.upper() or "proibid" in lic.lower()
     assert (repo / "COPYRIGHT").exists()
     html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-    assert "footer-legal" not in html
-    assert "Gabriel Lourran Da Silva Costa" not in html
+    assert "footer-legal" in html
+    assert "Gabriel Lourran Da Silva Costa" in html
     assert "status-text" in html
     assert "footer-user" in html
     assert "footer-conn" in html
@@ -411,11 +411,32 @@ def test_defeso_relatorio_html() -> None:
         [f],
         telefones_reap={"12345678901": "(74) 98888-1111"},
         municipios_reap={"12345678901": "Casa Nova"},
+        nomes_reap={"12345678901": "Maria Silva"},
+        cpfs_reap=["12345678901"],
     )
     assert len(itens) == 1
     assert itens[0]["telefone"] == "(74) 98888-1111"
     assert itens[0]["municipio"] == "Casa Nova"
     assert "IgnoradoNoRelatorio" not in itens[0]["endereco"]
+
+    # Ficha órfã (não existe no REAP) NÃO entra no relatório
+    fantasma = FichaDefeso(
+        nome="Gabriel Lourran Da Silva Costa",
+        cpf="99988877766",
+        municipio="X",
+        uf="BA",
+        entrada_confirmada="sim",
+    )
+    sem_fantasma = itens_defeso_para_relatorio(
+        [f, fantasma],
+        telefones_reap={"12345678901": "(74) 98888-1111"},
+        municipios_reap={"12345678901": "Casa Nova"},
+        nomes_reap={"12345678901": "Maria Silva"},
+        cpfs_reap=["12345678901"],
+    )
+    assert len(sem_fantasma) == 1
+    assert all("Gabriel" not in str(x.get("nome")) for x in sem_fantasma)
+
     html = montar_html_defeso(
         org_short="Sinapesc",
         org_full="Sindicato",
@@ -427,9 +448,11 @@ def test_defeso_relatorio_html() -> None:
     assert "Casa Nova" in html
     assert "1° parcela" in html
     assert "15/05/2026" in html
-    assert "footer-legal" not in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert "Gabriel Lourran" not in html
     assert "df-parcela-1" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
     assert "entrada-check" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    # Rodapé de crédito permanece na UI do app
+    assert "footer-legal" in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
 
 
 def test_defeso_ficha_e_html() -> None:

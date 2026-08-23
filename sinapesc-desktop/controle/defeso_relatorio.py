@@ -17,9 +17,13 @@ from controle.relatorio import logo_data_uri, pasta_relatorios
 from ui.formatters import display_nome, format_cpf, only_digits
 
 
-def telefone_relatorio(f: FichaDefeso, tel_reap: str = "") -> str:
+def telefone_relatorio(f: FichaDefeso | None, tel_reap: str = "") -> str:
     """Telefone do relatório: só REAP (planilha Pessoas)."""
-    return str(tel_reap or f.telefone_reap or "").strip()
+    if tel_reap:
+        return str(tel_reap).strip()
+    if f is not None:
+        return str(f.telefone_reap or "").strip()
+    return ""
 
 
 def montar_html_defeso(
@@ -68,8 +72,8 @@ def montar_html_defeso(
     )
 
     aviso = (
-        "Uso interno. Município e telefone vêm da planilha REAP (Pessoas). "
-        "Endereço: rua, nº, bairro, UF e CEP da ficha Defeso. Não é comprovante oficial."
+        "Uso interno. Só entram sócios cadastrados na planilha REAP (Pessoas). "
+        "Município e telefone vêm do REAP. Endereço: rua, nº, bairro, UF e CEP da ficha Defeso."
     )
 
     return f"""<!DOCTYPE html>
@@ -125,24 +129,53 @@ def itens_defeso_para_relatorio(
     *,
     telefones_reap: Dict[str, str],
     municipios_reap: Dict[str, str],
+    nomes_reap: Dict[str, str] | None = None,
+    cpfs_reap: Sequence[str] | None = None,
     localidade: str = "",
     somente_entrada: bool = False,
 ) -> List[Dict[str, Any]]:
+    """
+    Monta linhas do relatório.
+
+    Só inclui CPF que existe na planilha REAP (Pessoas) — evita sócio fantasma
+    que exista só como lixo/órfão na planilha Defeso.
+    """
     loc = localidade.strip().lower()
-    out: List[Dict[str, Any]] = []
+    nomes = nomes_reap or {}
+    # Conjunto de CPFs válidos do REAP
+    if cpfs_reap is not None:
+        allowed = {only_digits(c) for c in cpfs_reap if len(only_digits(c)) == 11}
+    else:
+        allowed = set(municipios_reap) | set(telefones_reap) | set(nomes)
+
+    by_cpf: Dict[str, FichaDefeso] = {}
     for f in fichas:
         cpf = only_digits(f.cpf)
+        if len(cpf) == 11:
+            by_cpf[cpf] = f
+
+    out: List[Dict[str, Any]] = []
+    # Percorre só CPFs do REAP (ordem estável por nome)
+    for cpf in sorted(allowed, key=lambda c: (nomes.get(c) or by_cpf.get(c) and by_cpf[c].nome or c).lower()):
+        if len(cpf) != 11:
+            continue
+        f = by_cpf.get(cpf)
         mun_reap = str(municipios_reap.get(cpf) or "").strip()
-        # Localidade do relatório = município do REAP
         if loc and mun_reap.lower() != loc:
             continue
-        ent = entrada_confirmada_flag(f)
+        ent = entrada_confirmada_flag(f) if f else False
         if somente_entrada and not ent:
+            continue
+        # Sem ficha Defeso e sem filtro de entrada: ainda pode listar se quiser só com ficha
+        if f is None:
+            continue
+        nome = str(nomes.get(cpf) or f.nome or "").strip()
+        if not nome:
             continue
         tel = telefone_relatorio(f, telefones_reap.get(cpf, ""))
         out.append(
             {
-                "nome": f.nome,
+                "nome": nome,
                 "cpf": cpf,
                 "telefone": tel,
                 "municipio": mun_reap,

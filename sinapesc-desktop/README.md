@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.14** — Parcelas 1°–4°, tel/município REAP no relatório Defeso.
+**v1.7.15** — Relatório sem sócio fantasma; rodapé de crédito restaurado.
 
 ## Requisitos (Windows)
 

@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.15] — 2026-08-23 — Relatório sem sócio fantasma + rodapé de volta
+
+**Tag:** [`v1.7.15`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.15)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.15/SinapescREAP-Windows-v1.7.15.zip
+
+### O que entrou
+- Relatório HTML Defeso: **só sócios que existem na planilha REAP** (ignora fichas órfãs)
+- Rodapé com crédito do autor **restaurado** na tela do programa
+
+---
+
 ## [v1.7.14] — 2026-08-23 — Parcelas 1°–4°, tel/município REAP no relatório
 
 **Tag:** [`v1.7.14`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.14)  
@@ -16,7 +27,6 @@ Formato: mais recente primeiro.
 - Relatório: **município e telefone do REAP**; do Defeso só rua, nº, bairro, UF e CEP
 - Telefone REAP aparece na lista e na ficha Defeso (campo só leitura)
 - Checkbox **Entrada confirmada** corrigido
-- Removido rodapé com nome do autor da tela (não era cadastro)
 
 ---
 
