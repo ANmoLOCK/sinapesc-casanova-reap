@@ -8,7 +8,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from ui.formatters import display_nome, format_cpf, format_nome, only_digits
 
@@ -331,8 +331,27 @@ def pasta_declaracoes() -> Path:
     return dest
 
 
+def endereco_defeso_relatorio(f: FichaDefeso) -> str:
+    """Endereço no relatório: só rua, número, bairro, UF e CEP (sem município Defeso)."""
+    partes: List[str] = []
+    if f.endereco:
+        linha = f.endereco.strip()
+        if f.numero:
+            linha = f"{linha}, nº {f.numero.strip()}"
+        partes.append(linha)
+    elif f.numero:
+        partes.append(f"nº {f.numero.strip()}")
+    if f.bairro:
+        partes.append(f.bairro.strip())
+    if f.uf:
+        partes.append(str(f.uf).strip().upper()[:2])
+    if f.cep:
+        partes.append(f"CEP {f.cep.strip()}")
+    return " — ".join(partes)
+
+
 def endereco_completo(f: FichaDefeso) -> str:
-    """Monta endereço completo só com dados da ficha Defeso."""
+    """Endereço completo da ficha Defeso (inclui município)."""
     partes: List[str] = []
     if f.endereco:
         linha = f.endereco.strip()
@@ -351,6 +370,59 @@ def endereco_completo(f: FichaDefeso) -> str:
     if f.cep:
         partes.append(f"CEP {f.cep.strip()}")
     return " — ".join(partes)
+
+
+def parse_parcelas(raw: str) -> List[str]:
+    """Extrai até 4 datas de parcelas do texto salvo na planilha."""
+    textos = ["", "", "", ""]
+    s = str(raw or "").strip()
+    if not s:
+        return textos
+    # Formato novo: linhas "1° parcela;15/05/2026" ou "1;15/05/2026"
+    lines = [ln.strip() for ln in re.split(r"[\n|]+", s) if ln.strip()]
+    if lines and any("parcela" in ln.lower() or ";" in ln for ln in lines):
+        for ln in lines:
+            m = re.match(r"^(\d+)\s*[°ºo]?\s*parcela\s*[;:]\s*(.*)$", ln, re.I)
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < 4:
+                    textos[idx] = m.group(2).strip()
+                continue
+            m2 = re.match(r"^(\d+)\s*[;:]\s*(.*)$", ln)
+            if m2:
+                idx = int(m2.group(1)) - 1
+                if 0 <= idx < 4:
+                    textos[idx] = m2.group(2).strip()
+                continue
+            # linha solta → primeira vaga
+            for i in range(4):
+                if not textos[i]:
+                    textos[i] = ln
+                    break
+        return textos
+    # Formato antigo: datas separadas por ; ou ,
+    partes = [p.strip() for p in re.split(r"[;,]", s) if p.strip()]
+    for i, p in enumerate(partes[:4]):
+        textos[i] = p
+    return textos
+
+
+def format_parcelas(datas: Sequence[str] | None = None) -> str:
+    """Grava 4 parcelas no formato profissional do relatório."""
+    vals = list(datas or [])
+    while len(vals) < 4:
+        vals.append("")
+    lines = []
+    for i in range(4):
+        data = str(vals[i] or "").strip()
+        lines.append(f"{i + 1}° parcela;{data}")
+    return "\n".join(lines)
+
+
+def parcelas_para_relatorio(raw: str) -> str:
+    """Texto multilinha para o HTML (sempre 1°–4°)."""
+    datas = parse_parcelas(raw)
+    return "\n".join(f"{i + 1}° parcela; {datas[i] or '—'}" for i in range(4))
 
 
 def entrada_confirmada_flag(f: FichaDefeso) -> bool:

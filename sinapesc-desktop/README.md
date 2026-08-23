@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.13** — UF/tel no REAP, relatório Defeso, parcelas e filtro localidade.
+**v1.7.14** — Parcelas 1°–4°, tel/município REAP no relatório Defeso.
 
 ## Requisitos (Windows)
 

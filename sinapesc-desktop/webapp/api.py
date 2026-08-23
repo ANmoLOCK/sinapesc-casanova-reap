@@ -390,9 +390,21 @@ class SinapescApi:
                 pid = svc.add_pessoa(nome, cpf, municipio, telefone).id
             if telefone:
                 try:
-                    ficha = self._ensure_defeso().por_cpf(cpf)
+                    defeso = self._ensure_defeso()
+                    ficha = defeso.por_cpf(cpf)
                     if ficha:
-                        self._ensure_defeso().atualizar_telefone_reap(ficha.id, telefone)
+                        defeso.atualizar_telefone_reap(ficha.id, telefone)
+                    else:
+                        defeso.salvar(
+                            {
+                                "person_id": pid,
+                                "nome": nome,
+                                "cpf": cpf,
+                                "municipio": municipio,
+                                "telefone_reap": telefone,
+                                "status": "rascunho",
+                            }
+                        )
                 except Exception:
                     pass
             return pid
@@ -608,16 +620,24 @@ class SinapescApi:
         def work():
             reap = self._ensure_service()
             defeso = self._ensure_defeso()
-            telefones = {
-                only_digits(p.cpf): str(getattr(p, "telefone", "") or "").strip()
-                for p in reap.get_all_pessoas()
-                if only_digits(p.cpf)
-            }
+            telefones: Dict[str, str] = {}
+            municipios: Dict[str, str] = {}
+            for p in reap.get_all_pessoas():
+                cpf = only_digits(p.cpf)
+                if not cpf:
+                    continue
+                tel = str(getattr(p, "telefone", "") or "").strip()
+                mun = str(getattr(p, "municipio", "") or "").strip()
+                if tel:
+                    telefones[cpf] = tel
+                if mun:
+                    municipios[cpf] = mun
             fichas = defeso.listar()
             loc = str(localidade or "").strip()
             itens = itens_defeso_para_relatorio(
                 fichas,
                 telefones_reap=telefones,
+                municipios_reap=municipios,
                 localidade=loc,
                 somente_entrada=bool(somente_entrada),
             )
@@ -908,7 +928,8 @@ class SinapescApi:
                 p_mun = str(getattr(p, "municipio", "") or "").strip()
                 p_tel = str(getattr(p, "telefone", "") or "").strip()
                 f_mun = str(f.municipio).strip() if f else ""
-                municipio = f_mun or p_mun
+                # Lista/relatório: município e telefone do REAP têm prioridade
+                municipio = p_mun or f_mun
                 tel_reap = p_tel or (str(f.telefone_reap).strip() if f else "")
                 entrada = entrada_confirmada_flag(f) if f else False
                 rows.append(
@@ -1046,18 +1067,27 @@ class SinapescApi:
                 base["cpf"] = only_digits(pessoa.cpf)
                 base["cpf_formatado"] = format_cpf(pessoa.cpf)
                 p_mun = str(getattr(pessoa, "municipio", "") or "").strip()
-                f_mun = str(base.get("municipio") or "").strip()
-                if not f_mun and p_mun:
+                # Município na ficha: prioriza REAP (mesmo do relatório)
+                if p_mun:
                     base["municipio"] = p_mun
                     base["municipio_origem"] = "reap"
-                elif f_mun and not p_mun:
+                elif str(base.get("municipio") or "").strip():
                     base["municipio_origem"] = "defeso"
                 p_tel = str(getattr(pessoa, "telefone", "") or "").strip()
                 if p_tel:
                     base["telefone_reap"] = p_tel
                 elif not str(base.get("telefone_reap") or "").strip():
                     base["telefone_reap"] = ""
-            base["entrada_confirmada"] = entrada_confirmada_flag(ficha) if ficha else False
+            base["entrada_confirmada"] = bool(
+                entrada_confirmada_flag(ficha) if ficha else False
+            )
+            # Parcelas como lista de 4 datas para a UI
+            try:
+                from controle.defeso import parse_parcelas
+
+                base["parcelas"] = parse_parcelas(str(base.get("parcelas_recebidas") or ""))
+            except Exception:
+                base["parcelas"] = ["", "", "", ""]
 
             anexos: List[Dict[str, str]] = []
             cfg = load_config()
@@ -1100,6 +1130,39 @@ class SinapescApi:
         def work():
             if not isinstance(payload, dict):
                 raise ValueError("Dados inválidos.")
+            from controle.defeso import format_parcelas
+
+            # Aceita parcelas como lista [p1,p2,p3,p4] ou string
+            raw_parc = payload.get("parcelas")
+            if isinstance(raw_parc, list):
+                payload = {**payload, "parcelas_recebidas": format_parcelas(raw_parc)}
+            elif payload.get("parcelas_recebidas") is None and raw_parc:
+                payload = {**payload, "parcelas_recebidas": str(raw_parc)}
+
+            # Checkbox: normaliza true/false vindos do pywebview
+            if "entrada_confirmada" in payload:
+                payload = {
+                    **payload,
+                    "entrada_confirmada": payload.get("entrada_confirmada"),
+                }
+
+            # Telefone REAP: se veio vazio, completa pela planilha Pessoas
+            cpf = only_digits(str(payload.get("cpf") or ""))
+            pid = str(payload.get("person_id") or "").strip()
+            if not str(payload.get("telefone_reap") or "").strip():
+                try:
+                    for p in self._ensure_service().get_all_pessoas():
+                        if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
+                            tel = str(getattr(p, "telefone", "") or "").strip()
+                            mun = str(getattr(p, "municipio", "") or "").strip()
+                            if tel:
+                                payload["telefone_reap"] = tel
+                            if mun and not str(payload.get("municipio") or "").strip():
+                                payload["municipio"] = mun
+                            break
+                except Exception:
+                    pass
+
             ficha = self._ensure_defeso().salvar(payload)
             mun = str(ficha.municipio or "").strip()
             pid = str(ficha.person_id or payload.get("person_id") or "").strip()
@@ -1108,7 +1171,12 @@ class SinapescApi:
                     self._ensure_service().update_pessoa_municipio(pid, mun)
                 except Exception:
                     pass
-            return ficha.to_dict()
+            d = ficha.to_dict()
+            d["entrada_confirmada"] = entrada_confirmada_flag(ficha)
+            from controle.defeso import parse_parcelas
+
+            d["parcelas"] = parse_parcelas(ficha.parcelas_recebidas or "")
+            return d
 
         return self._run_async("defeso_saved", work, "Salvando ficha Defeso…")
 

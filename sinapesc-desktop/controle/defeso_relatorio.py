@@ -7,13 +7,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-from controle.defeso import FichaDefeso, endereco_completo, entrada_confirmada_flag
+from controle.defeso import (
+    FichaDefeso,
+    endereco_defeso_relatorio,
+    entrada_confirmada_flag,
+    parcelas_para_relatorio,
+)
 from controle.relatorio import logo_data_uri, pasta_relatorios
-from ui.formatters import display_nome, format_cpf
+from ui.formatters import display_nome, format_cpf, only_digits
 
 
 def telefone_relatorio(f: FichaDefeso, tel_reap: str = "") -> str:
-    """Telefone do relatório: prioriza REAP (planilha Pessoas), não o da ficha."""
+    """Telefone do relatório: só REAP (planilha Pessoas)."""
     return str(tel_reap or f.telefone_reap or "").strip()
 
 
@@ -36,33 +41,35 @@ def montar_html_defeso(
     rows: List[str] = []
     for item in itens:
         tel = html.escape(str(item.get("telefone") or "—"))
-        end = html.escape(str(item.get("endereco") or "—"))
-        parcelas = html.escape(str(item.get("parcelas") or "—"))
+        mun = html.escape(str(item.get("municipio") or "—"))
+        end = html.escape(str(item.get("endereco") or "—")).replace("\n", "<br>")
+        parcelas = html.escape(str(item.get("parcelas") or "—")).replace("\n", "<br>")
         ent = "Sim" if item.get("entrada_confirmada") else "Não"
         ent_cls = "ok" if item.get("entrada_confirmada") else "off"
         rows.append(
             "<tr>"
             f"<td>{html.escape(display_nome(str(item.get('nome') or '')))}</td>"
             f"<td>{html.escape(format_cpf(str(item.get('cpf') or '')))}</td>"
+            f"<td>{mun}</td>"
             f"<td>{tel}</td>"
             f"<td class=\"addr\">{end}</td>"
-            f"<td>{parcelas}</td>"
+            f"<td class=\"parc\">{parcelas}</td>"
             f'<td class="{ent_cls}">{ent}</td>'
             "</tr>"
         )
 
     table = (
         "<table><thead><tr>"
-        "<th>Nome</th><th>CPF</th><th>Telefone (REAP)</th>"
-        "<th>Endereço (Defeso)</th><th>Parcelas recebidas</th><th>Entrada confirmada</th>"
+        "<th>Nome</th><th>CPF</th><th>Município (REAP)</th><th>Telefone (REAP)</th>"
+        "<th>Endereço (Defeso)</th><th>Parcelas</th><th>Entrada</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
     )
 
     aviso = (
-        "Uso interno da secretaria. Telefone vem da planilha REAP (Pessoas). "
-        "Endereço vem da ficha Defeso. Não é comprovante oficial."
+        "Uso interno. Município e telefone vêm da planilha REAP (Pessoas). "
+        "Endereço: rua, nº, bairro, UF e CEP da ficha Defeso. Não é comprovante oficial."
     )
 
     return f"""<!DOCTYPE html>
@@ -80,7 +87,7 @@ def montar_html_defeso(
     table {{ border-collapse: collapse; width: 100%; font-size: 12px; }}
     th, td {{ border: 1px solid #B7CDDD; padding: 6px 8px; text-align: left; vertical-align: top; }}
     th {{ background: #0A2F52; color: #EAF6FC; }}
-    td.addr {{ max-width: 280px; }}
+    td.addr, td.parc {{ max-width: 220px; white-space: pre-line; }}
     .ok {{ color: #1B8458; font-weight: 700; }}
     .off {{ color: #5A7388; }}
     .foot {{ margin-top: 18px; color: #5A7388; font-size: 12px; }}
@@ -117,29 +124,31 @@ def itens_defeso_para_relatorio(
     fichas: Sequence[FichaDefeso],
     *,
     telefones_reap: Dict[str, str],
+    municipios_reap: Dict[str, str],
     localidade: str = "",
     somente_entrada: bool = False,
 ) -> List[Dict[str, Any]]:
     loc = localidade.strip().lower()
     out: List[Dict[str, Any]] = []
     for f in fichas:
-        mun = str(f.municipio or "").strip()
-        if loc and mun.lower() != loc:
+        cpf = only_digits(f.cpf)
+        mun_reap = str(municipios_reap.get(cpf) or "").strip()
+        # Localidade do relatório = município do REAP
+        if loc and mun_reap.lower() != loc:
             continue
         ent = entrada_confirmada_flag(f)
         if somente_entrada and not ent:
             continue
-        cpf = "".join(ch for ch in (f.cpf or "") if ch.isdigit())
         tel = telefone_relatorio(f, telefones_reap.get(cpf, ""))
         out.append(
             {
                 "nome": f.nome,
                 "cpf": cpf,
                 "telefone": tel,
-                "endereco": endereco_completo(f),
-                "parcelas": f.parcelas_recebidas or "",
+                "municipio": mun_reap,
+                "endereco": endereco_defeso_relatorio(f),
+                "parcelas": parcelas_para_relatorio(f.parcelas_recebidas or ""),
                 "entrada_confirmada": ent,
-                "municipio": mun,
             }
         )
     out.sort(key=lambda r: str(r.get("nome") or "").lower())

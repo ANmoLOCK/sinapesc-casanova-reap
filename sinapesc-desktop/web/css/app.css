@@ -427,6 +427,74 @@ body { overflow: hidden; }
 
 .defeso-controle-box h4 { margin: 0 0 4px; font-size: 14px; }
 
+.defeso-reap-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.defeso-reap-info input[readonly] {
+  background: #F3F8FC;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.parcelas-box {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.parcelas-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.parcela-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.parcela-row span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.parcela-row input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.entrada-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: #F7FBFE;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.entrada-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .card-actions {
   display: flex;
   align-items: center;
@@ -967,4 +1035,6 @@ body { overflow: hidden; }
   .lote-head, .lote-row {
     grid-template-columns: minmax(100px, 1fr) 120px minmax(80px, 0.8fr) minmax(80px, 0.8fr) 36px;
   }
+  .defeso-reap-info { grid-template-columns: 1fr; }
+  .parcela-row { grid-template-columns: 1fr; }
 }

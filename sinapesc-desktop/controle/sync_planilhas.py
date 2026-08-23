@@ -1,10 +1,9 @@
-"""Sincronização de município entre planilha REAP (Pessoas) e Defeso."""
+"""Sincronização de município/telefone entre planilha REAP (Pessoas) e Defeso."""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from controle.defeso import FichaDefeso, payload_to_ficha
 from sheets.defeso_service import DefesoService
 from sheets.service import SheetsService
 from ui.formatters import only_digits
@@ -14,11 +13,15 @@ def _mun_key(valor: str) -> str:
     return str(valor or "").strip()
 
 
+def _tel_key(valor: str) -> str:
+    return str(valor or "").strip()
+
+
 def sync_municipios_reap_para_defeso(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
     """
-    Copia município da aba Pessoas (REAP) para a planilha Defeso (só o campo municipio).
+    Copia município e telefone da aba Pessoas (REAP) para a planilha Defeso.
     Cria ficha mínima se ainda não existir.
     """
     atualizados = 0
@@ -28,7 +31,8 @@ def sync_municipios_reap_para_defeso(
 
     for p in reap.get_all_pessoas():
         mun = _mun_key(getattr(p, "municipio", ""))
-        if not mun:
+        tel = _tel_key(getattr(p, "telefone", ""))
+        if not mun and not tel:
             ignorados += 1
             continue
         cpf = only_digits(p.cpf)
@@ -36,24 +40,31 @@ def sync_municipios_reap_para_defeso(
             ignorados += 1
             continue
         ficha = defeso.por_cpf(cpf)
-        if ficha and _mun_key(ficha.municipio) == mun:
+        same_mun = ficha and (not mun or _mun_key(ficha.municipio) == mun)
+        same_tel = ficha and (not tel or _tel_key(ficha.telefone_reap) == tel)
+        if ficha and same_mun and same_tel:
             ignorados += 1
             continue
         if ficha:
-            defeso.atualizar_municipio(ficha.id, mun)
+            if mun and _mun_key(ficha.municipio) != mun:
+                defeso.atualizar_municipio(ficha.id, mun)
+            if tel and _tel_key(ficha.telefone_reap) != tel:
+                defeso.atualizar_telefone_reap(ficha.id, tel)
             atualizados += 1
-            detalhes.append(f"atualizado: {p.nome} → {mun}")
+            detalhes.append(f"atualizado: {p.nome} → mun={mun or '—'} tel={tel or '—'}")
         else:
-            payload = {
-                "person_id": p.id,
-                "nome": p.nome,
-                "cpf": cpf,
-                "municipio": mun,
-                "status": "rascunho",
-            }
-            defeso.salvar(payload)
+            defeso.salvar(
+                {
+                    "person_id": p.id,
+                    "nome": p.nome,
+                    "cpf": cpf,
+                    "municipio": mun,
+                    "telefone_reap": tel,
+                    "status": "rascunho",
+                }
+            )
             criados += 1
-            detalhes.append(f"criado: {p.nome} → {mun}")
+            detalhes.append(f"criado: {p.nome} → mun={mun or '—'} tel={tel or '—'}")
 
     return {
         "atualizados": atualizados,
@@ -104,39 +115,11 @@ def sync_municipios_defeso_para_reap(
     }
 
 
-def _tel_key(valor: str) -> str:
-    return str(valor or "").strip()
-
-
 def sync_telefones_reap_para_defeso(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
-    """Copia telefone da aba Pessoas (REAP) para coluna telefoneReap no Defeso."""
-    atualizados = 0
-    ignorados = 0
-    detalhes: List[str] = []
-
-    for p in reap.get_all_pessoas():
-        tel = _tel_key(getattr(p, "telefone", ""))
-        if not tel:
-            ignorados += 1
-            continue
-        cpf = only_digits(p.cpf)
-        if len(cpf) != 11:
-            ignorados += 1
-            continue
-        ficha = defeso.por_cpf(cpf)
-        if not ficha:
-            ignorados += 1
-            continue
-        if _tel_key(ficha.telefone_reap) == tel:
-            ignorados += 1
-            continue
-        defeso.atualizar_telefone_reap(ficha.id, tel)
-        atualizados += 1
-        detalhes.append(f"tel: {p.nome} → {tel}")
-
-    return {"atualizados": atualizados, "ignorados": ignorados, "detalhes": detalhes[:20]}
+    """Copia telefone REAP → telefoneReap (já coberto por sync_municipios_reap_para_defeso)."""
+    return sync_municipios_reap_para_defeso(reap, defeso)
 
 
 def sync_municipios_bidirecional(
@@ -145,15 +128,16 @@ def sync_municipios_bidirecional(
     """REAP → Defeso (município + telefone) e Defeso → REAP (município vazios)."""
     para_defeso = sync_municipios_reap_para_defeso(reap, defeso)
     para_reap = sync_municipios_defeso_para_reap(reap, defeso)
-    tel_defeso = sync_telefones_reap_para_defeso(reap, defeso)
     return {
         "reap_para_defeso": para_defeso,
         "defeso_para_reap": para_reap,
-        "telefones_reap_para_defeso": tel_defeso,
+        "telefones_reap_para_defeso": {
+            "atualizados": para_defeso["atualizados"],
+            "criados": para_defeso["criados"],
+        },
         "mensagem": (
-            f"REAP→Defeso: {para_defeso['atualizados']} municípios, "
-            f"{para_defeso['criados']} criados, "
-            f"{tel_defeso['atualizados']} telefones. "
+            f"REAP→Defeso: {para_defeso['atualizados']} atualizados, "
+            f"{para_defeso['criados']} criados. "
             f"Defeso→REAP: {para_reap['atualizados']} municípios preenchidos."
         ),
     }

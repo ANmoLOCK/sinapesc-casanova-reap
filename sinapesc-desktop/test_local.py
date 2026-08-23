@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Testes locais sem chamar a API Google."""
 
 from __future__ import annotations
@@ -348,7 +349,8 @@ def test_licenca_proprietaria() -> None:
     assert "PROIBI" in lic.upper() or "proibid" in lic.lower()
     assert (repo / "COPYRIGHT").exists()
     html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-    assert "footer-legal" in html
+    assert "footer-legal" not in html
+    assert "Gabriel Lourran Da Silva Costa" not in html
     assert "status-text" in html
     assert "footer-user" in html
     assert "footer-conn" in html
@@ -370,7 +372,14 @@ def test_qr_selo_usa_logo() -> None:
 
 
 def test_defeso_relatorio_html() -> None:
-    from controle.defeso import FichaDefeso, endereco_completo, entrada_confirmada_flag
+    from controle.defeso import (
+        FichaDefeso,
+        endereco_defeso_relatorio,
+        entrada_confirmada_flag,
+        format_parcelas,
+        parse_parcelas,
+        parcelas_para_relatorio,
+    )
     from controle.defeso_relatorio import (
         itens_defeso_para_relatorio,
         montar_html_defeso,
@@ -383,20 +392,30 @@ def test_defeso_relatorio_html() -> None:
         endereco="Rua B",
         numero="5",
         bairro="Centro",
-        municipio="Casa Nova",
+        municipio="IgnoradoNoRelatorio",
         uf="BA",
+        cep="47300-000",
         telefone="74999990000",
         telefone_reap="(74) 98888-1111",
-        parcelas_recebidas="15/10/2026",
+        parcelas_recebidas=format_parcelas(["15/05/2026", "", "20/07/2026", ""]),
         entrada_confirmada="sim",
     )
-    assert endereco_completo(f).startswith("Rua B")
-    assert "Casa Nova/BA" in endereco_completo(f)
+    end = endereco_defeso_relatorio(f)
+    assert "Rua B" in end and "BA" in end and "47300-000" in end
+    assert "IgnoradoNoRelatorio" not in end
     assert telefone_relatorio(f, "") == "(74) 98888-1111"
     assert entrada_confirmada_flag(f)
-    itens = itens_defeso_para_relatorio([f], telefones_reap={"12345678901": "(74) 98888-1111"})
+    assert parse_parcelas(f.parcelas_recebidas)[0] == "15/05/2026"
+    assert "1° parcela; 15/05/2026" in parcelas_para_relatorio(f.parcelas_recebidas)
+    itens = itens_defeso_para_relatorio(
+        [f],
+        telefones_reap={"12345678901": "(74) 98888-1111"},
+        municipios_reap={"12345678901": "Casa Nova"},
+    )
     assert len(itens) == 1
     assert itens[0]["telefone"] == "(74) 98888-1111"
+    assert itens[0]["municipio"] == "Casa Nova"
+    assert "IgnoradoNoRelatorio" not in itens[0]["endereco"]
     html = montar_html_defeso(
         org_short="Sinapesc",
         org_full="Sindicato",
@@ -405,7 +424,12 @@ def test_defeso_relatorio_html() -> None:
     )
     assert "Maria Silva" in html
     assert "(74) 98888-1111" in html
-    assert "15/10/2026" in html
+    assert "Casa Nova" in html
+    assert "1° parcela" in html
+    assert "15/05/2026" in html
+    assert "footer-legal" not in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert "df-parcela-1" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "entrada-check" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
 
 
 def test_defeso_ficha_e_html() -> None:
@@ -752,9 +776,21 @@ def test_sync_municipios_bidirecional() -> None:
                     return f
             raise ValueError("ficha")
 
+        def atualizar_telefone_reap(self, ficha_id: str, telefone: str):
+            for f in self.fichas:
+                if f.id == ficha_id:
+                    f.telefone_reap = telefone
+                    return f
+            raise ValueError("ficha")
+
         def salvar(self, payload):
             self.salvos.append(payload)
-            return FichaDefeso(id="new", **{k: v for k, v in payload.items() if k != "person_id"}, person_id=payload.get("person_id", ""))
+            allowed = {
+                k: v
+                for k, v in payload.items()
+                if k in ("nome", "cpf", "municipio", "telefone_reap", "status")
+            }
+            return FichaDefeso(id="new", person_id=payload.get("person_id", ""), **allowed)
 
     reap = FakeReap()
     defeso = FakeDefeso()
@@ -786,12 +822,15 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "generate_defeso_relatorio" in js
     assert "admin-localidade" in js
     assert "card-contact" in js
-    assert "df-parcelas" in js
+    assert "df-parcelas" not in js or "df-parcela-1" in js
+    assert "df-parcela-1" in js
     assert "df-entrada" in js
+    assert "entrada-check" in js
+    assert "df-tel-reap" in js
+    assert "df-mun-reap" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "def generate_defeso_relatorio" in api_py
-    assert '"localidades"' in api_py
-    assert '"confirmada"' in api_py
+    assert "municipios_reap" in api_py
     ser = (ROOT / "webapp" / "serialize.py").read_text(encoding="utf-8")
     assert '"municipio"' in ser
     assert '"telefone"' in ser

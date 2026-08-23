@@ -1538,7 +1538,7 @@
           <div class="card-head">
             <div class="card-info">
               <p class="card-name">${esc(x.nome_display || x.nome)}</p>
-              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio ? ` · ${esc(x.municipio)}` : ""}</p>
+              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio ? ` · ${esc(x.municipio)}` : ""}${x.telefone_reap ? ` · ${esc(x.telefone_reap)}` : ""}</p>
               <p class="card-cpf">${esc(docs)}</p>
             </div>
             <div class="card-actions">
@@ -1587,12 +1587,22 @@
         </div>
         <div class="defeso-controle-box">
           <h4>Controle Defeso</h4>
-          <p class="page-sub">Parcelas e confirmação de entrada — só neste módulo.</p>
-          <div class="defeso-grid">
-            <div class="span-2"><label>Tel. REAP (relatório)</label><input id="df-tel-reap" readonly placeholder="Vem da planilha REAP / Sinc. Planilhas" /></div>
-            <div class="span-2"><label>Datas parcelas recebidas</label><input id="df-parcelas" placeholder="15/10/2026; 20/11/2026" /></div>
-            <label class="pacote-check span-2"><input type="checkbox" id="df-entrada" /> Entrada confirmada</label>
+          <p class="page-sub">Telefone e município do REAP · parcelas e entrada só neste módulo.</p>
+          <div class="defeso-reap-info">
+            <div><label>Município (REAP)</label><input id="df-mun-reap" readonly /></div>
+            <div><label>Telefone (REAP)</label><input id="df-tel-reap" readonly placeholder="Cadastre no módulo Sócios / REAP" /></div>
           </div>
+          <div class="parcelas-box">
+            <p class="parcelas-title">Parcelas recebidas</p>
+            <div class="parcela-row"><span>1° parcela</span><input id="df-parcela-1" placeholder="15/05/2026" maxlength="12" /></div>
+            <div class="parcela-row"><span>2° parcela</span><input id="df-parcela-2" placeholder="__/__/____" maxlength="12" /></div>
+            <div class="parcela-row"><span>3° parcela</span><input id="df-parcela-3" placeholder="__/__/____" maxlength="12" /></div>
+            <div class="parcela-row"><span>4° parcela</span><input id="df-parcela-4" placeholder="__/__/____" maxlength="12" /></div>
+          </div>
+          <label class="entrada-check" for="df-entrada">
+            <input type="checkbox" id="df-entrada" />
+            <span>Entrada confirmada</span>
+          </label>
         </div>
         <div class="form-actions defeso-actions" style="margin-top:14px">
           <button type="button" class="btn btn-outline-dark" id="df-back">← Lista</button>
@@ -1743,6 +1753,7 @@
   }
 
   function collectDefesoPayload() {
+    const parcelas = [1, 2, 3, 4].map((n) => ($("#df-parcela-" + n)?.value || "").trim());
     return {
       id: $("#df-id")?.value || "",
       person_id: $("#df-person")?.value || "",
@@ -1755,12 +1766,13 @@
       endereco: $("#df-end")?.value || "",
       numero: $("#df-num")?.value || "",
       bairro: $("#df-bairro")?.value || "",
-      municipio: $("#df-mun")?.value || "",
+      municipio: ($("#df-mun-reap")?.value || $("#df-mun")?.value || "").trim(),
       uf: $("#df-uf")?.value || "",
       telefone: $("#df-tel")?.value || "",
       email: $("#df-email")?.value || "",
-      parcelas_recebidas: $("#df-parcelas")?.value || "",
-      entrada_confirmada: !!$("#df-entrada")?.checked,
+      telefone_reap: ($("#df-tel-reap")?.value || "").trim(),
+      parcelas,
+      entrada_confirmada: !!($("#df-entrada") && $("#df-entrada").checked),
       status: "salvo",
     };
   }
@@ -1768,7 +1780,13 @@
   function fillDefesoForm(d) {
     if (!d) return;
     const set = (id, v) => { const el = $(id); if (el) el.value = v || ""; };
-    const setChk = (id, v) => { const el = $(id); if (el) el.checked = !!v; };
+    const setChk = (id, v) => {
+      const el = $(id);
+      if (!el) return;
+      const on = v === true || v === 1 || String(v).toLowerCase() === "sim"
+        || String(v).toLowerCase() === "true" || String(v) === "1";
+      el.checked = on;
+    };
     set("#df-id", d.id);
     set("#df-person", d.person_id);
     set("#df-nome", d.nome_display || d.nome);
@@ -1785,7 +1803,12 @@
     set("#df-tel", d.telefone);
     set("#df-email", d.email);
     set("#df-tel-reap", d.telefone_reap || "");
-    set("#df-parcelas", d.parcelas_recebidas || "");
+    set("#df-mun-reap", d.municipio_origem === "reap" || d.municipio ? (d.municipio || "") : (d.municipio || ""));
+    if (d.municipio) set("#df-mun", d.municipio);
+    const parcelas = Array.isArray(d.parcelas) ? d.parcelas : [];
+    for (let i = 0; i < 4; i++) {
+      set("#df-parcela-" + (i + 1), parcelas[i] || "");
+    }
     setChk("#df-entrada", d.entrada_confirmada);
     const meta = $("#defeso-ficha-meta");
     if (meta) meta.textContent = d.atualizado_em ? `Atualizado ${d.atualizado_em}` : "Nova ficha";

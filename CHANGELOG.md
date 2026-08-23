@@ -6,6 +6,20 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.14] — 2026-08-23 — Parcelas 1°–4°, tel/município REAP no relatório
+
+**Tag:** [`v1.7.14`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.14)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.14/SinapescREAP-Windows-v1.7.14.zip
+
+### O que entrou
+- Caixa profissional de **4 parcelas** (1°–4°) na ficha Defeso → vai pro relatório HTML
+- Relatório: **município e telefone do REAP**; do Defeso só rua, nº, bairro, UF e CEP
+- Telefone REAP aparece na lista e na ficha Defeso (campo só leitura)
+- Checkbox **Entrada confirmada** corrigido
+- Removido rodapé com nome do autor da tela (não era cadastro)
+
+---
+
 ## [v1.7.13] — 2026-08-23 — REAP UF/tel + relatório Defeso + parcelas
 
 **Tag:** [`v1.7.13`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.13)  
