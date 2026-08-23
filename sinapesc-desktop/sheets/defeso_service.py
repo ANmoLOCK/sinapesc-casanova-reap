@@ -60,14 +60,31 @@ class DefesoService:
             ).execute()
             self.client.update_values(f"{DEFESO_TAB}!A1", [DEFESO_HEADER])
         else:
-            header = self.client.get_values(f"{DEFESO_TAB}!A1:U1")
+            header = self.client.get_values(f"{DEFESO_TAB}!A1:X1")
             if not header:
                 self.client.update_values(f"{DEFESO_TAB}!A1", [DEFESO_HEADER])
+            elif header and header[0]:
+                row = list(header[0])
+                extras = [
+                    (21, "telefoneReap"),
+                    (22, "parcelasRecebidas"),
+                    (23, "entradaConfirmada"),
+                ]
+                changed = False
+                for idx, label in extras:
+                    while len(row) <= idx:
+                        row.append("")
+                        changed = True
+                    if not str(row[idx]).strip():
+                        row[idx] = label
+                        changed = True
+                if changed:
+                    self.client.update_values(f"{DEFESO_TAB}!A1:X1", [row[: len(DEFESO_HEADER)]])
         self._ready = True
 
     def listar(self) -> List[FichaDefeso]:
         self.ensure()
-        rows = self.client.get_values(f"{DEFESO_TAB}!A2:U")
+        rows = self.client.get_values(f"{DEFESO_TAB}!A2:X")
         out: List[FichaDefeso] = []
         for r in rows:
             f = row_to_ficha(r)
@@ -144,6 +161,20 @@ class DefesoService:
         if row_idx < 0:
             raise ValueError("Linha da ficha não encontrada.")
         self.client.update_values(f"{DEFESO_TAB}!L{row_idx}", [[ficha.municipio]])
+        self.client.update_values(f"{DEFESO_TAB}!T{row_idx}", [[ficha.atualizado_em]])
+        return ficha
+
+    def atualizar_telefone_reap(self, ficha_id: str, telefone: str) -> FichaDefeso:
+        """Atualiza telefone vindo do REAP (coluna telefoneReap)."""
+        ficha = self.por_id(ficha_id)
+        if not ficha:
+            raise ValueError("Ficha Defeso não encontrada.")
+        ficha.telefone_reap = str(telefone or "").strip()
+        ficha.atualizado_em = now_stamp()
+        row_idx = self._row_index(ficha.id)
+        if row_idx < 0:
+            raise ValueError("Linha da ficha não encontrada.")
+        self.client.update_values(f"{DEFESO_TAB}!V{row_idx}", [[ficha.telefone_reap]])
         self.client.update_values(f"{DEFESO_TAB}!T{row_idx}", [[ficha.atualizado_em]])
         return ficha
 

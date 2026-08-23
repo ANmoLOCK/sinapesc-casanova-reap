@@ -36,6 +36,8 @@
     defesoLocalidade: "",
     defesoSomenteConfirmadas: false,
     defesoLocalidades: [],
+    adminLocalidade: "",
+    adminLocalidades: [],
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -553,6 +555,14 @@
           <input type="search" id="admin-search" placeholder="Buscar por nome ou CPF" value="${esc(state.search)}" />
         </div>
         <div class="btn-row">
+          <label class="filter-wrap">Localidade
+            <select id="admin-localidade">
+              <option value="">Todas</option>
+              ${(state.adminLocalidades || []).map((loc) => `
+                <option value="${esc(loc)}" ${loc === state.adminLocalidade ? "selected" : ""}>${esc(loc)}</option>
+              `).join("")}
+            </select>
+          </label>
           <label class="filter-wrap">Filtro
             <select id="admin-sort">
               <option value="recent">Mais recente</option>
@@ -570,6 +580,10 @@
     `);
     $("#admin-search").addEventListener("input", (e) => {
       state.search = e.target.value;
+      renderAdminList();
+    });
+    $("#admin-localidade")?.addEventListener("change", (e) => {
+      state.adminLocalidade = e.target.value || "";
       renderAdminList();
     });
     const sortSel = $("#admin-sort");
@@ -623,6 +637,10 @@
         const d = diasDesdeToggle(p);
         return d !== null && d <= 365;
       });
+    }
+    if (state.adminLocalidade) {
+      const loc = state.adminLocalidade.trim().toLowerCase();
+      list = list.filter((p) => String(p.municipio || "").trim().toLowerCase() === loc);
     }
     return sortedPessoas(list);
   }
@@ -690,6 +708,11 @@
     const expanded = state.expanded.has(p.id);
     let detail = "";
     if (expanded) {
+      const contact = [
+        p.municipio ? `Município: ${esc(p.municipio)}` : "",
+        p.uf ? `UF: ${esc(p.uf)}` : "",
+        p.telefone ? `Tel: ${esc(p.telefone)}` : "",
+      ].filter(Boolean).join(" · ");
       const anos = (p.anos || []).map((a) => `
         <div class="year-label">Ano ${a.ano}</div>
         <div class="pills">${renderPills(p.id, a.ano, a.meses, editable)}</div>
@@ -699,7 +722,7 @@
           <input type="number" id="ano-new-${p.id}" value="${new Date().getFullYear() + 1}" />
           <button type="button" class="btn btn-outline-dark btn-sm" data-add-ano="${p.id}">Adicionar ano</button>
         </div>` : "";
-      detail = `<div class="card-detail">${anos}${addAno}</div>`;
+      detail = `<div class="card-detail">${contact ? `<p class="card-contact">${contact}</p>` : ""}${anos}${addAno}</div>`;
     }
     const actions = editable ? `
       <button type="button" class="icon-btn" data-qr="${p.id}">▦ QR</button>
@@ -1408,6 +1431,15 @@
     }
   }
 
+  function refreshAdminLocalidadeSelect() {
+    const sel = $("#admin-localidade");
+    if (!sel) return;
+    const cur = state.adminLocalidade || "";
+    sel.innerHTML = `<option value="">Todas</option>${(state.adminLocalidades || []).map((loc) => `
+      <option value="${esc(loc)}" ${loc === cur ? "selected" : ""}>${esc(loc)}</option>
+    `).join("")}`;
+  }
+
   function renderDefesoLista() {
     setPage(`
       <div>
@@ -1434,6 +1466,7 @@
             Entradas confirmadas
           </label>
           <button type="button" class="btn btn-outline-dark btn-sm" id="defeso-refresh">↻ Atualizar</button>
+          <button type="button" class="btn btn-primary btn-sm" id="defeso-relatorio">Relatório HTML</button>
         </div>
       </div>
       <div id="defeso-list"></div>
@@ -1451,6 +1484,9 @@
       paintDefesoLista();
     });
     $("#defeso-refresh").addEventListener("click", () => api("load_defeso_lista"));
+    $("#defeso-relatorio")?.addEventListener("click", () => {
+      api("generate_defeso_relatorio", state.defesoLocalidade || "", !!state.defesoSomenteConfirmadas);
+    });
     paintDefesoLista();
     api("load_defeso_lista");
   }
@@ -1546,8 +1582,17 @@
           <div><label>Bairro</label><input id="df-bairro" /></div>
           <div><label>Município</label><input id="df-mun" /></div>
           <div><label>UF</label><input id="df-uf" maxlength="2" placeholder="BA" /></div>
-          <div><label>Telefone</label><input id="df-tel" /></div>
+          <div><label>Telefone (declaração)</label><input id="df-tel" /></div>
           <div><label>E-mail</label><input id="df-email" /></div>
+        </div>
+        <div class="defeso-controle-box">
+          <h4>Controle Defeso</h4>
+          <p class="page-sub">Parcelas e confirmação de entrada — só neste módulo.</p>
+          <div class="defeso-grid">
+            <div class="span-2"><label>Tel. REAP (relatório)</label><input id="df-tel-reap" readonly placeholder="Vem da planilha REAP / Sinc. Planilhas" /></div>
+            <div class="span-2"><label>Datas parcelas recebidas</label><input id="df-parcelas" placeholder="15/10/2026; 20/11/2026" /></div>
+            <label class="pacote-check span-2"><input type="checkbox" id="df-entrada" /> Entrada confirmada</label>
+          </div>
         </div>
         <div class="form-actions defeso-actions" style="margin-top:14px">
           <button type="button" class="btn btn-outline-dark" id="df-back">← Lista</button>
@@ -1714,6 +1759,8 @@
       uf: $("#df-uf")?.value || "",
       telefone: $("#df-tel")?.value || "",
       email: $("#df-email")?.value || "",
+      parcelas_recebidas: $("#df-parcelas")?.value || "",
+      entrada_confirmada: !!$("#df-entrada")?.checked,
       status: "salvo",
     };
   }
@@ -1721,6 +1768,7 @@
   function fillDefesoForm(d) {
     if (!d) return;
     const set = (id, v) => { const el = $(id); if (el) el.value = v || ""; };
+    const setChk = (id, v) => { const el = $(id); if (el) el.checked = !!v; };
     set("#df-id", d.id);
     set("#df-person", d.person_id);
     set("#df-nome", d.nome_display || d.nome);
@@ -1736,6 +1784,9 @@
     set("#df-uf", d.uf);
     set("#df-tel", d.telefone);
     set("#df-email", d.email);
+    set("#df-tel-reap", d.telefone_reap || "");
+    set("#df-parcelas", d.parcelas_recebidas || "");
+    setChk("#df-entrada", d.entrada_confirmada);
     const meta = $("#defeso-ficha-meta");
     if (meta) meta.textContent = d.atualizado_em ? `Atualizado ${d.atualizado_em}` : "Nova ficha";
     const hint = $("#df-drive-hint");
@@ -1815,9 +1866,15 @@
       if (r.ok) {
         // Sempre confia na planilha (evita contador preso em "agora").
         state.pessoas = (r.data || []).map((p, i) => ({ ...p, _idx: i }));
+        state.adminLocalidades = [...new Set(
+          state.pessoas.map((p) => String(p.municipio || "").trim()).filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
         state.connLabel = "Conectado";
         setFooter();
-        if (state.screen === "admin") renderAdminList();
+        if (state.screen === "admin") {
+          refreshAdminLocalidadeSelect();
+          renderAdminList();
+        }
         if (state.screen === "lista") renderListaCards();
       } else toast(r.error);
     });
@@ -1914,6 +1971,12 @@
       if (r.ok && r.data?.path) {
         api("open_path", r.data.path);
         toast("Relatório aberto no navegador para imprimir.");
+      } else toast(r.error);
+    });
+    AppEvents.on("defeso_relatorio", (r) => {
+      if (r.ok && r.data?.path) {
+        api("open_path", r.data.path);
+        toast(`Relatório Defeso aberto (${r.data.total || "?"} registro(s)).`);
       } else toast(r.error);
     });
     AppEvents.on("backup", (r) => {

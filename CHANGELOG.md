@@ -6,6 +6,20 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.13] — 2026-08-23 — REAP UF/tel + relatório Defeso + parcelas
+
+**Tag:** [`v1.7.13`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.13)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.13/SinapescREAP-Windows-v1.7.13.zip
+
+### O que entrou
+- **REAP (meses):** ao abrir o sócio, mostra município, **UF** e **telefone**
+- **REAP:** filtro por **Localidade** (município)
+- **Defeso Fácil:** relatório **HTML** (nome, CPF, tel REAP, endereço Defeso, parcelas)
+- **Defeso:** datas de parcelas recebidas + caixinha **Entrada confirmada**
+- Sync **Sinc. Planilhas** também copia telefone REAP → coluna `telefoneReap` no Defeso
+
+---
+
 ## [v1.7.12] — 2026-08-23 — Número + município no lote/atalhos
 
 **Tag:** [`v1.7.12`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.12)  

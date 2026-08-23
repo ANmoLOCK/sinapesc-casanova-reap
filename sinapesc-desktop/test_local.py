@@ -369,6 +369,45 @@ def test_qr_selo_usa_logo() -> None:
     assert img.size[0] >= 200 and img.size[1] >= 200
 
 
+def test_defeso_relatorio_html() -> None:
+    from controle.defeso import FichaDefeso, endereco_completo, entrada_confirmada_flag
+    from controle.defeso_relatorio import (
+        itens_defeso_para_relatorio,
+        montar_html_defeso,
+        telefone_relatorio,
+    )
+
+    f = FichaDefeso(
+        nome="Maria Silva",
+        cpf="12345678901",
+        endereco="Rua B",
+        numero="5",
+        bairro="Centro",
+        municipio="Casa Nova",
+        uf="BA",
+        telefone="74999990000",
+        telefone_reap="(74) 98888-1111",
+        parcelas_recebidas="15/10/2026",
+        entrada_confirmada="sim",
+    )
+    assert endereco_completo(f).startswith("Rua B")
+    assert "Casa Nova/BA" in endereco_completo(f)
+    assert telefone_relatorio(f, "") == "(74) 98888-1111"
+    assert entrada_confirmada_flag(f)
+    itens = itens_defeso_para_relatorio([f], telefones_reap={"12345678901": "(74) 98888-1111"})
+    assert len(itens) == 1
+    assert itens[0]["telefone"] == "(74) 98888-1111"
+    html = montar_html_defeso(
+        org_short="Sinapesc",
+        org_full="Sindicato",
+        itens=itens,
+        titulo="Relatório Defeso",
+    )
+    assert "Maria Silva" in html
+    assert "(74) 98888-1111" in html
+    assert "15/10/2026" in html
+
+
 def test_defeso_ficha_e_html() -> None:
     from controle.defeso import (
         FichaDefeso,
@@ -743,8 +782,14 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "l-mun" in js
     assert "l-tel" in js
     assert "Nome;CPF;Município;Número" in js
+    assert "defeso-relatorio" in js
+    assert "generate_defeso_relatorio" in js
+    assert "admin-localidade" in js
+    assert "card-contact" in js
+    assert "df-parcelas" in js
+    assert "df-entrada" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
-    assert "def sync_planilhas_municipio" in api_py
+    assert "def generate_defeso_relatorio" in api_py
     assert '"localidades"' in api_py
     assert '"confirmada"' in api_py
     ser = (ROOT / "webapp" / "serialize.py").read_text(encoding="utf-8")
@@ -796,6 +841,7 @@ if __name__ == "__main__":
     test_auditoria_parse()
     test_relatorio_mostra_cpf_completo()
     test_defeso_ficha_e_html()
+    test_defeso_relatorio_html()
     test_normalize_sheet_id()
     test_drive_client_tem_upload()
     test_defeso_anexo_local()

@@ -36,6 +36,9 @@ DEFESO_HEADER = [
     "temCaf",
     "atualizadoEm",
     "criadoEm",
+    "telefoneReap",
+    "parcelasRecebidas",
+    "entradaConfirmada",
 ]
 
 MESES_PT = (
@@ -77,6 +80,9 @@ class FichaDefeso:
     tem_caf: str = ""
     atualizado_em: str = ""
     criado_em: str = ""
+    telefone_reap: str = ""
+    parcelas_recebidas: str = ""
+    entrada_confirmada: str = ""
 
     def to_row(self) -> List[str]:
         return [
@@ -101,6 +107,9 @@ class FichaDefeso:
             self.tem_caf,
             self.atualizado_em,
             self.criado_em,
+            self.telefone_reap,
+            self.parcelas_recebidas,
+            self.entrada_confirmada,
         ]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -147,6 +156,9 @@ def row_to_ficha(row: List[str] | None) -> Optional[FichaDefeso]:
         tem_caf=cells[18].strip(),
         atualizado_em=cells[19].strip(),
         criado_em=cells[20].strip(),
+        telefone_reap=cells[21].strip() if len(cells) > 21 else "",
+        parcelas_recebidas=cells[22].strip() if len(cells) > 22 else "",
+        entrada_confirmada=cells[23].strip() if len(cells) > 23 else "",
     )
 
 
@@ -178,6 +190,13 @@ def payload_to_ficha(payload: Dict[str, Any], *, existing: Optional[FichaDefeso]
         tem_caf=base.tem_caf,
         atualizado_em=agora,
         criado_em=base.criado_em or agora,
+        telefone_reap=str(payload.get("telefone_reap") or base.telefone_reap or "").strip(),
+        parcelas_recebidas=str(payload.get("parcelas_recebidas") or base.parcelas_recebidas or "").strip(),
+        entrada_confirmada=(
+            _flag_sim(payload.get("entrada_confirmada"))
+            if "entrada_confirmada" in payload
+            else base.entrada_confirmada
+        ),
     )
 
 
@@ -192,6 +211,12 @@ def validar_ficha(f: FichaDefeso) -> Optional[str]:
     if f.cep and len(cep_digits) not in (0, 8):
         return "CEP inválido."
     return None
+
+
+def _flag_sim(valor: Any) -> str:
+    if valor is True or str(valor or "").strip().lower() in ("sim", "true", "1", "yes", "on"):
+        return "sim"
+    return ""
 
 
 def _format_cep(valor: str) -> str:
@@ -304,6 +329,32 @@ def pasta_declaracoes() -> Path:
     dest = backup_root() / "defeso"
     dest.mkdir(parents=True, exist_ok=True)
     return dest
+
+
+def endereco_completo(f: FichaDefeso) -> str:
+    """Monta endereço completo só com dados da ficha Defeso."""
+    partes: List[str] = []
+    if f.endereco:
+        linha = f.endereco.strip()
+        if f.numero:
+            linha = f"{linha}, nº {f.numero.strip()}"
+        partes.append(linha)
+    elif f.numero:
+        partes.append(f"nº {f.numero.strip()}")
+    if f.bairro:
+        partes.append(f.bairro.strip())
+    cidade = f.municipio.strip()
+    if f.uf:
+        cidade = f"{cidade}/{f.uf}" if cidade else f.uf
+    if cidade:
+        partes.append(cidade)
+    if f.cep:
+        partes.append(f"CEP {f.cep.strip()}")
+    return " — ".join(partes)
+
+
+def entrada_confirmada_flag(f: FichaDefeso) -> bool:
+    return str(f.entrada_confirmada or "").strip().lower() in ("sim", "true", "1", "yes")
 
 
 def salvar_declaracao_html(html_text: str, *, cpf: str, nome: str) -> Path:

@@ -17,6 +17,7 @@ from config import import_credentials_file, is_sheets_configured, load_config, s
 from controle.auditoria import combina_busca
 from controle.backup import backup_root, gravar_backup, listar_backups
 from controle.calendario import meses_para_texto
+from controle.defeso import FichaDefeso, entrada_confirmada_flag, endereco_completo
 from controle.defeso_anexos import (
     anexos_mode,
     is_storage_quota_error,
@@ -33,6 +34,12 @@ from controle.defeso_declaracao import (
 from controle.defeso_pacote import listar_opcoes_pacote, montar_pacote_pdf, normalize_selecao
 from controle.pendencias import classificar
 from controle.sync_planilhas import sync_municipios_bidirecional
+from controle.defeso_relatorio import (
+    itens_defeso_para_relatorio,
+    montar_html_defeso,
+    nome_arquivo_defeso_relatorio,
+    salvar_html_defeso,
+)
 from controle.relatorio import itens_para_relatorio, montar_html, nome_arquivo_relatorio, salvar_html
 from drive import DriveDefesoClient
 from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
@@ -322,8 +329,9 @@ class SinapescApi:
             svc = self._ensure_service(require_login=False)
             ultimo = _ultimo_toggle_map(svc)
             pessoas = svc.get_all_pessoas_com_reap()
-            # Município / telefone do Defeso quando REAP ainda não tem
+            # Município / UF / telefone do Defeso quando REAP ainda não tem
             defeso_mun: Dict[str, str] = {}
+            defeso_uf: Dict[str, str] = {}
             defeso_tel: Dict[str, str] = {}
             try:
                 for f in self._ensure_defeso().listar():
@@ -332,6 +340,8 @@ class SinapescApi:
                         continue
                     if str(f.municipio or "").strip():
                         defeso_mun[cpf] = str(f.municipio).strip()
+                    if str(f.uf or "").strip():
+                        defeso_uf[cpf] = str(f.uf).strip().upper()[:2]
                     if str(f.telefone or "").strip():
                         defeso_tel[cpf] = str(f.telefone).strip()
             except Exception:
@@ -344,6 +354,11 @@ class SinapescApi:
                     if alt:
                         d["municipio"] = alt
                         d["municipio_origem"] = "defeso"
+                if not (d.get("uf") or "").strip():
+                    alt_u = defeso_uf.get(d.get("cpf_raw") or "")
+                    if alt_u:
+                        d["uf"] = alt_u
+                        d["uf_origem"] = "defeso"
                 if not (d.get("telefone") or "").strip():
                     alt_t = defeso_tel.get(d.get("cpf_raw") or "")
                     if alt_t:
@@ -367,10 +382,20 @@ class SinapescApi:
 
         def work():
             svc = self._ensure_service()
+            pid = ""
             if person_id:
                 svc.update_pessoa(person_id, nome, cpf, municipio, telefone)
-                return person_id
-            return svc.add_pessoa(nome, cpf, municipio, telefone).id
+                pid = person_id
+            else:
+                pid = svc.add_pessoa(nome, cpf, municipio, telefone).id
+            if telefone:
+                try:
+                    ficha = self._ensure_defeso().por_cpf(cpf)
+                    if ficha:
+                        self._ensure_defeso().atualizar_telefone_reap(ficha.id, telefone)
+                except Exception:
+                    pass
+            return pid
 
         return self._run_async("pessoa_saved", work, "Salvando…")
 
@@ -574,6 +599,46 @@ class SinapescApi:
             return {"path": str(path), "html": html_txt}
 
         return self._run_async("relatorio", work, "Gerando relatório…")
+
+    def generate_defeso_relatorio(
+        self, localidade: str = "", somente_entrada: bool = False
+    ) -> Dict[str, Any]:
+        """Relatório HTML Defeso: nome, CPF, tel REAP, endereço Defeso, parcelas."""
+
+        def work():
+            reap = self._ensure_service()
+            defeso = self._ensure_defeso()
+            telefones = {
+                only_digits(p.cpf): str(getattr(p, "telefone", "") or "").strip()
+                for p in reap.get_all_pessoas()
+                if only_digits(p.cpf)
+            }
+            fichas = defeso.listar()
+            loc = str(localidade or "").strip()
+            itens = itens_defeso_para_relatorio(
+                fichas,
+                telefones_reap=telefones,
+                localidade=loc,
+                somente_entrada=bool(somente_entrada),
+            )
+            if not itens:
+                raise ValueError("Nenhuma ficha encontrada com os filtros escolhidos.")
+            titulo = "Relatório Defeso Fácil"
+            if loc:
+                titulo += f" — {loc}"
+            html_txt = montar_html_defeso(
+                org_short=ORG_SHORT,
+                org_full=ORG_FULL,
+                itens=itens,
+                titulo=titulo,
+                localidade=loc,
+            )
+            nome_arq = nome_arquivo_defeso_relatorio(localidade=loc)
+            path = salvar_html_defeso(html_txt, nome_arquivo=nome_arq)
+            reap.registrar_evento("relatorio_defeso", f"gerou {path.name}")
+            return {"path": str(path), "html": html_txt, "total": len(itens)}
+
+        return self._run_async("defeso_relatorio", work, "Gerando relatório Defeso…")
 
     # ---- backup / auditoria ----------------------------------------------
 
@@ -841,12 +906,11 @@ class SinapescApi:
                 cpf = only_digits(p.cpf)
                 f = fichas.pop(cpf, None) if fichas else None
                 p_mun = str(getattr(p, "municipio", "") or "").strip()
+                p_tel = str(getattr(p, "telefone", "") or "").strip()
                 f_mun = str(f.municipio).strip() if f else ""
                 municipio = f_mun or p_mun
-                confirmada = bool(
-                    f
-                    and str(f.status or "").strip().lower() in ("salvo", "confirmado", "confirmada")
-                )
+                tel_reap = p_tel or (str(f.telefone_reap).strip() if f else "")
+                entrada = entrada_confirmada_flag(f) if f else False
                 rows.append(
                     {
                         "person_id": p.id,
@@ -859,8 +923,12 @@ class SinapescApi:
                         "municipio": municipio,
                         "municipio_reap": p_mun,
                         "municipio_defeso": f_mun,
+                        "telefone_reap": tel_reap,
                         "status": f.status if f else "sem_ficha",
-                        "confirmada": confirmada,
+                        "confirmada": entrada,
+                        "entrada_confirmada": entrada,
+                        "parcelas_recebidas": f.parcelas_recebidas if f else "",
+                        "endereco_completo": endereco_completo(f) if f else "",
                         "atualizado_em": f.atualizado_em if f else "",
                         "tem_identidade": bool(f and f.tem_identidade),
                         "tem_carteira_pesca": bool(f and f.tem_carteira_pesca),
@@ -869,11 +937,7 @@ class SinapescApi:
                 )
             for f in fichas.values():
                 f_mun = str(f.municipio or "").strip()
-                confirmada = str(f.status or "").strip().lower() in (
-                    "salvo",
-                    "confirmado",
-                    "confirmada",
-                )
+                entrada = entrada_confirmada_flag(f)
                 rows.append(
                     {
                         "person_id": f.person_id,
@@ -886,8 +950,12 @@ class SinapescApi:
                         "municipio": f_mun,
                         "municipio_reap": "",
                         "municipio_defeso": f_mun,
+                        "telefone_reap": str(f.telefone_reap or "").strip(),
                         "status": f.status or "rascunho",
-                        "confirmada": confirmada,
+                        "confirmada": entrada,
+                        "entrada_confirmada": entrada,
+                        "parcelas_recebidas": f.parcelas_recebidas or "",
+                        "endereco_completo": endereco_completo(f),
                         "atualizado_em": f.atualizado_em,
                         "tem_identidade": bool(f.tem_identidade),
                         "tem_carteira_pesca": bool(f.tem_carteira_pesca),
@@ -966,6 +1034,9 @@ class SinapescApi:
                     "atualizado_em": "",
                     "criado_em": "",
                     "tem_ficha": False,
+                    "telefone_reap": "",
+                    "parcelas_recebidas": "",
+                    "entrada_confirmada": "",
                 }
             if pessoa:
                 base["person_id"] = pessoa.id
@@ -982,10 +1053,11 @@ class SinapescApi:
                 elif f_mun and not p_mun:
                     base["municipio_origem"] = "defeso"
                 p_tel = str(getattr(pessoa, "telefone", "") or "").strip()
-                f_tel = str(base.get("telefone") or "").strip()
-                if not f_tel and p_tel:
-                    base["telefone"] = p_tel
-                    base["telefone_origem"] = "reap"
+                if p_tel:
+                    base["telefone_reap"] = p_tel
+                elif not str(base.get("telefone_reap") or "").strip():
+                    base["telefone_reap"] = ""
+            base["entrada_confirmada"] = entrada_confirmada_flag(ficha) if ficha else False
 
             anexos: List[Dict[str, str]] = []
             cfg = load_config()

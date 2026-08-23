@@ -25,6 +25,7 @@ def pessoa_to_dict(
         "criado_em": p.criado_em or "",
         "municipio": getattr(p, "municipio", "") or "",
         "telefone": getattr(p, "telefone", "") or "",
+        "uf": getattr(p, "uf", "") or "",
         "anos": [
             {
                 "ano": a.ano,

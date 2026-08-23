@@ -104,18 +104,56 @@ def sync_municipios_defeso_para_reap(
     }
 
 
+def _tel_key(valor: str) -> str:
+    return str(valor or "").strip()
+
+
+def sync_telefones_reap_para_defeso(
+    reap: SheetsService, defeso: DefesoService
+) -> Dict[str, Any]:
+    """Copia telefone da aba Pessoas (REAP) para coluna telefoneReap no Defeso."""
+    atualizados = 0
+    ignorados = 0
+    detalhes: List[str] = []
+
+    for p in reap.get_all_pessoas():
+        tel = _tel_key(getattr(p, "telefone", ""))
+        if not tel:
+            ignorados += 1
+            continue
+        cpf = only_digits(p.cpf)
+        if len(cpf) != 11:
+            ignorados += 1
+            continue
+        ficha = defeso.por_cpf(cpf)
+        if not ficha:
+            ignorados += 1
+            continue
+        if _tel_key(ficha.telefone_reap) == tel:
+            ignorados += 1
+            continue
+        defeso.atualizar_telefone_reap(ficha.id, tel)
+        atualizados += 1
+        detalhes.append(f"tel: {p.nome} → {tel}")
+
+    return {"atualizados": atualizados, "ignorados": ignorados, "detalhes": detalhes[:20]}
+
+
 def sync_municipios_bidirecional(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
-    """REAP → Defeso (sobrescreve municipio) e Defeso → REAP (só vazios)."""
+    """REAP → Defeso (município + telefone) e Defeso → REAP (município vazios)."""
     para_defeso = sync_municipios_reap_para_defeso(reap, defeso)
     para_reap = sync_municipios_defeso_para_reap(reap, defeso)
+    tel_defeso = sync_telefones_reap_para_defeso(reap, defeso)
     return {
         "reap_para_defeso": para_defeso,
         "defeso_para_reap": para_reap,
+        "telefones_reap_para_defeso": tel_defeso,
         "mensagem": (
-            f"REAP→Defeso: {para_defeso['atualizados']} atualizados, "
-            f"{para_defeso['criados']} criados. "
-            f"Defeso→REAP: {para_reap['atualizados']} preenchidos."
+            f"REAP→Defeso: {para_defeso['atualizados']} municípios, "
+            f"{para_defeso['criados']} criados, "
+            f"{tel_defeso['atualizados']} telefones. "
+            f"Defeso→REAP: {para_reap['atualizados']} municípios preenchidos."
         ),
     }
