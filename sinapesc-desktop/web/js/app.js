@@ -1645,14 +1645,14 @@
     `);
     $("#df-back").addEventListener("click", () => navigate("defeso", { push: false }));
     $("#df-save").addEventListener("click", () => {
-      api("save_defeso_ficha", collectDefesoPayload());
+      api("save_defeso_ficha", JSON.stringify(collectDefesoPayload()));
     });
     $("#df-print").addEventListener("click", () => {
       const payload = collectDefesoPayload();
       const fonte =
         state.bootstrap?.defeso_declaracao_fonte ||
         "allura";
-      api("print_defeso_declaracao", payload.id || "", payload, fonte);
+      api("print_defeso_declaracao", payload.id || "", JSON.stringify(payload), fonte);
     });
     $("#df-pacote")?.addEventListener("click", () => {
       const payload = collectDefesoPayload();
@@ -1662,7 +1662,7 @@
         toast("Marque pelo menos um item do pacote.");
         return;
       }
-      api("print_defeso_pacote", payload.id || "", payload, itens.join(","), fonte);
+      api("print_defeso_pacote", payload.id || "", JSON.stringify(payload), itens.join(","), fonte);
     });
     bindDefesoUpload("df-file-id", "identidade");
     bindDefesoUpload("df-file-pesca", "pesca");

@@ -1107,49 +1107,45 @@ class SinapescApi:
 
         return self._run_async("defeso_ficha", work, "Abrindo ficha Defeso…")
 
-    def save_defeso_ficha(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def save_defeso_ficha(self, payload: Any = None) -> Dict[str, Any]:
+        # pywebview: o objeto JS só existe na thread da API — copiar ANTES do async
+        try:
+            data = _js_payload_to_dict(payload)
+        except ValueError as exc:
+            return err(str(exc))
+
+        from controle.defeso import format_parcelas
+
+        raw_parc = data.get("parcelas")
+        if isinstance(raw_parc, list):
+            data["parcelas_recebidas"] = format_parcelas(raw_parc)
+        elif not str(data.get("parcelas_recebidas") or "").strip() and raw_parc:
+            data["parcelas_recebidas"] = str(raw_parc)
+
         def work():
-            if not isinstance(payload, dict):
-                raise ValueError("Dados inválidos.")
-            from controle.defeso import format_parcelas
-
-            # Aceita parcelas como lista [p1,p2,p3,p4] ou string
-            raw_parc = payload.get("parcelas")
-            if isinstance(raw_parc, list):
-                payload = {**payload, "parcelas_recebidas": format_parcelas(raw_parc)}
-            elif payload.get("parcelas_recebidas") is None and raw_parc:
-                payload = {**payload, "parcelas_recebidas": str(raw_parc)}
-
-            # Checkbox: normaliza true/false vindos do pywebview
-            if "entrada_confirmada" in payload:
-                payload = {
-                    **payload,
-                    "entrada_confirmada": payload.get("entrada_confirmada"),
-                }
-
-            # Telefone REAP: se veio vazio, completa pela planilha Pessoas
-            cpf = only_digits(str(payload.get("cpf") or ""))
-            pid = str(payload.get("person_id") or "").strip()
-            if not str(payload.get("telefone_reap") or "").strip():
+            local = dict(data)
+            cpf = only_digits(str(local.get("cpf") or ""))
+            pid = str(local.get("person_id") or "").strip()
+            if not str(local.get("telefone_reap") or "").strip():
                 try:
                     for p in self._ensure_service().get_all_pessoas():
                         if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
                             tel = str(getattr(p, "telefone", "") or "").strip()
                             mun = str(getattr(p, "municipio", "") or "").strip()
                             if tel:
-                                payload["telefone_reap"] = tel
-                            if mun and not str(payload.get("municipio") or "").strip():
-                                payload["municipio"] = mun
+                                local["telefone_reap"] = tel
+                            if mun and not str(local.get("municipio") or "").strip():
+                                local["municipio"] = mun
                             break
                 except Exception:
                     pass
 
-            ficha = self._ensure_defeso().salvar(payload)
+            ficha = self._ensure_defeso().salvar(local)
             mun = str(ficha.municipio or "").strip()
-            pid = str(ficha.person_id or payload.get("person_id") or "").strip()
-            if mun and pid:
+            pid2 = str(ficha.person_id or local.get("person_id") or "").strip()
+            if mun and pid2:
                 try:
-                    self._ensure_service().update_pessoa_municipio(pid, mun)
+                    self._ensure_service().update_pessoa_municipio(pid2, mun)
                 except Exception:
                     pass
             d = ficha.to_dict()
@@ -1164,24 +1160,24 @@ class SinapescApi:
     def print_defeso_declaracao(
         self,
         ficha_id: str = "",
-        payload: Optional[Dict[str, Any]] = None,
+        payload: Any = None,
         fonte_id: str = "",
     ) -> Dict[str, Any]:
+        data = _js_payload_to_dict(payload) if payload not in (None, "", {}) else {}
+        fid = str(ficha_id or "").strip()
+        fonte_arg = str(fonte_id or "").strip()
+
         def work():
             defeso = self._ensure_defeso()
-            ficha = defeso.por_id(ficha_id) if ficha_id else None
-            if ficha is None and isinstance(payload, dict) and payload:
-                ficha = defeso.salvar(payload)
+            ficha = defeso.por_id(fid) if fid else None
+            if ficha is None and data:
+                ficha = defeso.salvar(data)
             if ficha is None:
                 raise ValueError("Salve a ficha antes de imprimir.")
 
             cfg = load_config()
-            # Preferência: fonte passada pela UI; senão a salva no config
-            raw = (fonte_id or "").strip() or str(
-                cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE
-            )
+            raw = fonte_arg or str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             fonte = normalize_fonte(raw)
-            # Sempre preenche o PDF oficial do MTE (texto azul por cima do modelo)
             path = preencher_pdf(ficha, fonte_id=fonte, size=0.0)
 
             try:
@@ -1198,32 +1194,31 @@ class SinapescApi:
     def print_defeso_pacote(
         self,
         ficha_id: str = "",
-        payload: Optional[Dict[str, Any]] = None,
+        payload: Any = None,
         itens: Optional[Any] = None,
         fonte_id: str = "",
     ) -> Dict[str, Any]:
         """Junta declaração + anexos escolhidos num único PDF e abre."""
+        data = _js_payload_to_dict(payload) if payload not in (None, "", {}) else {}
+        fid = str(ficha_id or "").strip()
+        fonte_arg = str(fonte_id or "").strip()
+        if isinstance(itens, str):
+            raw_itens = [x.strip() for x in itens.split(",") if x.strip()]
+        elif isinstance(itens, list):
+            raw_itens = [str(x).strip() for x in itens if str(x).strip()]
+        else:
+            raw_itens = normalize_selecao(None)
 
         def work():
             defeso = self._ensure_defeso()
-            ficha = defeso.por_id(ficha_id) if ficha_id else None
-            if ficha is None and isinstance(payload, dict) and payload:
-                ficha = defeso.salvar(payload)
+            ficha = defeso.por_id(fid) if fid else None
+            if ficha is None and data:
+                ficha = defeso.salvar(data)
             if ficha is None:
                 raise ValueError("Salve a ficha antes de montar o pacote.")
 
             cfg = load_config()
-            if isinstance(itens, str):
-                # pywebview pode mandar CSV
-                raw_itens = [x.strip() for x in itens.split(",") if x.strip()]
-            elif isinstance(itens, list):
-                raw_itens = itens
-            else:
-                raw_itens = normalize_selecao(None)
-
-            fonte = (fonte_id or "").strip() or str(
-                cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE
-            )
+            fonte = fonte_arg or str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             result = montar_pacote_pdf(
                 ficha, itens=raw_itens, fonte_id=fonte, cfg=cfg
             )
@@ -1355,6 +1350,57 @@ class SinapescApi:
         if webview:
             webview.destroy_window()
         return ok()
+
+
+def _js_payload_to_dict(payload: Any) -> Dict[str, Any]:
+    """
+    Converte o objeto vindo do pywebview em dict Python puro.
+
+    Objetos JS da ponte NÃO podem ser lidos depois, nem em outra thread —
+    por isso copiamos tudo na chamada da API (thread principal).
+    """
+    if payload is None or payload == "":
+        return {}
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text:
+            return {}
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Dados da ficha inválidos (JSON).") from exc
+    if not isinstance(payload, dict):
+        # JSObject / mapeamento: tenta keys()
+        try:
+            keys = list(payload.keys())  # type: ignore[attr-defined]
+        except Exception as exc:
+            raise ValueError("Dados da ficha inválidos.") from exc
+        out: Dict[str, Any] = {}
+        for k in keys:
+            out[str(k)] = _js_value_plain(payload[k])
+        return out
+    return {str(k): _js_value_plain(v) for k, v in payload.items()}
+
+
+def _js_value_plain(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, list):
+        return [_js_value_plain(v) for v in value]
+    if isinstance(value, tuple):
+        return [_js_value_plain(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _js_value_plain(v) for k, v in value.items()}
+    # JSObject array-like
+    try:
+        if hasattr(value, "keys"):
+            return {str(k): _js_value_plain(value[k]) for k in list(value.keys())}
+    except Exception:
+        pass
+    try:
+        return [_js_value_plain(v) for v in list(value)]
+    except Exception:
+        return str(value)
 
 
 def _lote_itens_from_rows(rows: Any) -> List[tuple]:

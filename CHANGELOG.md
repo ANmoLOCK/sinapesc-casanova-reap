@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.16] — 2026-08-24 — Fix salvar ficha Defeso (payload pywebview)
+
+**Tag:** [`v1.7.16`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.16)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.16/SinapescREAP-Windows-v1.7.16.zip
+
+### O que entrou
+- Fix: **Salvar na planilha** no Defeso Fácil falhava com erro de payload (objeto JS inacessível na thread)
+- Dados da ficha agora são convertidos/serializados antes do salvamento assíncrono
+
+---
+
 ## [v1.7.15] — 2026-08-23 — Relatório sem sócio fantasma + rodapé de volta
 
 **Tag:** [`v1.7.15`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.15)  

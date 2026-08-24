@@ -851,12 +851,29 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "entrada-check" in js
     assert "df-tel-reap" in js
     assert "df-mun-reap" in js
+    assert "JSON.stringify(collectDefesoPayload())" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "def generate_defeso_relatorio" in api_py
     assert "municipios_reap" in api_py
+    assert "def _js_payload_to_dict" in api_py
     ser = (ROOT / "webapp" / "serialize.py").read_text(encoding="utf-8")
     assert '"municipio"' in ser
     assert '"telefone"' in ser
+
+
+def test_js_payload_to_dict_aceita_json_e_dict() -> None:
+    from webapp.api import _js_payload_to_dict
+
+    d = _js_payload_to_dict(
+        '{"nome":"Maria","cpf":"12345678901","parcelas":["15/05/2026","","",""],"entrada_confirmada":true}'
+    )
+    assert d["nome"] == "Maria"
+    assert d["cpf"] == "12345678901"
+    assert d["parcelas"][0] == "15/05/2026"
+    assert d["entrada_confirmada"] is True
+    assert _js_payload_to_dict({"a": 1, "b": [2, 3]}) == {"a": 1, "b": [2, 3]}
+    assert _js_payload_to_dict(None) == {}
+    assert _js_payload_to_dict("") == {}
 
 
 def test_config_appdata_sobrescreve_exe() -> None:
@@ -911,6 +928,7 @@ if __name__ == "__main__":
     test_defeso_pacote_pdf()
     test_sync_municipios_bidirecional()
     test_js_filtros_defeso_e_sync_planilhas()
+    test_js_payload_to_dict_aceita_json_e_dict()
     test_config_appdata_sobrescreve_exe()
     test_backup_rotacao()
     test_chrome_routes()
