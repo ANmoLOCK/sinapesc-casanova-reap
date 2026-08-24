@@ -161,7 +161,9 @@ def itens_defeso_para_relatorio(
             continue
         f = by_cpf.get(cpf)
         mun_reap = str(municipios_reap.get(cpf) or "").strip()
-        if loc and mun_reap.lower() != loc:
+        mun_defeso = str(f.municipio or "").strip() if f else ""
+        mun_filtro = mun_reap or mun_defeso
+        if loc and mun_filtro.lower() != loc:
             continue
         ent = entrada_confirmada_flag(f) if f else False
         if somente_entrada and not ent:
@@ -178,7 +180,7 @@ def itens_defeso_para_relatorio(
                 "nome": nome,
                 "cpf": cpf,
                 "telefone": tel,
-                "municipio": mun_reap,
+                "municipio": mun_reap or mun_defeso,
                 "endereco": endereco_defeso_relatorio(f),
                 "parcelas": parcelas_para_relatorio(f.parcelas_recebidas or ""),
                 "entrada_confirmada": ent,

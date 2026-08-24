@@ -6,6 +6,21 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.17] — 2026-08-24 — Bateria final: bugs Defeso/REAP
+
+**Tag:** [`v1.7.17`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.17)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.17/SinapescREAP-Windows-v1.7.17.zip
+
+### O que entrou
+- Declaração/Juntar PDF gravam o formulário atual (não ignoram edições)
+- Parcelas 1°–4° entram no auto-save de declaração/pacote
+- Salvar sócio sincroniza município **e** telefone no Defeso
+- Fallback de telefone no REAP usa `telefoneReap` da planilha Defeso
+- Filtro de localidade do relatório alinhado com a lista
+- Campo município editável da ficha volta a ser respeitado no save
+
+---
+
 ## [v1.7.16] — 2026-08-24 — Fix salvar ficha Defeso (payload pywebview)
 
 **Tag:** [`v1.7.16`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.16)  

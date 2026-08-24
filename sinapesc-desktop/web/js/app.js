@@ -1766,7 +1766,7 @@
       endereco: $("#df-end")?.value || "",
       numero: $("#df-num")?.value || "",
       bairro: $("#df-bairro")?.value || "",
-      municipio: ($("#df-mun-reap")?.value || $("#df-mun")?.value || "").trim(),
+      municipio: ($("#df-mun")?.value || $("#df-mun-reap")?.value || "").trim(),
       uf: $("#df-uf")?.value || "",
       telefone: $("#df-tel")?.value || "",
       email: $("#df-email")?.value || "",

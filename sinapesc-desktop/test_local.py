@@ -862,7 +862,7 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
 
 
 def test_js_payload_to_dict_aceita_json_e_dict() -> None:
-    from webapp.api import _js_payload_to_dict
+    from webapp.api import _js_payload_to_dict, _prepare_defeso_payload
 
     d = _js_payload_to_dict(
         '{"nome":"Maria","cpf":"12345678901","parcelas":["15/05/2026","","",""],"entrada_confirmada":true}'
@@ -874,6 +874,12 @@ def test_js_payload_to_dict_aceita_json_e_dict() -> None:
     assert _js_payload_to_dict({"a": 1, "b": [2, 3]}) == {"a": 1, "b": [2, 3]}
     assert _js_payload_to_dict(None) == {}
     assert _js_payload_to_dict("") == {}
+
+    prep = _prepare_defeso_payload(
+        {"nome": "Ana", "cpf": "111", "parcelas": ["15/05/2026", "20/06/2026", "", ""]}
+    )
+    assert "1° parcela;15/05/2026" in prep["parcelas_recebidas"]
+    assert "2° parcela;20/06/2026" in prep["parcelas_recebidas"]
 
 
 def test_config_appdata_sobrescreve_exe() -> None:

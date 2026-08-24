@@ -342,7 +342,9 @@ class SinapescApi:
                         defeso_mun[cpf] = str(f.municipio).strip()
                     if str(f.uf or "").strip():
                         defeso_uf[cpf] = str(f.uf).strip().upper()[:2]
-                    if str(f.telefone or "").strip():
+                    if str(getattr(f, "telefone_reap", "") or "").strip():
+                        defeso_tel[cpf] = str(f.telefone_reap).strip()
+                    elif str(f.telefone or "").strip():
                         defeso_tel[cpf] = str(f.telefone).strip()
             except Exception:
                 pass
@@ -388,12 +390,15 @@ class SinapescApi:
                 pid = person_id
             else:
                 pid = svc.add_pessoa(nome, cpf, municipio, telefone).id
-            if telefone:
+            if municipio or telefone:
                 try:
                     defeso = self._ensure_defeso()
                     ficha = defeso.por_cpf(cpf)
                     if ficha:
-                        defeso.atualizar_telefone_reap(ficha.id, telefone)
+                        if municipio:
+                            defeso.atualizar_municipio(ficha.id, municipio)
+                        if telefone:
+                            defeso.atualizar_telefone_reap(ficha.id, telefone)
                     else:
                         defeso.salvar(
                             {
@@ -1110,17 +1115,9 @@ class SinapescApi:
     def save_defeso_ficha(self, payload: Any = None) -> Dict[str, Any]:
         # pywebview: o objeto JS só existe na thread da API — copiar ANTES do async
         try:
-            data = _js_payload_to_dict(payload)
+            data = _prepare_defeso_payload(payload)
         except ValueError as exc:
             return err(str(exc))
-
-        from controle.defeso import format_parcelas
-
-        raw_parc = data.get("parcelas")
-        if isinstance(raw_parc, list):
-            data["parcelas_recebidas"] = format_parcelas(raw_parc)
-        elif not str(data.get("parcelas_recebidas") or "").strip() and raw_parc:
-            data["parcelas_recebidas"] = str(raw_parc)
 
         def work():
             local = dict(data)
@@ -1163,15 +1160,19 @@ class SinapescApi:
         payload: Any = None,
         fonte_id: str = "",
     ) -> Dict[str, Any]:
-        data = _js_payload_to_dict(payload) if payload not in (None, "", {}) else {}
-        fid = str(ficha_id or "").strip()
+        data = _prepare_defeso_payload(payload) if payload not in (None, "", {}) else {}
+        fid = str(ficha_id or data.get("id") or "").strip()
         fonte_arg = str(fonte_id or "").strip()
 
         def work():
             defeso = self._ensure_defeso()
-            ficha = defeso.por_id(fid) if fid else None
-            if ficha is None and data:
-                ficha = defeso.salvar(data)
+            if data:
+                local = dict(data)
+                if fid and not local.get("id"):
+                    local["id"] = fid
+                ficha = defeso.salvar(local)
+            else:
+                ficha = defeso.por_id(fid) if fid else None
             if ficha is None:
                 raise ValueError("Salve a ficha antes de imprimir.")
 
@@ -1199,8 +1200,8 @@ class SinapescApi:
         fonte_id: str = "",
     ) -> Dict[str, Any]:
         """Junta declaração + anexos escolhidos num único PDF e abre."""
-        data = _js_payload_to_dict(payload) if payload not in (None, "", {}) else {}
-        fid = str(ficha_id or "").strip()
+        data = _prepare_defeso_payload(payload) if payload not in (None, "", {}) else {}
+        fid = str(ficha_id or data.get("id") or "").strip()
         fonte_arg = str(fonte_id or "").strip()
         if isinstance(itens, str):
             raw_itens = [x.strip() for x in itens.split(",") if x.strip()]
@@ -1211,9 +1212,13 @@ class SinapescApi:
 
         def work():
             defeso = self._ensure_defeso()
-            ficha = defeso.por_id(fid) if fid else None
-            if ficha is None and data:
-                ficha = defeso.salvar(data)
+            if data:
+                local = dict(data)
+                if fid and not local.get("id"):
+                    local["id"] = fid
+                ficha = defeso.salvar(local)
+            else:
+                ficha = defeso.por_id(fid) if fid else None
             if ficha is None:
                 raise ValueError("Salve a ficha antes de montar o pacote.")
 
@@ -1380,6 +1385,19 @@ def _js_payload_to_dict(payload: Any) -> Dict[str, Any]:
             out[str(k)] = _js_value_plain(payload[k])
         return out
     return {str(k): _js_value_plain(v) for k, v in payload.items()}
+
+
+def _prepare_defeso_payload(payload: Any) -> Dict[str, Any]:
+    """Dict puro + normaliza lista de parcelas → parcelas_recebidas."""
+    from controle.defeso import format_parcelas
+
+    data = _js_payload_to_dict(payload)
+    raw_parc = data.get("parcelas")
+    if isinstance(raw_parc, list):
+        data["parcelas_recebidas"] = format_parcelas(raw_parc)
+    elif not str(data.get("parcelas_recebidas") or "").strip() and raw_parc:
+        data["parcelas_recebidas"] = str(raw_parc)
+    return data
 
 
 def _js_value_plain(value: Any) -> Any:

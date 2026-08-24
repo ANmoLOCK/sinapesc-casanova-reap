@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.16** — Fix salvar ficha Defeso (payload pywebview).
+**v1.7.17** — Bateria final: bugs Declaração/PDF, sync município, localidade.
 
 ## Requisitos (Windows)
 
