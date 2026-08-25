@@ -243,6 +243,8 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "set_defeso_fonte" in js
     assert 'api("print_defeso_declaracao"' in js
     assert 'api("print_defeso_pacote"' in js
+    assert 'AppEvents.on("defeso_print"' in js
+    assert 'api("open_path", r.data.path)' in js
     assert "df-pacote" in js
     assert "df-pacote-item" in js
     assert "defeso_declaracao_fonte" in js
@@ -257,6 +259,10 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "queued" in api_py
     assert "def print_qr(" in api_py
     assert "def print_defeso_pacote(" in api_py
+    assert "def _abrir_no_navegador(" in api_py
+    assert "limpar_declaracoes_anteriores" in (
+        ROOT / "controle" / "defeso_declaracao.py"
+    ).read_text(encoding="utf-8")
     assert '<p class="url">' not in api_py
     qrutil = (ROOT / "ui" / "qrutil.py").read_text(encoding="utf-8")
     assert "url_show" not in qrutil
@@ -573,14 +579,16 @@ def test_defeso_anexo_local() -> None:
 
 
 def test_defeso_fontes_e_pdf() -> None:
-    from controle.defeso import FichaDefeso
+    from controle.defeso import FichaDefeso, pasta_declaracoes
     from controle.defeso_declaracao import (
         DEFAULT_FONTE,
         listar_fontes,
+        limpar_declaracoes_anteriores,
         modelo_pdf_path,
         normalize_fonte,
         preencher_pdf,
     )
+    from ui.formatters import only_digits
 
     fontes = listar_fontes()
     ids = {f["id"] for f in fontes}
@@ -603,20 +611,32 @@ def test_defeso_fontes_e_pdf() -> None:
         telefone="74999998877",
         email="a@b.com",
     )
+    cpf_d = only_digits(ficha.cpf)
+    pasta = pasta_declaracoes()
+    # limpa resíduos de runs anteriores neste CPF de teste
+    limpar_declaracoes_anteriores(ficha.cpf)
+
     pdf0 = preencher_pdf(ficha, fonte_id="padrao")
     assert pdf0.exists() and pdf0.suffix == ".pdf"
     pdf = preencher_pdf(ficha, fonte_id="allura")
     assert pdf.exists() and pdf.suffix == ".pdf"
+    # regenerar com outra fonte remove o PDF anterior do mesmo CPF
+    assert not pdf0.exists()
     pdf_b = preencher_pdf(ficha, fonte_id="bairro")
     assert pdf_b.exists()
+    assert not pdf.exists()
     pdf_m = preencher_pdf(ficha, fonte_id="mao")
     assert pdf_m.exists()
+    assert not pdf_b.exists()
     pdf2 = preencher_pdf(ficha, fonte_id="architects")
     assert pdf2.exists()
+    assert not pdf_m.exists()
+    restantes = list(pasta.glob(f"declaracao-{cpf_d}-*.pdf"))
+    assert restantes == [pdf2]
     # Confirma que o texto foi escrito por cima do modelo (não é HTML)
     import pymupdf as fitz
 
-    doc = fitz.open(pdf)
+    doc = fitz.open(pdf2)
     page = doc[0]
     txt = page.get_text("text")
     # letra a letra → vários spans manuscritos

@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.18] — 2026-08-25 — Declaração no navegador + limpa PDF antigo
+
+**Tag:** [`v1.7.18`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.18)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.18/SinapescREAP-Windows-v1.7.18.zip
+
+### O que entrou
+- Gerar declaração / pacote PDF abre de novo no **navegador** (Edge/Chrome), como o relatório
+- Ao regenerar a declaração (troca de fonte ou novos dados), apaga o PDF/HTML anterior do mesmo CPF e deixa só o arquivo novo
+
+---
+
 ## [v1.7.17] — 2026-08-24 — Bateria final: bugs Defeso/REAP
 
 **Tag:** [`v1.7.17`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.17)  

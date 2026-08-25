@@ -58,6 +58,31 @@ except ImportError:  # pragma: no cover
     webview = None  # type: ignore[assignment]
 
 
+def _abrir_no_navegador(path: Path) -> None:
+    """Abre PDF/HTML no navegador (Edge/Chrome), não no leitor Adobe padrão."""
+    import shutil
+
+    p = Path(path).resolve()
+    if not p.exists():
+        raise OSError(f"Arquivo não encontrado: {p}")
+    if os.name == "nt":
+        for name in ("msedge", "chrome", "firefox"):
+            exe = shutil.which(name)
+            if exe:
+                subprocess.Popen([exe, str(p)], close_fds=True)
+                return
+        # Fallback: associação do Windows / webbrowser
+        try:
+            if webbrowser.open(p.as_uri()):
+                return
+        except Exception:
+            pass
+        os.startfile(str(p))  # type: ignore[attr-defined]
+        return
+    if not webbrowser.open(p.as_uri()):
+        subprocess.Popen(["xdg-open", str(p)])
+
+
 class SinapescApi:
     """Métodos expostos ao JS via window.pywebview.api."""
 
@@ -846,7 +871,10 @@ class SinapescApi:
         if not p.exists():
             return err("Caminho não encontrado.")
         try:
-            if os.name == "nt":
+            # PDF/HTML: forçar navegador (igual relatório / declaração antiga).
+            if p.is_file() and p.suffix.lower() in {".pdf", ".html", ".htm"}:
+                _abrir_no_navegador(p)
+            elif os.name == "nt":
                 os.startfile(str(p))  # type: ignore[attr-defined]
             else:
                 subprocess.Popen(["xdg-open", str(p)])
@@ -1180,14 +1208,8 @@ class SinapescApi:
             raw = fonte_arg or str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             fonte = normalize_fonte(raw)
             path = preencher_pdf(ficha, fonte_id=fonte, size=0.0)
-
-            try:
-                if os.name == "nt":
-                    os.startfile(str(path))  # type: ignore[attr-defined]
-                else:
-                    webbrowser.open(path.resolve().as_uri())
-            except OSError as exc:
-                raise ValueError(f"Não foi possível abrir a declaração: {exc}") from exc
+            # Abertura no navegador fica no JS (open_path), como o relatório —
+            # startfile/webbrowser na thread async falha com frequência no Windows.
             return {"path": str(path), "ficha_id": ficha.id, "fonte": fonte}
 
         return self._run_async("defeso_print", work, "Gerando declaração…")
@@ -1227,14 +1249,7 @@ class SinapescApi:
             result = montar_pacote_pdf(
                 ficha, itens=raw_itens, fonte_id=fonte, cfg=cfg
             )
-            path = Path(result["path"])
-            try:
-                if os.name == "nt":
-                    os.startfile(str(path))  # type: ignore[attr-defined]
-                else:
-                    webbrowser.open(path.resolve().as_uri())
-            except OSError as exc:
-                raise ValueError(f"Não foi possível abrir o pacote PDF: {exc}") from exc
+            # Abertura no navegador via JS (open_path), igual à declaração.
             result["ficha_id"] = ficha.id
             return result
 

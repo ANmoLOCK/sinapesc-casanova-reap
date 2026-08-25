@@ -270,6 +270,32 @@ def _draw_hand(
         x += widths[i]
 
 
+def limpar_declaracoes_anteriores(
+    cpf: str,
+    *,
+    manter: Optional[Path] = None,
+) -> List[Path]:
+    """Remove declarações antigas do CPF (PDF/HTML) para evitar fonte/arquivo errado."""
+    cpf_d = only_digits(cpf) or "semcpf"
+    pasta = pasta_declaracoes()
+    if not pasta.is_dir():
+        return []
+    keep = manter.resolve() if manter is not None else None
+    removidos: List[Path] = []
+    for pattern in (f"declaracao-{cpf_d}-*.pdf", f"declaracao-{cpf_d}-*.html"):
+        for path in pasta.glob(pattern):
+            if not path.is_file():
+                continue
+            if keep is not None and path.resolve() == keep:
+                continue
+            try:
+                path.unlink()
+                removidos.append(path)
+            except OSError:
+                continue
+    return removidos
+
+
 def preencher_pdf(
     ficha: FichaDefeso,
     *,
@@ -337,6 +363,8 @@ def preencher_pdf(
     cpf_d = only_digits(ficha.cpf) or "semcpf"
     dest = pasta_declaracoes() / f"declaracao-{cpf_d}-{slug}-{fonte_id}-{stamp}.pdf"
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # Só um arquivo por CPF: apaga gerações anteriores (fonte/dados velhos).
+    limpar_declaracoes_anteriores(ficha.cpf, manter=dest)
     doc.save(dest)
     doc.close()
     return dest
