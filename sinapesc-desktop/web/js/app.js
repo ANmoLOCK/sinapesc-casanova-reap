@@ -2059,14 +2059,12 @@
     });
     AppEvents.on("defeso_print", (r) => {
       if (r.ok) {
-        if (r.data?.path) api("open_path", r.data.path);
         toast("Declaração aberta no navegador para imprimir.");
         if (r.data?.ficha_id && $("#df-id")) $("#df-id").value = r.data.ficha_id;
       } else toast(r.error);
     });
     AppEvents.on("defeso_pacote", (r) => {
       if (r.ok) {
-        if (r.data?.path) api("open_path", r.data.path);
         const n = r.data?.incluidos?.length || 0;
         const pages = r.data?.pages || "?";
         toast(`Pacote PDF aberto no navegador (${n} doc(s), ${pages} pág.).`);

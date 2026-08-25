@@ -58,29 +58,94 @@ except ImportError:  # pragma: no cover
     webview = None  # type: ignore[assignment]
 
 
-def _abrir_no_navegador(path: Path) -> None:
-    """Abre PDF/HTML no navegador (Edge/Chrome), não no leitor Adobe padrão."""
+def _windows_browsers() -> List[Path]:
+    """Caminhos absolutos do Edge/Chrome (não ficam no PATH na maioria dos PCs)."""
     import shutil
 
+    local = os.environ.get("LOCALAPPDATA") or ""
+    candidatos = [
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        str(Path(local) / "Google" / "Chrome" / "Application" / "chrome.exe") if local else "",
+        str(Path(local) / "Microsoft" / "Edge" / "Application" / "msedge.exe") if local else "",
+        shutil.which("msedge") or "",
+        shutil.which("chrome") or "",
+        shutil.which("firefox") or "",
+    ]
+    out: List[Path] = []
+    seen: set[str] = set()
+    for raw in candidatos:
+        if not raw:
+            continue
+        p = Path(raw)
+        key = str(p).lower()
+        if key in seen or not p.is_file():
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def _html_wrapper_pdf(pdf: Path) -> Path:
+    """HTML ao lado do PDF — .html sempre abre no navegador (associação Windows)."""
+    pdf = pdf.resolve()
+    dest = pdf.with_name(pdf.stem + "-abrir.html")
+    nome = (
+        pdf.name.replace("&", "&amp;")
+        .replace('"', "&quot;")
+        .replace("<", "&lt;")
+    )
+    dest.write_text(
+        f"""<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<title>Sinapesc — {nome}</title>
+<style>
+  html,body{{margin:0;height:100%;overflow:hidden;background:#111}}
+  embed{{border:0;width:100%;height:100vh;display:block}}
+</style>
+</head><body>
+<embed src="{nome}" type="application/pdf" />
+</body></html>
+""",
+        encoding="utf-8",
+    )
+    return dest
+
+
+def _abrir_no_navegador(path: Path) -> None:
+    """Abre PDF/HTML no navegador (Edge/Chrome). Nunca depende do Acrobat."""
     p = Path(path).resolve()
     if not p.exists():
         raise OSError(f"Arquivo não encontrado: {p}")
+
+    # PDF → HTML wrapper (igual declaração antiga: startfile abre o navegador)
+    alvo = _html_wrapper_pdf(p) if p.suffix.lower() == ".pdf" else p
+
     if os.name == "nt":
-        for name in ("msedge", "chrome", "firefox"):
-            exe = shutil.which(name)
-            if exe:
-                subprocess.Popen([exe, str(p)], close_fds=True)
+        flags = 0
+        if hasattr(subprocess, "DETACHED_PROCESS"):
+            flags |= subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
+        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+            flags |= subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        for exe in _windows_browsers():
+            try:
+                subprocess.Popen(
+                    [str(exe), str(alvo)],
+                    close_fds=True,
+                    creationflags=flags,
+                )
                 return
-        # Fallback: associação do Windows / webbrowser
-        try:
-            if webbrowser.open(p.as_uri()):
-                return
-        except Exception:
-            pass
-        os.startfile(str(p))  # type: ignore[attr-defined]
+            except OSError:
+                continue
+        # Associação .html = navegador (comportamento que já funcionava)
+        os.startfile(str(alvo))  # type: ignore[attr-defined]
         return
-    if not webbrowser.open(p.as_uri()):
-        subprocess.Popen(["xdg-open", str(p)])
+
+    if not webbrowser.open(alvo.as_uri()):
+        subprocess.Popen(["xdg-open", str(alvo)])
 
 
 class SinapescApi:
@@ -1208,8 +1273,10 @@ class SinapescApi:
             raw = fonte_arg or str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             fonte = normalize_fonte(raw)
             path = preencher_pdf(ficha, fonte_id=fonte, size=0.0)
-            # Abertura no navegador fica no JS (open_path), como o relatório —
-            # startfile/webbrowser na thread async falha com frequência no Windows.
+            try:
+                _abrir_no_navegador(path)
+            except OSError as exc:
+                raise ValueError(f"Não foi possível abrir a declaração: {exc}") from exc
             return {"path": str(path), "ficha_id": ficha.id, "fonte": fonte}
 
         return self._run_async("defeso_print", work, "Gerando declaração…")
@@ -1249,7 +1316,11 @@ class SinapescApi:
             result = montar_pacote_pdf(
                 ficha, itens=raw_itens, fonte_id=fonte, cfg=cfg
             )
-            # Abertura no navegador via JS (open_path), igual à declaração.
+            path = Path(result["path"])
+            try:
+                _abrir_no_navegador(path)
+            except OSError as exc:
+                raise ValueError(f"Não foi possível abrir o pacote PDF: {exc}") from exc
             result["ficha_id"] = ficha.id
             return result
 

@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.19] — 2026-08-25 — Abrir declaração/pacote no navegador de verdade
+
+**Tag:** [`v1.7.19`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.19)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.19/SinapescREAP-Windows-v1.7.19.zip
+
+### O que entrou
+- Ao gerar **declaração** ou **juntar PDF**, abre no Edge/Chrome pelos caminhos reais do Windows
+- Se não achar o navegador no PATH, cria um HTML ao lado do PDF (`.html` sempre abre no navegador, como antes) — não depende do Acrobat
+
+---
+
 ## [v1.7.18] — 2026-08-25 — Declaração no navegador + limpa PDF antigo
 
 **Tag:** [`v1.7.18`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.18)  

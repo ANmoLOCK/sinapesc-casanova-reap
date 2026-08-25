@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.18**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.18) |
+| Versão atual | [**v1.7.19**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.19) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.18)
+## Download do EXE (v1.7.19)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.18/SinapescREAP-Windows-v1.7.18.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.19/SinapescREAP-Windows-v1.7.19.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.18
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.19
 
-Versão anterior: [v1.7.17](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.17)
+Versão anterior: [v1.7.18](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.18)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,11 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.19
+
+- Declaração e Juntar PDF abrem no navegador de verdade (Edge/Chrome ou HTML wrapper)
+- Continua limpando o PDF antigo do CPF ao regenerar
 
 ## O que há na v1.7.18
 

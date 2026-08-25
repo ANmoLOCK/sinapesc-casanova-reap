@@ -244,7 +244,6 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert 'api("print_defeso_declaracao"' in js
     assert 'api("print_defeso_pacote"' in js
     assert 'AppEvents.on("defeso_print"' in js
-    assert 'api("open_path", r.data.path)' in js
     assert "df-pacote" in js
     assert "df-pacote-item" in js
     assert "defeso_declaracao_fonte" in js
@@ -260,6 +259,9 @@ def test_js_tem_mes_instantaneo_e_cpf_formatado() -> None:
     assert "def print_qr(" in api_py
     assert "def print_defeso_pacote(" in api_py
     assert "def _abrir_no_navegador(" in api_py
+    assert "def _html_wrapper_pdf(" in api_py
+    assert "def _windows_browsers(" in api_py
+    assert "_abrir_no_navegador(path)" in api_py
     assert "limpar_declaracoes_anteriores" in (
         ROOT / "controle" / "defeso_declaracao.py"
     ).read_text(encoding="utf-8")
@@ -652,6 +654,30 @@ def test_defeso_fontes_e_pdf() -> None:
     doc.close()
     assert "MINISTÉRIO DO TRABALHO" in txt or "MINISTERIO DO TRABALHO" in txt.upper()
     assert len(hand_spans) >= 10  # efeito mão: vários glifos separados
+
+
+def test_abrir_pdf_cria_html_wrapper() -> None:
+    """PDF vira HTML ao lado — no Windows .html abre no navegador, não no Acrobat."""
+    import tempfile
+    from pathlib import Path
+
+    from webapp.api import _abrir_no_navegador, _html_wrapper_pdf
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf = Path(tmp) / "declaracao-teste.pdf"
+        pdf.write_bytes(b"%PDF-1.4 teste")
+        html = _html_wrapper_pdf(pdf)
+        assert html.exists()
+        assert html.suffix == ".html"
+        body = html.read_text(encoding="utf-8")
+        assert 'src="declaracao-teste.pdf"' in body
+        assert 'type="application/pdf"' in body
+        # Em Linux xdg-open/webbrowser pode falhar sem display — só valida wrapper.
+        try:
+            _abrir_no_navegador(pdf)
+        except OSError:
+            pass
+        assert html.exists()
 
 
 def test_defeso_pacote_pdf() -> None:

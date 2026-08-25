@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.18** — Declaração abre no navegador; PDF antigo do CPF é apagado ao regenerar.
+**v1.7.19** — Declaração e pacote PDF abrem de verdade no navegador (HTML wrapper + Edge).
 
 ## Requisitos (Windows)
 
