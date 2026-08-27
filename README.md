@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.20**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.20) |
+| Versão atual | [**v1.7.21**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.21) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.20)
+## Download do EXE (v1.7.21)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.20/SinapescREAP-Windows-v1.7.20.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.21/SinapescREAP-Windows-v1.7.21.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.20
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.21
 
-Versão anterior: [v1.7.19](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.19)
+Versão anterior: [v1.7.20](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.20)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,11 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.21
+
+- Município do REAP: só conferência na ficha Defeso e no relatório — **não** entra na declaração
+- Sync deixa de gravar município REAP na ficha Defeso (só telefone)
 
 ## O que há na v1.7.20
 

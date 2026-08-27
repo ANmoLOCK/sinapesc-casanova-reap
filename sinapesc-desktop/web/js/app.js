@@ -1665,9 +1665,9 @@
         </div>
         <div class="defeso-controle-box">
           <h4>Controle Defeso</h4>
-          <p class="page-sub">Telefone e município do REAP · parcelas e entrada só neste módulo.</p>
+          <p class="page-sub">Município/telefone REAP só para conferir e no relatório. Na declaração entra o município da ficha acima.</p>
           <div class="defeso-reap-info">
-            <div><label>Município (REAP)</label><input id="df-mun-reap" readonly /></div>
+            <div><label>Município (REAP)</label><input id="df-mun-reap" readonly title="Só conferência e relatório — não entra na declaração" /></div>
             <div><label>Telefone (REAP)</label><input id="df-tel-reap" readonly placeholder="Cadastre no módulo Sócios / REAP" /></div>
           </div>
           <div class="parcelas-box">
@@ -1891,7 +1891,7 @@
       endereco: $("#df-end")?.value || "",
       numero: $("#df-num")?.value || "",
       bairro: $("#df-bairro")?.value || "",
-      municipio: ($("#df-mun")?.value || $("#df-mun-reap")?.value || "").trim(),
+      municipio: ($("#df-mun")?.value || "").trim(),
       uf: $("#df-uf")?.value || "",
       telefone: $("#df-tel")?.value || "",
       email: $("#df-email")?.value || "",
@@ -1923,13 +1923,12 @@
     set("#df-end", d.endereco);
     set("#df-num", d.numero);
     set("#df-bairro", d.bairro);
-    set("#df-mun", d.municipio);
+    set("#df-mun", d.municipio || "");
     set("#df-uf", d.uf);
     set("#df-tel", d.telefone);
     set("#df-email", d.email);
     set("#df-tel-reap", d.telefone_reap || "");
-    set("#df-mun-reap", d.municipio_origem === "reap" || d.municipio ? (d.municipio || "") : (d.municipio || ""));
-    if (d.municipio) set("#df-mun", d.municipio);
+    set("#df-mun-reap", d.municipio_reap || "");
     const parcelas = Array.isArray(d.parcelas) ? d.parcelas : [];
     for (let i = 0; i < 4; i++) {
       set("#df-parcela-" + (i + 1), parcelas[i] || "");

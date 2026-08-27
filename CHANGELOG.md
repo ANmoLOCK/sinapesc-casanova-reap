@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.21] — 2026-08-27 — Município REAP fora da declaração
+
+**Tag:** [`v1.7.21`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.21)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.21/SinapescREAP-Windows-v1.7.21.zip
+
+### O que entrou
+- Município cadastrado no REAP aparece no Defeso só para **conferir** e no **relatório**
+- Declaração usa apenas o município digitado na ficha Defeso
+- Sync/salvar sócio não gravam mais o município REAP no campo da declaração
+
+---
+
 ## [v1.7.20] — 2026-08-27 — Filtros relatório, atalhos contato, sync cota
 
 **Tag:** [`v1.7.20`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.20)  

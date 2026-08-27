@@ -34,12 +34,11 @@ def sync_municipios_reap_para_defeso(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
     """
-    Copia município e telefone da aba Pessoas (REAP) para a planilha Defeso.
+    Copia telefone REAP → telefoneReap na planilha Defeso.
 
-    Otimizado para muitos sócios:
-    - 1 listagem Defeso + 1 mapa de linhas (não N× listar/por_cpf)
-    - updates em batch com retry 429
-    - creates em appends agrupados
+    Município do REAP NÃO é gravado na ficha Defeso (ele só aparece na tela
+    para conferência e no relatório). O município da declaração é o que o
+    usuário digita no Defeso.
     """
     atualizados = 0
     criados = 0
@@ -61,9 +60,8 @@ def sync_municipios_reap_para_defeso(
     stamp = now_stamp()
 
     for p in pessoas:
-        mun = _mun_key(getattr(p, "municipio", ""))
         tel = _tel_key(getattr(p, "telefone", ""))
-        if not mun and not tel:
+        if not tel:
             ignorados += 1
             continue
         cpf = only_digits(p.cpf)
@@ -72,35 +70,25 @@ def sync_municipios_reap_para_defeso(
             continue
         ficha = by_cpf.get(cpf)
         if ficha:
-            same_mun = not mun or _mun_key(ficha.municipio) == mun
-            same_tel = not tel or _tel_key(ficha.telefone_reap) == tel
-            if same_mun and same_tel:
+            if _tel_key(ficha.telefone_reap) == tel:
                 ignorados += 1
                 continue
             row_idx = id_linha.get(ficha.id, -1)
             if row_idx < 0:
                 ignorados += 1
                 continue
-            mudou = False
-            if mun and _mun_key(ficha.municipio) != mun:
-                batch.append({"range": f"{DEFESO_TAB}!L{row_idx}", "values": [[mun]]})
-                ficha.municipio = mun
-                mudou = True
-            if tel and _tel_key(ficha.telefone_reap) != tel:
-                batch.append({"range": f"{DEFESO_TAB}!V{row_idx}", "values": [[tel]]})
-                ficha.telefone_reap = tel
-                mudou = True
-            if mudou:
-                batch.append({"range": f"{DEFESO_TAB}!T{row_idx}", "values": [[stamp]]})
-                atualizados += 1
-                detalhes.append(f"atualizado: {p.nome} → mun={mun or '—'} tel={tel or '—'}")
+            batch.append({"range": f"{DEFESO_TAB}!V{row_idx}", "values": [[tel]]})
+            batch.append({"range": f"{DEFESO_TAB}!T{row_idx}", "values": [[stamp]]})
+            ficha.telefone_reap = tel
+            atualizados += 1
+            detalhes.append(f"tel REAP→Defeso: {p.nome} → {tel}")
         else:
             nova = payload_to_ficha(
                 {
                     "person_id": p.id,
                     "nome": p.nome,
                     "cpf": cpf,
-                    "municipio": mun,
+                    "municipio": "",
                     "telefone_reap": tel,
                     "status": "rascunho",
                 }
@@ -108,12 +96,11 @@ def sync_municipios_reap_para_defeso(
             novos_rows.append(nova.to_row())
             by_cpf[cpf] = nova
             criados += 1
-            detalhes.append(f"criado: {p.nome} → mun={mun or '—'} tel={tel or '—'}")
+            detalhes.append(f"criado (tel): {p.nome} → {tel}")
 
     if batch:
         defeso.client.batch_update_values(batch, chunk_size=80)
 
-    # Appends em blocos (retry já existe em append_values)
     for i in range(0, len(novos_rows), 40):
         chunk = novos_rows[i : i + 40]
         defeso.client.append_values(f"{DEFESO_TAB}!A2", chunk)
@@ -195,7 +182,7 @@ def sync_telefones_reap_para_defeso(
 def sync_municipios_bidirecional(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
-    """REAP → Defeso (município + telefone) e Defeso → REAP (município vazios)."""
+    """Telefone REAP→Defeso; município Defeso→REAP (só se REAP estiver vazio)."""
     para_defeso = sync_municipios_reap_para_defeso(reap, defeso)
     para_reap = sync_municipios_defeso_para_reap(reap, defeso)
     return {
@@ -206,8 +193,9 @@ def sync_municipios_bidirecional(
             "criados": para_defeso["criados"],
         },
         "mensagem": (
-            f"REAP→Defeso: {para_defeso['atualizados']} atualizados, "
+            f"Telefone REAP→Defeso: {para_defeso['atualizados']} atualizados, "
             f"{para_defeso['criados']} criados. "
-            f"Defeso→REAP: {para_reap['atualizados']} municípios preenchidos."
+            f"Município Defeso→REAP (vazios): {para_reap['atualizados']} preenchidos. "
+            f"(Município REAP não entra na declaração — só relatório/conferência.)"
         ),
     }

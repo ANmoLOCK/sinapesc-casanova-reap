@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.20** — Filtros de localidade/parcela nos relatórios, atalhos tel/e-mail Defeso, sync sem estourar cota.
+**v1.7.21** — Município REAP só conferência/relatório; declaração usa só o do Defeso.
 
 ## Requisitos (Windows)
 

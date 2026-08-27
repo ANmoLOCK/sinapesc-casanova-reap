@@ -491,8 +491,7 @@ class SinapescApi:
                     defeso = self._ensure_defeso()
                     ficha = defeso.por_cpf(cpf)
                     if ficha:
-                        if municipio:
-                            defeso.atualizar_municipio(ficha.id, municipio)
+                        # Município REAP NÃO sobrescreve o da declaração Defeso
                         if telefone:
                             defeso.atualizar_telefone_reap(ficha.id, telefone)
                     else:
@@ -501,7 +500,8 @@ class SinapescApi:
                                 "person_id": pid,
                                 "nome": nome,
                                 "cpf": cpf,
-                                "municipio": municipio,
+                                # município da declaração fica vazio — usuário preenche no Defeso
+                                "municipio": "",
                                 "telefone_reap": telefone,
                                 "status": "rascunho",
                             }
@@ -1177,12 +1177,13 @@ class SinapescApi:
                 base["cpf"] = only_digits(pessoa.cpf)
                 base["cpf_formatado"] = format_cpf(pessoa.cpf)
                 p_mun = str(getattr(pessoa, "municipio", "") or "").strip()
-                # Município na ficha: prioriza REAP (mesmo do relatório)
-                if p_mun:
-                    base["municipio"] = p_mun
-                    base["municipio_origem"] = "reap"
-                elif str(base.get("municipio") or "").strip():
+                # Município REAP: só visualização / relatório — NÃO entra na declaração
+                base["municipio_reap"] = p_mun
+                # base["municipio"] continua sendo o da ficha Defeso (endereço da declaração)
+                if str(base.get("municipio") or "").strip():
                     base["municipio_origem"] = "defeso"
+                elif p_mun:
+                    base["municipio_origem"] = "reap"
                 p_tel = str(getattr(pessoa, "telefone", "") or "").strip()
                 if p_tel:
                     base["telefone_reap"] = p_tel

@@ -889,11 +889,13 @@ def test_sync_municipios_bidirecional() -> None:
     defeso = FakeDefeso()
     out = sync_municipios_bidirecional(reap, defeso)
 
-    assert out["reap_para_defeso"]["atualizados"] == 1  # Joao mun Salvador
-    assert defeso.fichas[0].municipio == "Salvador"
+    # REAP→Defeso: NÃO sobrescreve município da declaração
+    assert defeso.fichas[0].municipio == "Camaçari"
     assert defeso.fichas[0].telefone_reap == "74999990001"
-    assert out["reap_para_defeso"]["criados"] == 1  # Novo
-    assert out["defeso_para_reap"]["atualizados"] == 1  # Maria
+    assert out["reap_para_defeso"]["atualizados"] == 1  # só tel do Joao
+    assert out["reap_para_defeso"]["criados"] == 1  # Novo (com tel)
+    # Defeso→REAP: preenche município vazio da Maria
+    assert out["defeso_para_reap"]["atualizados"] == 1
     assert reap.pessoas[1].municipio == "Feira de Santana"
     assert ("p2", "Feira de Santana") in reap.updates
 
@@ -928,8 +930,12 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "entrada-check" in js
     assert "df-tel-reap" in js
     assert "df-mun-reap" in js
+    assert 'municipio: ($("#df-mun")?.value || "").trim()' in js
+    assert '$("#df-mun")?.value || $("#df-mun-reap")' not in js
     assert "JSON.stringify(collectDefesoPayload())" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert 'base["municipio_reap"] = p_mun' in api_py
+    assert "Município na ficha: prioriza REAP" not in api_py
     assert "def generate_defeso_relatorio" in api_py
     assert "municipios_reap" in api_py
     assert "def _js_payload_to_dict" in api_py
