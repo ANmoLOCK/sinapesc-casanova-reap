@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.19** — Declaração e pacote PDF abrem de verdade no navegador (HTML wrapper + Edge).
+**v1.7.20** — Filtros de localidade/parcela nos relatórios, atalhos tel/e-mail Defeso, sync sem estourar cota.
 
 ## Requisitos (Windows)
 

@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.20] — 2026-08-27 — Filtros relatório, atalhos contato, sync cota
+
+**Tag:** [`v1.7.20`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.20)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.20/SinapescREAP-Windows-v1.7.20.zip
+
+### O que entrou
+- Relatório REAP: escolher **localidade** (município) antes de gerar
+- Relatório / lista Defeso: localidade + **entrada confirmada** + **com parcela disponível**
+- Ficha Defeso: bloco de **atalhos** com até 3 telefones e 3 e-mails gravados no PC («Usar» preenche a declaração)
+- **Sinc. Planilhas**: deixa de fazer 1 leitura/escrita por sócio; usa batch + retry em 429/quota (erro com muitos registros)
+
+---
+
 ## [v1.7.19] — 2026-08-25 — Abrir declaração/pacote no navegador de verdade
 
 **Tag:** [`v1.7.19`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.19)  

@@ -53,6 +53,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "defeso_drive_folder_id": "",
     "defeso_anexos_dir": "",
     "defeso_declaracao_fonte": "allura",
+    "defeso_atalhos_telefones": ["", "", ""],
+    "defeso_atalhos_emails": ["", "", ""],
     "service_account_email": "",
     "private_key": "",
     "credentials_json": None,

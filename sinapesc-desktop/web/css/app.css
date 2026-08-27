@@ -1038,3 +1038,26 @@ body { overflow: hidden; }
   .defeso-reap-info { grid-template-columns: 1fr; }
   .parcela-row { grid-template-columns: 1fr; }
 }
+
+/* Atalhos telefone/e-mail na ficha Defeso */
+.defeso-atalhos-contato {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  background: #F7FBFE;
+}
+.defeso-atalhos-contato summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 13px;
+}
+.atalho-bloco { margin-top: 8px; }
+.atalho-bloco strong { font-size: 12px; color: var(--muted); }
+.atalho-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: center;
+}

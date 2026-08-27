@@ -49,6 +49,24 @@ from googleapiclient.discovery import build
 
 from .models import MESES
 
+
+def _is_retryable_sheets_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(
+        token in msg
+        for token in (
+            "429",
+            "500",
+            "503",
+            "timeout",
+            "timed out",
+            "backend error",
+            "rate",
+            "quota",
+            "user-rate",
+        )
+    )
+
 # Escopo mínimo das planilhas (Drive fica só no cliente Drive).
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 DRIVE_SCOPES = [
@@ -236,22 +254,46 @@ class GoogleSheetsClient:
         Retorna lista de linhas; cada linha é lista de strings.
         Células vazias no final da linha podem ser omitidas pela API.
         """
-        result = (
-            self._service.spreadsheets()
-            .values()
-            .get(spreadsheetId=self.spreadsheet_id, range=range_a1)
-            .execute()
-        )
-        return result.get("values", []) or []
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                result = (
+                    self._service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=self.spreadsheet_id, range=range_a1)
+                    .execute()
+                )
+                return result.get("values", []) or []
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < 3 and _is_retryable_sheets_error(exc):
+                    time.sleep(1.2 * (attempt + 1))
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        return []
 
     def update_values(self, range_a1: str, values: Sequence[Sequence[Any]]) -> None:
-        """Escreve valores em um intervalo (sobrescreve)."""
-        self._service.spreadsheets().values().update(
-            spreadsheetId=self.spreadsheet_id,
-            range=range_a1,
-            valueInputOption="RAW",
-            body={"values": list(values)},
-        ).execute()
+        """Escreve valores em um intervalo (sobrescreve). Retry em 429/5xx."""
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                self._service.spreadsheets().values().update(
+                    spreadsheetId=self.spreadsheet_id,
+                    range=range_a1,
+                    valueInputOption="RAW",
+                    body={"values": list(values)},
+                ).execute()
+                return
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < 3 and _is_retryable_sheets_error(exc):
+                    time.sleep(1.2 * (attempt + 1))
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
 
     def append_values(self, range_a1: str, values: Sequence[Sequence[Any]]) -> None:
         """
@@ -273,29 +315,40 @@ class GoogleSheetsClient:
                 return
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
-                msg = str(exc).lower()
-                retryable = any(
-                    token in msg
-                    for token in ("429", "500", "503", "timeout", "timed out", "backend error", "rate")
-                )
-                if attempt < 3 and retryable:
+                if attempt < 3 and _is_retryable_sheets_error(exc):
                     time.sleep(1.2 * (attempt + 1))
                     continue
                 raise
         if last_exc:
             raise last_exc
 
-    def batch_update_values(self, data: List[dict], *, chunk_size: int = 500) -> None:
-        """Várias faixas de células em poucas chamadas (limite Google: ~1000 faixas/request)."""
+    def batch_update_values(self, data: List[dict], *, chunk_size: int = 100) -> None:
+        """Várias faixas de células em poucas chamadas (com retry 429)."""
         if not data:
             return
         size = max(1, int(chunk_size))
         for i in range(0, len(data), size):
             chunk = data[i : i + size]
-            self._service.spreadsheets().values().batchUpdate(
-                spreadsheetId=self.spreadsheet_id,
-                body={"valueInputOption": "RAW", "data": chunk},
-            ).execute()
+            last_exc: Exception | None = None
+            for attempt in range(4):
+                try:
+                    self._service.spreadsheets().values().batchUpdate(
+                        spreadsheetId=self.spreadsheet_id,
+                        body={"valueInputOption": "RAW", "data": chunk},
+                    ).execute()
+                    last_exc = None
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+                    if attempt < 3 and _is_retryable_sheets_error(exc):
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    raise
+            if last_exc:
+                raise last_exc
+            # pausa leve entre chunks para não estourar cota write/min
+            if i + size < len(data):
+                time.sleep(0.35)
 
     def batch_update(self, requests: List[dict]) -> None:
         """Envia várias alterações estruturais de uma vez (ex.: apagar linhas)."""

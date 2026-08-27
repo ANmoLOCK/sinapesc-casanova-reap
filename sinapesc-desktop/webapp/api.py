@@ -17,7 +17,7 @@ from config import import_credentials_file, is_sheets_configured, load_config, s
 from controle.auditoria import combina_busca
 from controle.backup import backup_root, gravar_backup, listar_backups
 from controle.calendario import meses_para_texto
-from controle.defeso import FichaDefeso, entrada_confirmada_flag, endereco_completo
+from controle.defeso import FichaDefeso, entrada_confirmada_flag, endereco_completo, tem_parcela_preenchida
 from controle.defeso_anexos import (
     anexos_mode,
     is_storage_quota_error,
@@ -190,6 +190,12 @@ class SinapescApi:
                 "defeso_drive_folder_id": str(cfg.get("defeso_drive_folder_id") or ""),
                 "defeso_declaracao_fonte": normalize_fonte(
                     str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
+                ),
+                "defeso_atalhos_telefones": _normalize_atalhos_lista(
+                    cfg.get("defeso_atalhos_telefones")
+                ),
+                "defeso_atalhos_emails": _normalize_atalhos_lista(
+                    cfg.get("defeso_atalhos_emails")
                 ),
                 "public_site_url": site,
                 "ultimo_backup_em": str(cfg.get("ultimo_backup_em") or "Nunca"),
@@ -664,7 +670,9 @@ class SinapescApi:
 
     # ---- relatório -------------------------------------------------------
 
-    def generate_relatorio(self, ano: int, modo: str, busca: str = "") -> Dict[str, Any]:
+    def generate_relatorio(
+        self, ano: int, modo: str, busca: str = "", localidade: str = ""
+    ) -> Dict[str, Any]:
         def work():
             svc = self._ensure_service()
             pessoas = svc.get_all_pessoas_com_reap()
@@ -676,6 +684,7 @@ class SinapescApi:
             nome_arq = nome_arquivo_relatorio(int(ano))
             q = busca.strip().lower()
             digits = only_digits(q)
+            loc = str(localidade or "").strip()
             if modo == "individual":
                 if not q:
                     raise ValueError("Digite o nome ou CPF do sócio para o comprovante individual.")
@@ -692,6 +701,18 @@ class SinapescApi:
                 escolhidos = match
                 titulo = f"Comprovante de situação REAP {ano}"
                 nome_arq = nome_arquivo_relatorio(int(ano), individual_nome=match[0].pessoa.nome)
+            elif loc:
+                loc_l = loc.lower()
+                escolhidos = [
+                    s
+                    for s in todos
+                    if str(getattr(s.pessoa, "municipio", "") or "").strip().lower() == loc_l
+                ]
+                if not escolhidos:
+                    raise ValueError(f"Nenhum sócio na localidade «{loc}».")
+                titulo = f"Relatório de conformidade REAP {ano} — {loc}"
+                slug = "".join(ch if ch.isalnum() else "-" for ch in loc)[:30].strip("-")
+                nome_arq = f"reap-{int(ano)}-{slug}-{datetime.now().strftime('%Y%m%d_%H%M')}.html"
             html_txt = montar_html(
                 org_short=ORG_SHORT,
                 org_full=ORG_FULL,
@@ -703,12 +724,15 @@ class SinapescApi:
             )
             path = salvar_html(html_txt, nome_arquivo=nome_arq)
             svc.registrar_evento("relatorio", f"gerou {path.name}")
-            return {"path": str(path), "html": html_txt}
+            return {"path": str(path), "html": html_txt, "total": len(escolhidos)}
 
         return self._run_async("relatorio", work, "Gerando relatório…")
 
     def generate_defeso_relatorio(
-        self, localidade: str = "", somente_entrada: bool = False
+        self,
+        localidade: str = "",
+        somente_entrada: bool = False,
+        somente_parcela: bool = False,
     ) -> Dict[str, Any]:
         """Relatório HTML Defeso: nome, CPF, tel REAP, endereço Defeso, parcelas."""
 
@@ -741,12 +765,17 @@ class SinapescApi:
                 cpfs_reap=cpfs,
                 localidade=loc,
                 somente_entrada=bool(somente_entrada),
+                somente_parcela=bool(somente_parcela),
             )
             if not itens:
                 raise ValueError("Nenhuma ficha encontrada com os filtros escolhidos.")
             titulo = "Relatório Defeso Fácil"
             if loc:
                 titulo += f" — {loc}"
+            if somente_entrada:
+                titulo += " · entrada confirmada"
+            if somente_parcela:
+                titulo += " · com parcela"
             html_txt = montar_html_defeso(
                 org_short=ORG_SHORT,
                 org_full=ORG_FULL,
@@ -1036,6 +1065,7 @@ class SinapescApi:
                 municipio = p_mun or f_mun
                 tel_reap = p_tel or (str(f.telefone_reap).strip() if f else "")
                 entrada = entrada_confirmada_flag(f) if f else False
+                tem_parc = tem_parcela_preenchida(f) if f else False
                 rows.append(
                     {
                         "person_id": p.id,
@@ -1052,6 +1082,7 @@ class SinapescApi:
                         "status": f.status if f else "sem_ficha",
                         "confirmada": entrada,
                         "entrada_confirmada": entrada,
+                        "tem_parcela": tem_parc,
                         "parcelas_recebidas": f.parcelas_recebidas if f else "",
                         "endereco_completo": endereco_completo(f) if f else "",
                         "atualizado_em": f.atualizado_em if f else "",
@@ -1352,6 +1383,27 @@ class SinapescApi:
         save_config(cfg)
         return ok(fonte=fonte, fontes=listar_fontes())
 
+    def get_defeso_atalhos_contato(self) -> Dict[str, Any]:
+        cfg = load_config()
+        return ok(
+            {
+                "telefones": _normalize_atalhos_lista(cfg.get("defeso_atalhos_telefones")),
+                "emails": _normalize_atalhos_lista(cfg.get("defeso_atalhos_emails")),
+            }
+        )
+
+    def set_defeso_atalhos_contato(
+        self, telefones: Any = None, emails: Any = None
+    ) -> Dict[str, Any]:
+        """Grava até 3 telefones e 3 e-mails rápidos para a declaração Defeso."""
+        cfg = load_config()
+        tels = _normalize_atalhos_lista(telefones)
+        mails = _normalize_atalhos_lista(emails)
+        cfg["defeso_atalhos_telefones"] = tels
+        cfg["defeso_atalhos_emails"] = mails
+        save_config(cfg)
+        return ok(telefones=tels, emails=mails)
+
     def upload_defeso_anexo(
         self,
         ficha_id: str,
@@ -1441,6 +1493,31 @@ class SinapescApi:
         if webview:
             webview.destroy_window()
         return ok()
+
+
+def _normalize_atalhos_lista(raw: Any) -> List[str]:
+    """Até 3 strings não vazias (telefone/e-mail rápidos)."""
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.startswith("["):
+            try:
+                raw = json.loads(text)
+            except json.JSONDecodeError:
+                raw = [x.strip() for x in text.split(",") if x.strip()]
+        else:
+            raw = [x.strip() for x in text.split(",") if x.strip()]
+    if not isinstance(raw, (list, tuple)):
+        raw = []
+    out: List[str] = []
+    for item in raw:
+        s = str(item or "").strip()
+        if s:
+            out.append(s)
+        if len(out) >= 3:
+            break
+    while len(out) < 3:
+        out.append("")
+    return out[:3]
 
 
 def _js_payload_to_dict(payload: Any) -> Dict[str, Any]:

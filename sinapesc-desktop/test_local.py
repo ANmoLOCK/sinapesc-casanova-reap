@@ -781,26 +781,80 @@ def only_digits_cpf_helper(cpf: str) -> str:
 
 
 def test_sync_municipios_bidirecional() -> None:
-    from controle.defeso import FichaDefeso
+    from controle.defeso import DEFESO_TAB, FichaDefeso, payload_to_ficha
     from controle.sync_planilhas import sync_municipios_bidirecional
+    from sheets.client import PESSOAS_TAB
     from sheets.models import Pessoa
+
+    class FakeClient:
+        def __init__(self, owner: str) -> None:
+            self.owner = owner
+            self.batch: list = []
+            self.appends: list = []
+
+        def ensure_tabs(self) -> None:
+            return None
+
+        def get_values(self, range_a1: str):
+            if self.owner == "defeso":
+                return [[f.id] for f in defeso.fichas]
+            return [[p.id] for p in reap.pessoas]
+
+        def batch_update_values(self, data, chunk_size: int = 80) -> None:
+            self.batch.extend(data)
+            for item in data:
+                rng = str(item.get("range") or "")
+                vals = item.get("values") or [[""]]
+                val = vals[0][0] if vals and vals[0] else ""
+                # Defeso!L{row} municipio / V telefoneReap / T stamp
+                # Pessoas!E{row} municipio
+                if "!" not in rng:
+                    continue
+                tab, cell = rng.split("!", 1)
+                col = "".join(ch for ch in cell if ch.isalpha())
+                row_s = "".join(ch for ch in cell if ch.isdigit())
+                if not row_s:
+                    continue
+                row_idx = int(row_s)
+                if tab == DEFESO_TAB:
+                    f = defeso.fichas[row_idx - 2]
+                    if col == "L":
+                        f.municipio = str(val)
+                    elif col == "V":
+                        f.telefone_reap = str(val)
+                elif tab == PESSOAS_TAB and col == "E":
+                    p = reap.pessoas[row_idx - 2]
+                    p.municipio = str(val)
+                    reap.updates.append((p.id, str(val)))
+
+        def append_values(self, range_a1: str, values) -> None:
+            self.appends.extend(values)
+            for row in values:
+                # payload via to_row — reconstrói mínimo
+                f = FichaDefeso(
+                    id=str(row[0]),
+                    person_id=str(row[1] if len(row) > 1 else ""),
+                    nome=str(row[2] if len(row) > 2 else ""),
+                    cpf=str(row[3] if len(row) > 3 else ""),
+                    municipio=str(row[11] if len(row) > 11 else ""),
+                    telefone_reap=str(row[21] if len(row) > 21 else ""),
+                    status=str(row[15] if len(row) > 15 else "rascunho"),
+                )
+                defeso.fichas.append(f)
+                defeso.salvos.append({"cpf": f.cpf, "municipio": f.municipio})
 
     class FakeReap:
         def __init__(self) -> None:
             self.pessoas = [
-                Pessoa(id="p1", nome="Joao", cpf="12345678901", criado_em="", municipio="Salvador"),
+                Pessoa(id="p1", nome="Joao", cpf="12345678901", criado_em="", municipio="Salvador", telefone="74999990001"),
                 Pessoa(id="p2", nome="Maria", cpf="98765432100", criado_em="", municipio=""),
+                Pessoa(id="p3", nome="Novo", cpf="52998224725", criado_em="", municipio="Casa Nova", telefone="74"),
             ]
             self.updates: list = []
+            self.client = FakeClient("reap")
 
         def get_all_pessoas(self):
             return list(self.pessoas)
-
-        def update_pessoa_municipio(self, person_id: str, municipio: str) -> None:
-            self.updates.append((person_id, municipio))
-            for p in self.pessoas:
-                if p.id == person_id:
-                    p.municipio = municipio
 
     class FakeDefeso:
         def __init__(self) -> None:
@@ -823,59 +877,33 @@ def test_sync_municipios_bidirecional() -> None:
                 ),
             ]
             self.salvos: list = []
-            self.mun_updates: list = []
+            self.client = FakeClient("defeso")
+
+        def ensure(self) -> None:
+            return None
 
         def listar(self):
             return list(self.fichas)
-
-        def por_cpf(self, cpf: str):
-            from ui.formatters import only_digits
-
-            d = only_digits(cpf)
-            for f in self.fichas:
-                if only_digits(f.cpf) == d:
-                    return f
-            return None
-
-        def atualizar_municipio(self, ficha_id: str, municipio: str):
-            self.mun_updates.append((ficha_id, municipio))
-            for f in self.fichas:
-                if f.id == ficha_id:
-                    f.municipio = municipio
-                    return f
-            raise ValueError("ficha")
-
-        def atualizar_telefone_reap(self, ficha_id: str, telefone: str):
-            for f in self.fichas:
-                if f.id == ficha_id:
-                    f.telefone_reap = telefone
-                    return f
-            raise ValueError("ficha")
-
-        def salvar(self, payload):
-            self.salvos.append(payload)
-            allowed = {
-                k: v
-                for k, v in payload.items()
-                if k in ("nome", "cpf", "municipio", "telefone_reap", "status")
-            }
-            return FichaDefeso(id="new", person_id=payload.get("person_id", ""), **allowed)
 
     reap = FakeReap()
     defeso = FakeDefeso()
     out = sync_municipios_bidirecional(reap, defeso)
 
-    assert out["reap_para_defeso"]["atualizados"] == 1
+    assert out["reap_para_defeso"]["atualizados"] == 1  # Joao mun Salvador
     assert defeso.fichas[0].municipio == "Salvador"
-    assert out["defeso_para_reap"]["atualizados"] == 1
+    assert defeso.fichas[0].telefone_reap == "74999990001"
+    assert out["reap_para_defeso"]["criados"] == 1  # Novo
+    assert out["defeso_para_reap"]["atualizados"] == 1  # Maria
     assert reap.pessoas[1].municipio == "Feira de Santana"
-    assert reap.updates == [("p2", "Feira de Santana")]
+    assert ("p2", "Feira de Santana") in reap.updates
 
 
 def test_js_filtros_defeso_e_sync_planilhas() -> None:
     js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
     assert "defeso-localidade" in js
     assert "defeso-confirmadas" in js
+    assert "defeso-parcelas" in js
+    assert "Com parcela disponível" in js
     assert "defeso-refresh" in js
     assert "Entradas confirmadas" in js
     assert "Sinc. Planilhas" in js
@@ -889,9 +917,12 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "Nome;CPF;Município;Número" in js
     assert "defeso-relatorio" in js
     assert "generate_defeso_relatorio" in js
+    assert "rel-localidade" in js
+    assert "df-atalho-tel-0" in js
+    assert "df-atalhos-gravar" in js
+    assert "set_defeso_atalhos_contato" in js
     assert "admin-localidade" in js
     assert "card-contact" in js
-    assert "df-parcelas" not in js or "df-parcela-1" in js
     assert "df-parcela-1" in js
     assert "df-entrada" in js
     assert "entrada-check" in js

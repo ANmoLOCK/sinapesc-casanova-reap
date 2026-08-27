@@ -133,6 +133,7 @@ def itens_defeso_para_relatorio(
     cpfs_reap: Sequence[str] | None = None,
     localidade: str = "",
     somente_entrada: bool = False,
+    somente_parcela: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Monta linhas do relatório.
@@ -140,6 +141,8 @@ def itens_defeso_para_relatorio(
     Só inclui CPF que existe na planilha REAP (Pessoas) — evita sócio fantasma
     que exista só como lixo/órfão na planilha Defeso.
     """
+    from controle.defeso import tem_parcela_preenchida
+
     loc = localidade.strip().lower()
     nomes = nomes_reap or {}
     # Conjunto de CPFs válidos do REAP
@@ -168,7 +171,9 @@ def itens_defeso_para_relatorio(
         ent = entrada_confirmada_flag(f) if f else False
         if somente_entrada and not ent:
             continue
-        # Sem ficha Defeso e sem filtro de entrada: ainda pode listar se quiser só com ficha
+        if somente_parcela and not tem_parcela_preenchida(f):
+            continue
+        # Sem ficha Defeso: não entra no relatório
         if f is None:
             continue
         nome = str(nomes.get(cpf) or f.nome or "").strip()

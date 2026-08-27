@@ -35,9 +35,11 @@
     defesoSearch: "",
     defesoLocalidade: "",
     defesoSomenteConfirmadas: false,
+    defesoSomenteParcelas: false,
     defesoLocalidades: [],
     adminLocalidade: "",
     adminLocalidades: [],
+    relLocalidade: "",
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -1180,6 +1182,8 @@
 
   function renderRelatorio() {
     const ano = new Date().getFullYear();
+    if (!state.adminLocalidades?.length && state.loggedIn) loadPessoas();
+    const locs = state.adminLocalidades || [];
     setPage(`
       <h1 class="page-title">Relatório de conformidade REAP</h1>
       <p class="page-sub">Somente administrador. CPF completo. Imprimir → PDF. Consulta pública continua mascarada.</p>
@@ -1190,6 +1194,16 @@
           <label><input type="radio" name="rel-modo" value="diretoria" checked /> Diretoria (todos)</label>
           <label><input type="radio" name="rel-modo" value="individual" /> Comprovante individual</label>
         </div>
+        <div class="inline-row" style="margin-top:8px">
+          <label class="filter-wrap">Localidade
+            <select id="rel-localidade">
+              <option value="">Todas</option>
+              ${locs.map((loc) => `
+                <option value="${esc(loc)}" ${loc === state.relLocalidade ? "selected" : ""}>${esc(loc)}</option>
+              `).join("")}
+            </select>
+          </label>
+        </div>
         <label>Buscar sócio (comprovante individual)</label>
         <input id="rel-busca" />
         <div class="form-actions">
@@ -1197,9 +1211,18 @@
         </div>
       </div>
     `);
+    $("#rel-localidade")?.addEventListener("change", (e) => {
+      state.relLocalidade = e.target.value || "";
+    });
     $("#rel-gerar").addEventListener("click", () => {
       const modo = document.querySelector('input[name="rel-modo"]:checked')?.value || "diretoria";
-      api("generate_relatorio", parseInt($("#rel-ano").value, 10), modo, $("#rel-busca").value);
+      api(
+        "generate_relatorio",
+        parseInt($("#rel-ano").value, 10),
+        modo,
+        $("#rel-busca").value,
+        state.relLocalidade || ""
+      );
     });
   }
 
@@ -1465,6 +1488,10 @@
             <input type="checkbox" id="defeso-confirmadas" ${state.defesoSomenteConfirmadas ? "checked" : ""} />
             Entradas confirmadas
           </label>
+          <label class="pacote-check filter-check">
+            <input type="checkbox" id="defeso-parcelas" ${state.defesoSomenteParcelas ? "checked" : ""} />
+            Com parcela disponível
+          </label>
           <button type="button" class="btn btn-outline-dark btn-sm" id="defeso-refresh">↻ Atualizar</button>
           <button type="button" class="btn btn-primary btn-sm" id="defeso-relatorio">Relatório HTML</button>
         </div>
@@ -1483,9 +1510,18 @@
       state.defesoSomenteConfirmadas = !!e.target.checked;
       paintDefesoLista();
     });
+    $("#defeso-parcelas")?.addEventListener("change", (e) => {
+      state.defesoSomenteParcelas = !!e.target.checked;
+      paintDefesoLista();
+    });
     $("#defeso-refresh").addEventListener("click", () => api("load_defeso_lista"));
     $("#defeso-relatorio")?.addEventListener("click", () => {
-      api("generate_defeso_relatorio", state.defesoLocalidade || "", !!state.defesoSomenteConfirmadas);
+      api(
+        "generate_defeso_relatorio",
+        state.defesoLocalidade || "",
+        !!state.defesoSomenteConfirmadas,
+        !!state.defesoSomenteParcelas
+      );
     });
     paintDefesoLista();
     api("load_defeso_lista");
@@ -1513,6 +1549,9 @@
     }
     if (state.defesoSomenteConfirmadas) {
       itens = itens.filter((x) => x.confirmada);
+    }
+    if (state.defesoSomenteParcelas) {
+      itens = itens.filter((x) => x.tem_parcela);
     }
     if (q) {
       itens = itens.filter((x) =>
@@ -1584,6 +1623,45 @@
           <div><label>UF</label><input id="df-uf" maxlength="2" placeholder="BA" /></div>
           <div><label>Telefone (declaração)</label><input id="df-tel" /></div>
           <div><label>E-mail</label><input id="df-email" /></div>
+          <div class="span-2 defeso-atalhos-contato">
+            <details open>
+              <summary>Atalhos rápidos — até 3 telefones e 3 e-mails (salvos neste PC)</summary>
+              <p class="page-sub">Preencha e clique «Gravar atalhos». Depois use «Usar» para preencher a declaração.</p>
+              <div class="atalho-bloco">
+                <strong>Telefones</strong>
+                <div class="atalho-row">
+                  <input id="df-atalho-tel-0" placeholder="Telefone 1" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-tel="0">Usar</button>
+                </div>
+                <div class="atalho-row">
+                  <input id="df-atalho-tel-1" placeholder="Telefone 2" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-tel="1">Usar</button>
+                </div>
+                <div class="atalho-row">
+                  <input id="df-atalho-tel-2" placeholder="Telefone 3" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-tel="2">Usar</button>
+                </div>
+              </div>
+              <div class="atalho-bloco">
+                <strong>E-mails</strong>
+                <div class="atalho-row">
+                  <input id="df-atalho-email-0" placeholder="E-mail 1" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-email="0">Usar</button>
+                </div>
+                <div class="atalho-row">
+                  <input id="df-atalho-email-1" placeholder="E-mail 2" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-email="1">Usar</button>
+                </div>
+                <div class="atalho-row">
+                  <input id="df-atalho-email-2" placeholder="E-mail 3" />
+                  <button type="button" class="btn btn-ghost btn-sm" data-usar-email="2">Usar</button>
+                </div>
+              </div>
+              <div class="form-actions" style="margin-top:8px">
+                <button type="button" class="btn btn-outline-dark btn-sm" id="df-atalhos-gravar">Gravar atalhos</button>
+              </div>
+            </details>
+          </div>
         </div>
         <div class="defeso-controle-box">
           <h4>Controle Defeso</h4>
@@ -1672,7 +1750,54 @@
     });
     $("#df-fonte-btn")?.addEventListener("click", () => openDefesoFonteModal());
     refreshDefesoFonteLabel();
+    bindDefesoAtalhosContato();
     api("load_defeso_ficha", ref.person_id || "", ref.cpf || "", ref.ficha_id || "");
+  }
+
+  function bindDefesoAtalhosContato() {
+    const tels = state.bootstrap?.defeso_atalhos_telefones || ["", "", ""];
+    const emails = state.bootstrap?.defeso_atalhos_emails || ["", "", ""];
+    for (let i = 0; i < 3; i++) {
+      const t = $(`#df-atalho-tel-${i}`);
+      const e = $(`#df-atalho-email-${i}`);
+      if (t) t.value = tels[i] || "";
+      if (e) e.value = emails[i] || "";
+    }
+    document.querySelectorAll("[data-usar-tel]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.getAttribute("data-usar-tel"));
+        const v = ($(`#df-atalho-tel-${i}`)?.value || "").trim();
+        if (!v) { toast("Preencha o atalho de telefone antes."); return; }
+        if ($("#df-tel")) $("#df-tel").value = v;
+        toast("Telefone aplicado na declaração.");
+      });
+    });
+    document.querySelectorAll("[data-usar-email]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.getAttribute("data-usar-email"));
+        const v = ($(`#df-atalho-email-${i}`)?.value || "").trim();
+        if (!v) { toast("Preencha o atalho de e-mail antes."); return; }
+        if ($("#df-email")) $("#df-email").value = v;
+        toast("E-mail aplicado na declaração.");
+      });
+    });
+    $("#df-atalhos-gravar")?.addEventListener("click", async () => {
+      const telefones = [0, 1, 2].map((i) => ($(`#df-atalho-tel-${i}`)?.value || "").trim());
+      const emailsArr = [0, 1, 2].map((i) => ($(`#df-atalho-email-${i}`)?.value || "").trim());
+      const r = await api(
+        "set_defeso_atalhos_contato",
+        JSON.stringify(telefones),
+        JSON.stringify(emailsArr)
+      );
+      if (!r.ok) { toast(r.error); return; }
+      const telsSaved = r.telefones || r.data?.telefones || telefones;
+      const mailsSaved = r.emails || r.data?.emails || emailsArr;
+      if (state.bootstrap) {
+        state.bootstrap.defeso_atalhos_telefones = telsSaved;
+        state.bootstrap.defeso_atalhos_emails = mailsSaved;
+      }
+      toast("Atalhos gravados neste computador.");
+    });
   }
 
   function collectDefesoPacoteItens() {

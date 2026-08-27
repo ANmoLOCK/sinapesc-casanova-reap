@@ -425,6 +425,13 @@ def parcelas_para_relatorio(raw: str) -> str:
     return "\n".join(f"{i + 1}° parcela; {datas[i] or '—'}" for i in range(4))
 
 
+def tem_parcela_preenchida(f: FichaDefeso | None) -> bool:
+    """True se ao menos uma das 4 parcelas tem data/texto preenchido."""
+    if f is None:
+        return False
+    return any(bool(str(x or "").strip()) for x in parse_parcelas(f.parcelas_recebidas or ""))
+
+
 def entrada_confirmada_flag(f: FichaDefeso) -> bool:
     return str(f.entrada_confirmada or "").strip().lower() in ("sim", "true", "1", "yes")
 
