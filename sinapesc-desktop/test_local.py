@@ -894,10 +894,9 @@ def test_sync_municipios_bidirecional() -> None:
     assert defeso.fichas[0].telefone_reap == "74999990001"
     assert out["reap_para_defeso"]["atualizados"] == 1  # só tel do Joao
     assert out["reap_para_defeso"]["criados"] == 1  # Novo (com tel)
-    # Defeso→REAP: preenche município vazio da Maria
-    assert out["defeso_para_reap"]["atualizados"] == 1
-    assert reap.pessoas[1].municipio == "Feira de Santana"
-    assert ("p2", "Feira de Santana") in reap.updates
+    # Defeso NÃO altera planilha REAP
+    assert out["defeso_para_reap"]["atualizados"] == 0
+    assert reap.pessoas[1].municipio == ""
 
 
 def test_js_filtros_defeso_e_sync_planilhas() -> None:
@@ -936,6 +935,7 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert 'base["municipio_reap"] = p_mun' in api_py
     assert "Município na ficha: prioriza REAP" not in api_py
+    assert "update_pessoa_municipio" not in api_py.split("def save_defeso_ficha")[1].split("def print_defeso")[0]
     assert "def generate_defeso_relatorio" in api_py
     assert "municipios_reap" in api_py
     assert "def _js_payload_to_dict" in api_py

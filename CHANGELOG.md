@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.22] — 2026-08-28 — Defeso não altera planilha REAP
+
+**Tag:** [`v1.7.22`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.22)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.22/SinapescREAP-Windows-v1.7.22.zip
+
+### O que entrou
+- Salvar ficha Defeso deixa de chamar `update_pessoa_municipio` no REAP
+- Sync não copia mais município Defeso → REAP
+- REAP município/telefone: só leitura para relatório Defeso e campo readonly na tela
+
+---
+
 ## [v1.7.21] — 2026-08-27 — Município REAP fora da declaração
 
 **Tag:** [`v1.7.21`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.21)  

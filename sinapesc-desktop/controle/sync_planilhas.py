@@ -182,9 +182,15 @@ def sync_telefones_reap_para_defeso(
 def sync_municipios_bidirecional(
     reap: SheetsService, defeso: DefesoService
 ) -> Dict[str, Any]:
-    """Telefone REAP→Defeso; município Defeso→REAP (só se REAP estiver vazio)."""
+    """Telefone REAP→Defeso apenas. Defeso NÃO altera planilha REAP."""
     para_defeso = sync_municipios_reap_para_defeso(reap, defeso)
-    para_reap = sync_municipios_defeso_para_reap(reap, defeso)
+    para_reap = {
+        "atualizados": 0,
+        "ignorados": 0,
+        "detalhes": [],
+        "api_writes_batch": 0,
+        "nota": "Defeso não grava na planilha REAP.",
+    }
     return {
         "reap_para_defeso": para_defeso,
         "defeso_para_reap": para_reap,
@@ -195,7 +201,7 @@ def sync_municipios_bidirecional(
         "mensagem": (
             f"Telefone REAP→Defeso: {para_defeso['atualizados']} atualizados, "
             f"{para_defeso['criados']} criados. "
-            f"Município Defeso→REAP (vazios): {para_reap['atualizados']} preenchidos. "
-            f"(Município REAP não entra na declaração — só relatório/conferência.)"
+            f"Município/telefone REAP só para conferência e relatório Defeso — "
+            f"a planilha REAP não é alterada pelo Defeso."
         ),
     }

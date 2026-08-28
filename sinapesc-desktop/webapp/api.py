@@ -1253,23 +1253,13 @@ class SinapescApi:
                     for p in self._ensure_service().get_all_pessoas():
                         if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
                             tel = str(getattr(p, "telefone", "") or "").strip()
-                            mun = str(getattr(p, "municipio", "") or "").strip()
                             if tel:
                                 local["telefone_reap"] = tel
-                            if mun and not str(local.get("municipio") or "").strip():
-                                local["municipio"] = mun
                             break
                 except Exception:
                     pass
 
             ficha = self._ensure_defeso().salvar(local)
-            mun = str(ficha.municipio or "").strip()
-            pid2 = str(ficha.person_id or local.get("person_id") or "").strip()
-            if mun and pid2:
-                try:
-                    self._ensure_service().update_pessoa_municipio(pid2, mun)
-                except Exception:
-                    pass
             d = ficha.to_dict()
             d["entrada_confirmada"] = entrada_confirmada_flag(ficha)
             from controle.defeso import parse_parcelas
