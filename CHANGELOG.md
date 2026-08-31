@@ -6,6 +6,20 @@ Formato: mais recente primeiro.
 
 ---
 
+---
+
+## [v1.7.23] — 2026-08-31 — Município REAP isolado na tela
+
+**Tag:** [`v1.7.23`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.23)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.23/SinapescREAP-Windows-v1.7.23.zip
+
+### O que entrou
+- `load_pessoas` não preenche mais REAP com município/UF/tel vindos do Defeso
+- Lista Defeso: filtro e exibição usam município REAP; declaração Defeso fica separada
+- Salvar ficha Defeso devolve `municipio_reap` lido da planilha REAP (campo readonly estável)
+
+---
+
 ## [v1.7.22] — 2026-08-28 — Defeso não altera planilha REAP
 
 **Tag:** [`v1.7.22`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.22)  

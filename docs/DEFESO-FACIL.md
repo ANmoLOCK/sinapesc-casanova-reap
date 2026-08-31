@@ -70,3 +70,16 @@ ID limpo (sem `?hl=pt-br`):
 Home → **Defeso Fácil** → login → Abrir ficha → Salvar → Anexar docs → **Gerar declaração** e/ou **Juntar PDF** (marque Declaração / Identidade / Carteira / CAF)
 
 A letra da declaração fica no botão **Aa** (não na engrenagem).
+
+---
+
+## Município REAP × município Defeso (v1.7.23)
+
+| Campo | Onde grava | Onde aparece |
+|-------|------------|--------------|
+| **Município REAP** | Planilha REAP (aba Pessoas) | Ficha sócio REAP, campo readonly «Município (REAP)» na ficha Defeso, relatório Defeso |
+| **Município Defeso** | Planilha Defeso | Campo «Município» na ficha Defeso, declaração PDF |
+
+- Salvar a ficha Defeso **não altera** o município REAP (planilha nem tela).
+- Salvar sócio REAP **não altera** o município da declaração Defeso.
+- **Sinc. Planilhas** copia só telefone REAP → Defeso (não município).
