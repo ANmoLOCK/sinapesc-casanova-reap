@@ -111,6 +111,69 @@ footer.footer-copy {
 }
 .status { font-size: .85rem; color: var(--muted); margin-top: 8px; }
 
+.main-wide { max-width: 960px; }
+
+textarea {
+  width: 100%; padding: 12px 14px; border: 1px solid var(--line);
+  border-radius: 12px; font-size: .95rem; font-family: ui-monospace, monospace;
+  background: #f7fbfe; color: var(--primary); resize: vertical; min-height: 120px;
+}
+
+.lote-filters {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+  margin-top: 12px;
+}
+.lote-filters > div:first-child { flex: 1 1 140px; }
+.lote-filters input[type=text] { max-width: 120px; }
+.lote-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lote-actions button { margin-top: 0; }
+
+.lote-summary {
+  margin-top: 16px; padding: 12px 14px; border-radius: 10px;
+  background: var(--foam); border: 1px solid var(--line); font-size: .92rem;
+}
+.hidden { display: none !important; }
+
+.lote-table-wrap { overflow-x: auto; margin-top: 16px; }
+.lote-table {
+  width: 100%; border-collapse: collapse; font-size: .88rem;
+}
+.lote-table th, .lote-table td {
+  border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top;
+}
+.lote-table th { color: var(--muted); font-weight: 700; font-size: .78rem; text-transform: uppercase; }
+.lote-table tbody tr.row-detail td { background: #f7fbfe; padding-top: 0; }
+.lote-table tbody tr.row-detail .year { margin-top: 0; }
+
+.pill {
+  display: inline-block; padding: 3px 8px; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+}
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.warn { background: #fff3e0; color: #a65d00; }
+.pill.bad { background: #fdecea; color: #a82e26; }
+
+.btn-link {
+  border: 0; background: none; color: var(--accent); cursor: pointer;
+  font-weight: 700; font-size: .82rem; padding: 0; text-decoration: underline;
+}
+
+.lote-export { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.lote-export button { margin-top: 0; }
+
+.site-tools {
+  margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line);
+  font-size: .82rem;
+}
+.site-tools a { color: var(--accent); font-weight: 600; }
+
+@media print {
+  .topbar, .wave, .nav-row, form, .lote-export, footer, .btn-link { display: none !important; }
+  .row-detail.hidden { display: table-row !important; }
+  body { background: #fff; }
+  .panel { box-shadow: none; border: 0; }
+}
+
 @media (max-width: 520px) {
   .months { grid-template-columns: repeat(4, 1fr); }
   .brand h1 { font-size: 1.15rem; }

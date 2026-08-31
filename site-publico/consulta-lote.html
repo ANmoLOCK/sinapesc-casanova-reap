@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consulta REAP em lote — Sinapesc Casa Nova</title>
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img class="school" src="assets/school.svg" alt="" />
+    <div class="brand">
+      <img src="assets/logo.png" alt="Logo Sinapesc" />
+      <div>
+        <h1>Sinapesc</h1>
+        <p>Sindicato Dos Aquicultores E Pescadores De Casa Nova</p>
+      </div>
+    </div>
+  </header>
+  <img class="wave" src="assets/wave.svg" alt="" />
+
+  <main class="main-wide">
+    <div class="nav-row">
+      <a class="btn secondary" href="consulta.html">← Consulta individual</a>
+    </div>
+
+    <div class="panel">
+      <img class="fish-float" src="assets/fish.svg" alt="" />
+      <p class="meta">Consulta automática em lote — cole vários CPFs e consulte de uma vez (uso secretaria).</p>
+
+      <form id="form-lote">
+        <label for="cpfs">CPFs (um por linha, ou separados por vírgula / ponto-e-vírgula)</label>
+        <textarea id="cpfs" rows="8" placeholder="12345678901&#10;98765432100&#10;529.982.247-25"></textarea>
+
+        <div class="lote-filters">
+          <div>
+            <label for="ano">Filtrar ano REAP (opcional)</label>
+            <input id="ano" type="text" inputmode="numeric" maxlength="4" placeholder="Ex.: 2026" />
+          </div>
+          <div class="lote-actions">
+            <button type="submit" id="btn-run">Consultar lote</button>
+            <button type="button" class="btn secondary" id="btn-clear">Limpar</button>
+          </div>
+        </div>
+
+        <div class="status" id="status">Carregando dados da planilha…</div>
+      </form>
+
+      <div id="summary" class="lote-summary hidden"></div>
+      <div id="results"></div>
+
+      <div class="lote-export hidden" id="export-bar">
+        <button type="button" class="btn secondary" id="btn-csv">Baixar CSV</button>
+        <button type="button" class="btn secondary" id="btn-print">Imprimir</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>Sinapesc · Casa Nova · Consulta em lote (secretaria)</footer>
+  <footer>Contato: sinapescaquicultoepescadores@gmail.com - TELL: (74) 9 8140-9529</footer>
+  <footer class="footer-copy">© todos os direitos reservados - 2026 - Gabriel</footer>
+
+  <script src="config.js"></script>
+  <script src="js/sheets.js"></script>
+  <script>
+    const statusEl = document.getElementById("status");
+    const summaryEl = document.getElementById("summary");
+    const resultsEl = document.getElementById("results");
+    const exportBar = document.getElementById("export-bar");
+    const cpfsEl = document.getElementById("cpfs");
+    const anoEl = document.getElementById("ano");
+    const form = document.getElementById("form-lote");
+
+    let pessoas = [];
+    let ultimoResultado = null;
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function parseAno() {
+      const n = parseInt(String(anoEl.value || "").trim(), 10);
+      return Number.isFinite(n) && n >= 2000 && n <= 2100 ? n : 0;
+    }
+
+    function renderSummary(res) {
+      const nOk = res.encontrados.length;
+      const nMiss = res.naoEncontrados.length;
+      const nBad = res.invalidos.length;
+      summaryEl.classList.remove("hidden");
+      summaryEl.innerHTML =
+        `<strong>${nOk}</strong> encontrado(s) · ` +
+        `<strong>${nMiss}</strong> não encontrado(s) · ` +
+        `<strong>${nBad}</strong> CPF inválido(s) · ` +
+        `<strong>${res.validos.length}</strong> consultado(s)`;
+    }
+
+    function renderResults(res) {
+      if (!res.validos.length && !res.invalidos.length) {
+        resultsEl.innerHTML = '<p class="empty">Cole ao menos um CPF para consultar.</p>';
+        exportBar.classList.add("hidden");
+        summaryEl.classList.add("hidden");
+        return;
+      }
+
+      renderSummary(res);
+      exportBar.classList.remove("hidden");
+
+      const filtroAno = parseAno();
+      let html = '<div class="lote-table-wrap"><table class="lote-table"><thead><tr>' +
+        "<th>#</th><th>Nome</th><th>CPF</th><th>Status</th><th>REAP</th><th></th>" +
+        "</tr></thead><tbody>";
+
+      let idx = 0;
+      for (const row of res.encontrados) {
+        idx += 1;
+        const detId = "det-" + row.cpf;
+        const anosHtml = filtroAno
+          ? (row.anos.length ? SinapescSheets.yearsHtml({ ...row.pessoa, anos: row.anos }) : '<p class="empty">Sem REAP neste ano.</p>')
+          : SinapescSheets.yearsHtml(row.pessoa);
+        html +=
+          `<tr class="row-ok">` +
+          `<td>${idx}</td>` +
+          `<td>${esc(row.nome)}</td>` +
+          `<td>${esc(SinapescSheets.maskCpf(row.cpf))}</td>` +
+          `<td><span class="pill ok">Encontrado</span></td>` +
+          `<td>${esc(row.resumo.label)}${row.ultimoAno ? " · " + row.ultimoAno : ""}</td>` +
+          `<td><button type="button" class="btn-link" data-toggle="${detId}">Ver meses</button></td>` +
+          `</tr>` +
+          `<tr class="row-detail hidden" id="${detId}"><td colspan="6">${anosHtml}</td></tr>`;
+      }
+
+      for (const row of res.naoEncontrados) {
+        idx += 1;
+        html +=
+          `<tr class="row-miss">` +
+          `<td>${idx}</td>` +
+          `<td>—</td>` +
+          `<td>${esc(SinapescSheets.maskCpf(row.cpf))}</td>` +
+          `<td><span class="pill warn">Não encontrado</span></td>` +
+          `<td>—</td><td></td></tr>`;
+      }
+
+      for (const row of res.invalidos) {
+        idx += 1;
+        html +=
+          `<tr class="row-bad">` +
+          `<td>${idx}</td>` +
+          `<td>—</td>` +
+          `<td>${esc(row.cpf || "—")}</td>` +
+          `<td><span class="pill bad">Inválido</span></td>` +
+          `<td>${esc(row.motivo || "")}</td><td></td></tr>`;
+      }
+
+      html += "</tbody></table></div>";
+      resultsEl.innerHTML = html;
+
+      resultsEl.querySelectorAll("[data-toggle]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const row = document.getElementById(btn.dataset.toggle);
+          if (!row) return;
+          row.classList.toggle("hidden");
+          btn.textContent = row.classList.contains("hidden") ? "Ver meses" : "Ocultar";
+        });
+      });
+    }
+
+    function runLote() {
+      const cpfs = SinapescSheets.parseCpfList(cpfsEl.value);
+      const ano = parseAno();
+      ultimoResultado = SinapescSheets.consultarLote(pessoas, cpfs, { ano });
+      renderResults(ultimoResultado);
+      statusEl.textContent = pessoas.length
+        ? `Pronto — ${pessoas.length} cadastro(s) na planilha.`
+        : "Planilha vazia.";
+    }
+
+    SinapescSheets.loadAll()
+      .then((data) => {
+        pessoas = data;
+        statusEl.textContent = `Pronto — ${pessoas.length} cadastro(s) carregado(s). Cole os CPFs e consulte.`;
+        const params = new URLSearchParams(location.search);
+        if (params.get("cpfs")) {
+          cpfsEl.value = decodeURIComponent(params.get("cpfs"));
+          if (params.get("ano")) anoEl.value = params.get("ano");
+          setTimeout(runLote, 300);
+        }
+      })
+      .catch((err) => {
+        statusEl.innerHTML = '<span class="err">' + esc(err.message || err) + "</span>";
+      });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!pessoas.length) {
+        statusEl.innerHTML = '<span class="err">Aguarde o carregamento da planilha.</span>';
+        return;
+      }
+      runLote();
+      const cpfs = SinapescSheets.parseCpfList(cpfsEl.value);
+      if (cpfs.length) {
+        history.replaceState(null, "", "?cpfs=" + encodeURIComponent(cpfsEl.value.trim()) +
+          (parseAno() ? "&ano=" + parseAno() : ""));
+      }
+    });
+
+    document.getElementById("btn-clear").addEventListener("click", () => {
+      cpfsEl.value = "";
+      anoEl.value = "";
+      resultsEl.innerHTML = "";
+      summaryEl.classList.add("hidden");
+      exportBar.classList.add("hidden");
+      ultimoResultado = null;
+      history.replaceState(null, "", location.pathname);
+    });
+
+    document.getElementById("btn-csv").addEventListener("click", () => {
+      if (!ultimoResultado) return;
+      const csv = SinapescSheets.loteToCsv(ultimoResultado, { ano: parseAno() });
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "sinapesc-consulta-lote-" + new Date().toISOString().slice(0, 10) + ".csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById("btn-print").addEventListener("click", () => window.print());
+  </script>
+</body>
+</html>

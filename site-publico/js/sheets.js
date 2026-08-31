@@ -183,6 +183,124 @@
       .join("");
   }
 
+  /** Extrai CPFs únicos de texto (linhas, vírgula, ponto-e-vírgula, tab). */
+  function parseCpfList(text) {
+    const raw = String(text || "")
+      .replace(/["']/g, "")
+      .split(/[\r\n,;\t]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const out = [];
+    const seen = new Set();
+    for (const item of raw) {
+      const cpf = onlyDigits(item);
+      if (!cpf) continue;
+      if (seen.has(cpf)) continue;
+      seen.add(cpf);
+      out.push(cpf);
+    }
+    return out;
+  }
+
+  function countMesesOn(meses) {
+    if (!meses) return 0;
+    return MESES.filter((m) => !!meses[m]).length;
+  }
+
+  function resumoAno(anoRow) {
+    if (!anoRow) return { total: 0, label: "—" };
+    const n = countMesesOn(anoRow.meses);
+    return { total: n, label: `${n}/12 meses` };
+  }
+
+  /**
+   * Consulta vários CPFs contra a lista já carregada.
+   * Retorna { validos, invalidos, encontrados, naoEncontrados }.
+   */
+  function consultarLote(pessoas, cpfs, opts) {
+    const options = opts || {};
+    const filtroAno = Number(options.ano) || 0;
+    const byCpf = Object.fromEntries((pessoas || []).map((p) => [p.cpf, p]));
+    const validos = [];
+    const invalidos = [];
+    const encontrados = [];
+    const naoEncontrados = [];
+
+    for (const cpf of cpfs || []) {
+      const d = onlyDigits(cpf);
+      if (d.length !== 11) {
+        invalidos.push({ cpf: d || String(cpf || ""), motivo: "CPF inválido" });
+        continue;
+      }
+      validos.push(d);
+      const pessoa = byCpf[d];
+      if (!pessoa) {
+        naoEncontrados.push({ cpf: d });
+        continue;
+      }
+      let anos = pessoa.anos || [];
+      if (filtroAno > 0) {
+        anos = anos.filter((a) => Number(a.ano) === filtroAno);
+      }
+      const ultimo = anos[0] || null;
+      encontrados.push({
+        cpf: d,
+        nome: pessoa.nome,
+        pessoa,
+        anos,
+        ultimoAno: ultimo ? ultimo.ano : null,
+        resumo: ultimo ? resumoAno(ultimo) : { total: 0, label: "sem REAP" },
+      });
+    }
+    return { validos, invalidos, encontrados, naoEncontrados };
+  }
+
+  function escapeCsv(val) {
+    const s = String(val == null ? "" : val);
+    if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  /** Gera CSV para exportar resultados do lote. */
+  function loteToCsv(resultado, opts) {
+    const options = opts || {};
+    const filtroAno = Number(options.ano) || 0;
+    const lines = [
+      [
+        "cpf_mascarado",
+        "nome",
+        "status",
+        "ano",
+        "meses_marcados",
+        "resumo",
+      ].join(","),
+    ];
+    for (const row of resultado.encontrados || []) {
+      const ano = row.ultimoAno || (filtroAno || "");
+      lines.push(
+        [
+          maskCpf(row.cpf),
+          row.nome,
+          "encontrado",
+          ano,
+          row.resumo.total,
+          row.resumo.label,
+        ].map(escapeCsv).join(",")
+      );
+    }
+    for (const row of resultado.naoEncontrados || []) {
+      lines.push(
+        [maskCpf(row.cpf), "", "nao_encontrado", "", "", ""].map(escapeCsv).join(",")
+      );
+    }
+    for (const row of resultado.invalidos || []) {
+      lines.push(
+        [row.cpf, "", "cpf_invalido", "", "", row.motivo || ""].map(escapeCsv).join(",")
+      );
+    }
+    return lines.join("\r\n");
+  }
+
   window.SinapescSheets = {
     MESES,
     onlyDigits,
@@ -190,5 +308,10 @@
     loadAll,
     monthsHtml,
     yearsHtml,
+    parseCpfList,
+    countMesesOn,
+    resumoAno,
+    consultarLote,
+    loteToCsv,
   };
 })();
