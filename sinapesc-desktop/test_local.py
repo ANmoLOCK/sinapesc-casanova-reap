@@ -367,12 +367,6 @@ def test_licenca_proprietaria() -> None:
     assert "footer-copy" in consulta
     assert "© todos os direitos reservados - 2026 - Gabriel" in consulta
     assert "legal.js" not in consulta
-    assert "consulta-lote.html" in consulta
-    lote = (repo / "site-publico" / "consulta-lote.html").read_text(encoding="utf-8")
-    assert "Consulta automática em lote" in lote
-    assert "parseCpfList" in (repo / "site-publico" / "js" / "sheets.js").read_text(encoding="utf-8")
-    assert "consultarLote" in lote
-    assert "loteToCsv" in lote
     assert (repo / "docs" / "DIREITOS-AUTORAIS.md").exists()
     assert "prazo indeterminado" in lic.lower() or "indeterminado" in lic.lower()
     assert "permanece de propriedade do autor" in lic.lower() or "propriedade do autor" in lic.lower()

@@ -38,7 +38,6 @@ O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia
 | Página | URL |
 |--------|-----|
 | Consulta por CPF (QR da sede) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
-| Consulta em lote (secretaria) | https://anmolock.github.io/sinapesc-casanova-reap/consulta-lote.html |
 
 **URL para colar no EXE** (Configurações — sem `/consulta.html`):
 
@@ -47,8 +46,6 @@ https://anmolock.github.io/sinapesc-casanova-reap
 ```
 
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
-
-**Consulta em lote** (`consulta-lote.html`): secretaria cola vários CPFs e consulta de uma vez — sem expor lista pública de associados.
 
 ---
 
