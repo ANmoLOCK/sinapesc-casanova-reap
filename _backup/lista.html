@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lista REAP — Sinapesc Casa Nova</title>
+  <link rel="icon" href="../assets/logo.png" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img class="school" src="../assets/school.svg" alt="" />
+    <div class="brand">
+      <img src="../assets/logo.png" alt="Logo Sinapesc" />
+      <div>
+        <h1>Sinapesc</h1>
+        <p>Sindicato Dos Aquicultores E Pescadores De Casa Nova</p>
+      </div>
+    </div>
+  </header>
+  <img class="wave" src="../assets/wave.svg" alt="" />
+
+  <main>
+    <div class="nav-row">
+      <a class="btn" href="../consulta.html">Consultar meu CPF</a>
+    </div>
+    <p class="meta" id="meta">Carregando lista…</p>
+    <div id="lista"></div>
+  </main>
+  <footer>Sinapesc · Casa Nova · Lista pública</footer>
+
+  <script src="../config.js"></script>
+  <script src="../js/sheets.js"></script>
+  <script>
+    const lista = document.getElementById("lista");
+    const meta = document.getElementById("meta");
+    SinapescSheets.loadAll()
+      .then((pessoas) => {
+        meta.textContent = pessoas.length + " associado(s) · clique no nome para ver os meses";
+        if (!pessoas.length) {
+          lista.innerHTML = '<div class="panel"><p class="empty">Nenhum associado cadastrado.</p></div>';
+          return;
+        }
+        lista.innerHTML = pessoas.map((p) =>
+          '<details class="card">' +
+          "<summary><span>" + p.nome + "</span><span class='cpf'>" + SinapescSheets.maskCpf(p.cpf) + "</span></summary>" +
+          SinapescSheets.yearsHtml(p) +
+          "</details>"
+        ).join("");
+      })
+      .catch((err) => {
+        meta.innerHTML = '<span class="err">' + (err.message || err) + "</span>";
+      });
+  </script>
+</body>
+</html>

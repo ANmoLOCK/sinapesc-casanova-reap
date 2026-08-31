@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consulta REAP — Sinapesc Casa Nova</title>
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img class="school" src="assets/school.svg" alt="" />
+    <div class="brand">
+      <img src="assets/logo.png" alt="Logo Sinapesc" />
+      <div>
+        <h1>Sinapesc</h1>
+        <p>Sindicato Dos Aquicultores E Pescadores De Casa Nova</p>
+      </div>
+    </div>
+  </header>
+  <img class="wave" src="assets/wave.svg" alt="" />
+
+  <main>
+    <div class="panel">
+      <img class="fish-float" src="assets/fish.svg" alt="" />
+      <p class="meta">Consulta individual de contribuição REAP</p>
+      <form id="form">
+        <label for="cpf">Digite seu CPF</label>
+        <input id="cpf" name="cpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" autocomplete="off" />
+        <button type="submit">Consultar meus REAPs</button>
+        <div class="status" id="status">Carregando dados da planilha…</div>
+      </form>
+      <div id="result"></div>
+    </div>
+  </main>
+
+  <footer>Sinapesc · Casa Nova · Consulta pública online</footer>
+  <footer>Contato: sinapescaquicultoepescadores@gmail.com - TELL: (74) 9 8140-9529</footer>
+  <footer class="footer-copy">© todos os direitos reservados - 2026 - Gabriel</footer>
+
+  <script src="config.js"></script>
+  <script src="js/sheets.js"></script>
+  <script>
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const form = document.getElementById("form");
+    const cpfInput = document.getElementById("cpf");
+    let pessoas = [];
+
+    SinapescSheets.loadAll()
+      .then((data) => {
+        pessoas = data;
+        statusEl.textContent = "Pronto. Digite o CPF e consulte.";
+      })
+      .catch((err) => {
+        statusEl.innerHTML = '<span class="err">' + (err.message || err) + "</span>";
+      });
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("cpf")) cpfInput.value = params.get("cpf");
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const cpf = SinapescSheets.onlyDigits(cpfInput.value);
+      if (cpf.length !== 11) {
+        resultEl.innerHTML = '<p class="err">Informe um CPF com 11 dígitos.</p>';
+        return;
+      }
+      const pessoa = pessoas.find((p) => p.cpf === cpf);
+      if (!pessoa) {
+        resultEl.innerHTML = '<p class="err">CPF não encontrado. Confira os números ou fale com a secretaria.</p>';
+        return;
+      }
+      resultEl.innerHTML =
+        '<div style="margin-top:18px">' +
+        "<h2 style='margin:0 0 6px;font-size:1.2rem'>" + pessoa.nome + "</h2>" +
+        '<p class="cpf">CPF: ' + SinapescSheets.maskCpf(pessoa.cpf) + "</p>" +
+        SinapescSheets.yearsHtml(pessoa) +
+        "</div>";
+      history.replaceState(null, "", "?cpf=" + cpf);
+    });
+
+    if (params.get("cpf") && params.get("cpf").replace(/\D/g, "").length === 11) {
+      setTimeout(() => form.requestSubmit(), 400);
+    }
+  </script>
+</body>
+</html>

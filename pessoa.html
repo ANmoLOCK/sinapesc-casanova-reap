@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comprovante REAP — Sinapesc</title>
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img class="school" src="assets/school.svg" alt="" />
+    <div class="brand">
+      <img src="assets/logo.png" alt="Logo Sinapesc" />
+      <div>
+        <h1>Sinapesc</h1>
+        <p>Comprovante individual de REAP</p>
+      </div>
+    </div>
+  </header>
+  <img class="wave" src="assets/wave.svg" alt="" />
+  <main>
+    <div class="nav-row">
+      <a class="btn secondary" href="consulta.html">Consulta por CPF</a>
+    </div>
+    <div class="panel" id="box"><p class="meta">Carregando…</p></div>
+  </main>
+  <footer>Sinapesc · Casa Nova</footer>
+  <footer class="footer-copy">© todos os direitos reservados - 2026 - Gabriel</footer>
+  <script src="config.js"></script>
+  <script src="js/sheets.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id") || "";
+    const box = document.getElementById("box");
+    SinapescSheets.loadAll()
+      .then((pessoas) => {
+        const p = pessoas.find((x) => x.id === id);
+        if (!p) {
+          box.innerHTML = '<p class="err">Associado não encontrado.</p>';
+          return;
+        }
+        document.title = p.nome + " — REAP";
+        box.innerHTML =
+          "<img class='fish-float' src='assets/fish.svg' alt='' />" +
+          "<h2 style='margin:0 0 6px'>" + p.nome + "</h2>" +
+          '<p class="cpf">CPF: ' + SinapescSheets.maskCpf(p.cpf) + "</p>" +
+          SinapescSheets.yearsHtml(p);
+      })
+      .catch((err) => {
+        box.innerHTML = '<p class="err">' + (err.message || err) + "</p>";
+      });
+  </script>
+</body>
+</html>
