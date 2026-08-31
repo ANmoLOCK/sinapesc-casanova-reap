@@ -41,7 +41,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.3.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.3/SinapescREAP-Windows-v1.7.3.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.23.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.23/SinapescREAP-Windows-v1.7.23.zip)
 
 ## Estrutura
 
