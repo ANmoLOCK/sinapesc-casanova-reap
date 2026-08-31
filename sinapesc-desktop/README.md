@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.22** — Salvar Defeso não altera mais a planilha REAP.
+**v1.7.23** — Município REAP e município Defeso totalmente isolados (tela e planilha).
 
 ## Requisitos (Windows)
 

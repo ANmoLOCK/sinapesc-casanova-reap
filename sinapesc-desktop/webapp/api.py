@@ -425,45 +425,10 @@ class SinapescApi:
             svc = self._ensure_service(require_login=False)
             ultimo = _ultimo_toggle_map(svc)
             pessoas = svc.get_all_pessoas_com_reap()
-            # Município / UF / telefone do Defeso quando REAP ainda não tem
-            defeso_mun: Dict[str, str] = {}
-            defeso_uf: Dict[str, str] = {}
-            defeso_tel: Dict[str, str] = {}
-            try:
-                for f in self._ensure_defeso().listar():
-                    cpf = only_digits(f.cpf)
-                    if not cpf:
-                        continue
-                    if str(f.municipio or "").strip():
-                        defeso_mun[cpf] = str(f.municipio).strip()
-                    if str(f.uf or "").strip():
-                        defeso_uf[cpf] = str(f.uf).strip().upper()[:2]
-                    if str(getattr(f, "telefone_reap", "") or "").strip():
-                        defeso_tel[cpf] = str(f.telefone_reap).strip()
-                    elif str(f.telefone or "").strip():
-                        defeso_tel[cpf] = str(f.telefone).strip()
-            except Exception:
-                pass
-            out = []
-            for p in pessoas:
-                d = pessoa_to_dict(p, ultimo_toggle=ultimo.get(p.id))
-                if not (d.get("municipio") or "").strip():
-                    alt = defeso_mun.get(d.get("cpf_raw") or "")
-                    if alt:
-                        d["municipio"] = alt
-                        d["municipio_origem"] = "defeso"
-                if not (d.get("uf") or "").strip():
-                    alt_u = defeso_uf.get(d.get("cpf_raw") or "")
-                    if alt_u:
-                        d["uf"] = alt_u
-                        d["uf_origem"] = "defeso"
-                if not (d.get("telefone") or "").strip():
-                    alt_t = defeso_tel.get(d.get("cpf_raw") or "")
-                    if alt_t:
-                        d["telefone"] = alt_t
-                        d["telefone_origem"] = "defeso"
-                out.append(d)
-            return out
+            # Só dados da planilha REAP — Defeso não altera o que aparece aqui
+            return [
+                pessoa_to_dict(p, ultimo_toggle=ultimo.get(p.id)) for p in pessoas
+            ]
 
         return self._run_async("pessoas", work, "Carregando sócios…")
 
@@ -1061,8 +1026,8 @@ class SinapescApi:
                 p_mun = str(getattr(p, "municipio", "") or "").strip()
                 p_tel = str(getattr(p, "telefone", "") or "").strip()
                 f_mun = str(f.municipio).strip() if f else ""
-                # Lista/relatório: município e telefone do REAP têm prioridade
-                municipio = p_mun or f_mun
+                # Lista/filtro: município exibido é só o REAP (declaração Defeso é separada)
+                municipio = p_mun
                 tel_reap = p_tel or (str(f.telefone_reap).strip() if f else "")
                 entrada = entrada_confirmada_flag(f) if f else False
                 tem_parc = tem_parcela_preenchida(f) if f else False
@@ -1095,7 +1060,11 @@ class SinapescApi:
             # evita "sócio fantasma" no relatório / tela.
             rows.sort(key=lambda r: str(r.get("nome_display") or "").lower())
             localidades = sorted(
-                {str(r.get("municipio") or "").strip() for r in rows if str(r.get("municipio") or "").strip()},
+                {
+                    str(r.get("municipio_reap") or "").strip()
+                    for r in rows
+                    if str(r.get("municipio_reap") or "").strip()
+                },
                 key=lambda s: s.lower(),
             )
             cfg = load_config()
@@ -1248,19 +1217,22 @@ class SinapescApi:
             local = dict(data)
             cpf = only_digits(str(local.get("cpf") or ""))
             pid = str(local.get("person_id") or "").strip()
-            if not str(local.get("telefone_reap") or "").strip():
-                try:
-                    for p in self._ensure_service().get_all_pessoas():
-                        if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
+            p_mun = ""
+            try:
+                for p in self._ensure_service().get_all_pessoas():
+                    if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
+                        if not str(local.get("telefone_reap") or "").strip():
                             tel = str(getattr(p, "telefone", "") or "").strip()
                             if tel:
                                 local["telefone_reap"] = tel
-                            break
-                except Exception:
-                    pass
+                        p_mun = str(getattr(p, "municipio", "") or "").strip()
+                        break
+            except Exception:
+                pass
 
             ficha = self._ensure_defeso().salvar(local)
             d = ficha.to_dict()
+            d["municipio_reap"] = p_mun
             d["entrada_confirmada"] = entrada_confirmada_flag(ficha)
             from controle.defeso import parse_parcelas
 

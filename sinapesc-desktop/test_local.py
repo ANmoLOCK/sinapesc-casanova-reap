@@ -931,10 +931,15 @@ def test_js_filtros_defeso_e_sync_planilhas() -> None:
     assert "df-mun-reap" in js
     assert 'municipio: ($("#df-mun")?.value || "").trim()' in js
     assert '$("#df-mun")?.value || $("#df-mun-reap")' not in js
+    assert "municipio_reap ?? prev.municipio_reap" in js
+    assert "municipio_origem === \"defeso\"" not in js
     assert "JSON.stringify(collectDefesoPayload())" in js
     api_py = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert 'base["municipio_reap"] = p_mun' in api_py
     assert "Município na ficha: prioriza REAP" not in api_py
+    assert "defeso_mun" not in api_py
+    assert "municipio = p_mun or f_mun" not in api_py
+    assert 'd["municipio_reap"] = p_mun' in api_py
     assert "update_pessoa_municipio" not in api_py.split("def save_defeso_ficha")[1].split("def print_defeso")[0]
     assert "def generate_defeso_relatorio" in api_py
     assert "municipios_reap" in api_py

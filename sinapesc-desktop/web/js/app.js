@@ -843,7 +843,6 @@
         <input id="m-mun" placeholder="Ex.: Casa Nova" value="${esc(pessoa?.municipio || "")}" />
         <label>Número (telefone)</label>
         <input id="m-tel" inputmode="tel" placeholder="Ex.: (74) 99999-0000" value="${esc(pessoa?.telefone || "")}" />
-        ${pessoa?.municipio_origem === "defeso" && !pessoa?.municipio ? `<p class="page-sub">Sugestão do Defeso (salve ou use Sinc. Planilhas)</p>` : ""}
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
@@ -1545,7 +1544,7 @@
     let itens = state.defesoItens || [];
     if (state.defesoLocalidade) {
       const loc = state.defesoLocalidade.trim().toLowerCase();
-      itens = itens.filter((x) => String(x.municipio || "").trim().toLowerCase() === loc);
+      itens = itens.filter((x) => String(x.municipio_reap || x.municipio || "").trim().toLowerCase() === loc);
     }
     if (state.defesoSomenteConfirmadas) {
       itens = itens.filter((x) => x.confirmada);
@@ -1577,7 +1576,7 @@
           <div class="card-head">
             <div class="card-info">
               <p class="card-name">${esc(x.nome_display || x.nome)}</p>
-              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio ? ` · ${esc(x.municipio)}` : ""}${x.telefone_reap ? ` · ${esc(x.telefone_reap)}` : ""}</p>
+              <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio_reap ? ` · REAP: ${esc(x.municipio_reap)}` : ""}${x.municipio_defeso ? ` · Defeso: ${esc(x.municipio_defeso)}` : ""}${x.telefone_reap ? ` · ${esc(x.telefone_reap)}` : ""}</p>
               <p class="card-cpf">${esc(docs)}</p>
             </div>
             <div class="card-actions">
@@ -2171,6 +2170,7 @@
           ...prev,
           ...r.data,
           ficha_id: r.data.id,
+          municipio_reap: r.data.municipio_reap ?? prev.municipio_reap ?? "",
           anexos: prev.anexos || [],
           anexos_mode: prev.anexos_mode,
           anexos_local_root: prev.anexos_local_root,
