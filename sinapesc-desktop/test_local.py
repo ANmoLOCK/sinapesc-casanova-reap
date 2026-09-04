@@ -22,11 +22,32 @@ def test_meses_intervalo() -> None:
 
 
 def test_formatters() -> None:
+    from ui.formatters import normalize_cpf
+
     assert only_digits("123.456.789-01") == "12345678901"
     assert format_cpf("12345678901") == "123.456.789-01"
     assert format_cpf("10520558545") == "105.205.585-45"
     assert format_cpf("105.205.585-45") == "105.205.585-45"
     assert format_cpf_masked("12345678901") == "***.***.789-**"
+    # zeros à esquerda (planilha / número)
+    assert normalize_cpf("095.453.325-90") == "09545332590"
+    assert normalize_cpf("9545332590") == "09545332590"
+    assert normalize_cpf(9545332590) == "09545332590"
+    assert normalize_cpf("056.106.905-01") == "05610690501"
+    assert normalize_cpf("5610690501") == "05610690501"
+    assert normalize_cpf(5610690501) == "05610690501"
+    assert format_cpf("9545332590") == "095.453.325-90"
+    assert format_cpf(5610690501) == "056.106.905-01"
+    assert len(normalize_cpf("12345")) == 5  # incompleto não inventa
+    # artefato float / planilha ".0"
+    assert normalize_cpf(9545332590.0) == "09545332590"
+    assert normalize_cpf("9545332590.0") == "09545332590"
+    assert normalize_cpf("09545332590.0") == "09545332590"
+    # only_digits sozinho AINDA erra no float — por isso cadastro/consulta usam normalize
+    assert only_digits(str(9545332590.0)) == "95453325900"
+    assert normalize_cpf("95453325900") == "09545332590"
+    # 56106905010 passa no DV por coincidência — ainda recupera
+    assert normalize_cpf("56106905010") == "05610690501"
 
 
 def test_display_nome() -> None:
@@ -461,6 +482,23 @@ def test_defeso_relatorio_html() -> None:
     assert "entrada-check" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
     # Rodapé de crédito permanece na UI do app
     assert "footer-legal" in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    # Header global permanece na Consulta RGP; só abas REAP ficam ocultas
+    assert "body.screen-rgp .header," not in css and "body.screen-rgp .header {" not in css
+    assert "body.screen-rgp .tab-bar" in css
+    assert "body.screen-rgp .footer {" not in css
+    assert 'id="status-text"' in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "openConsultaLoteModal" in js
+    assert "openConsultaAutomaticaModal" in js
+    assert "consultar_rgp_lote" in js
+    assert "load_consulta_rgp_auditoria" in js
+    assert "rgp-mod-tab" in js
+    assert "rgp-ed-govbr" in js
+    assert "Acesso Gov.br" in js
+    # Editar também mostra senha (não só !edit)
+    assert js.count("rgp-ed-govbr") >= 2
+    assert 'govbr_senha' in (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
 
 
 def test_defeso_ficha_e_html() -> None:
@@ -1004,6 +1042,296 @@ def test_config_appdata_sobrescreve_exe() -> None:
         cfgmod.app_data_dir = old_app  # type: ignore[assignment]
 
 
+def test_consulta_rgp_dominio_e_ui() -> None:
+    from controle.consulta_rgp import (
+        SITUACAO_ATIVO,
+        SITUACAO_NAO_ENCONTRADO,
+        aplicar_resultado_mpa,
+        extract_situacao_from_mpa,
+        flatten_mpa_payload,
+        normalize_situacao,
+        resumo_kpis,
+        row_to_registro,
+        situacao_apta_import,
+        RegistroConsultaRgp,
+    )
+    from controle.consulta_rgp_mpa import (
+        MPA_CONSULTA_URL,
+        WORKER_FLAG,
+        _js_consultar,
+        _js_poll_resultado,
+        _js_start_consulta,
+        drive_consulta_on_window,
+    )
+
+    assert normalize_situacao("rascunho") == "Rascunho"
+    assert normalize_situacao("Finalizado") == "Finalizada"
+    assert normalize_situacao(4) == "Ativo"
+    assert extract_situacao_from_mpa({"situacaoRgp": "Ativo"}) == "Ativo"
+    assert extract_situacao_from_mpa({"content": [{"situacao": "Ativo", "nome": "A"}]}) == "Ativo"
+    assert extract_situacao_from_mpa({"content": []}) == SITUACAO_NAO_ENCONTRADO
+    assert extract_situacao_from_mpa({"sem_registros": True}) == SITUACAO_NAO_ENCONTRADO
+    assert flatten_mpa_payload({"content": [{"situacao": "Suspenso", "uf": "BA"}]})["uf"] == "BA"
+    assert situacao_apta_import("Ativo")
+    assert not situacao_apta_import("Aguardando análise")
+    assert not situacao_apta_import("Finalizada")
+    assert not situacao_apta_import("Finalizado")
+
+    reg = RegistroConsultaRgp(id="abc", nome="Teste", cpf="10582575524")
+    aplicar_resultado_mpa(
+        reg,
+        {
+            "situacao": "Aguardando análise",
+            "cpf": "10582575524",
+            "municipio": "Casa Nova",
+            "uf": "BA",
+            "telefone": "74999990000",
+            "codigoRGP": "RGP1",
+        },
+    )
+    assert reg.situacao_rgp == "Aguardando análise"
+    assert reg.municipio == "Casa Nova"
+    assert reg.ultima_consulta_em
+    assert any("Consulta realizada" in t["evento"] for t in reg.timeline_items())
+
+    row = reg.to_row()
+    back = row_to_registro(row)
+    assert back and back.cpf == "10582575524"
+    assert resumo_kpis([reg])["aguardando_analise"] == 1
+
+    aplicar_resultado_mpa(reg, {"situacao": "Ativo"})
+    assert reg.situacao_rgp == SITUACAO_ATIVO
+    assert situacao_apta_import(reg.situacao_rgp)
+
+    aplicar_resultado_mpa(reg, {"sem_registros": True})
+    assert reg.situacao_rgp == SITUACAO_NAO_ENCONTRADO
+
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "renderConsultaRgp" in js
+    assert "go-consulta-rgp" in js
+    assert "consultar_rgp_pessoa" in js
+    assert "cadastrar_consulta_rgp" in js
+    assert "Cadastrar sócio" in js
+    assert "consultaRgpLoading" in js
+    # botão da tabela dispara consulta real (não só abre o painel)
+    assert 'data-act="consultar"' in js
+    assert "Consultando situação RGP no MPA" in js
+    css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert "rgp-shell" in css
+    assert "rgp-topbar" in css
+    assert "rgp-action-bar" in css
+    assert "rgp-tab" in css
+    assert "Senha Gov.br" in js
+    assert "rgp-ed-govbr" in js
+    assert "Salvar senha" not in js
+    assert "rgp-govbr-senha" not in js
+    assert "govbr_senha" in js
+    assert "consultaRgpSideTab" in js
+    assert 'data-tab="dados"' in js
+    assert "openConsultaDetalheModal" in js
+    assert "rgp-detalhe-modal" in js
+    assert "rgp-body-scroll" in js
+    assert '<aside class="rgp-side">' not in js
+    assert "normalizeCpf" in js
+    assert "rgp-body-scroll" in css
+    assert "rgp-detalhe-modal" in css
+    from ui.formatters import normalize_cpf
+
+    for raw in ("095.453.325-90", "9545332590", 9545332590, "056.106.905-01", "5610690501", 5610690501):
+        assert len(normalize_cpf(raw)) == 11
+    # gate da consulta MPA aceita CPF com zero inicial perdido
+    from controle.consulta_rgp_mpa import drive_consulta_on_window
+
+    class _Gate:
+        def __init__(self) -> None:
+            self.started = False
+
+        def evaluate_js(self, script: str):
+            if "grecaptcha" in script or "recaptchaToken" in script:
+                self.started = True
+                return True
+            if not self.started:
+                return True
+            return {
+                "done": True,
+                "ok": True,
+                "data": {"situacao": "Ativo", "cpf": "09545332590"},
+            }
+
+    r = drive_consulta_on_window(_Gate(), "9545332590", timeout_s=5, poll_s=0.01, settle_s=0)
+    assert r.get("ok") is True, r
+    assert r.get("cpf") == "09545332590"
+    r2 = drive_consulta_on_window(_Gate(), "5610690501", timeout_s=5, poll_s=0.01, settle_s=0)
+    assert r2.get("ok") is True, r2
+    assert r2.get("cpf") == "05610690501"
+    # rejeita incompleto
+    bad = drive_consulta_on_window(_Gate(), "12345", timeout_s=1, poll_s=0.01, settle_s=0)
+    assert bad.get("ok") is False
+    assert "inválido" in str(bad.get("error") or "").lower()
+    # JS do worker embute CPF com zero à esquerda
+    assert '"09545332590"' in _js_start_consulta("9545332590")
+    assert '"05610690501"' in _js_start_consulta("5610690501")
+    assert '"09545332590"' in _js_start_consulta("095.453.325-90")
+    assert '"05610690501"' in _js_start_consulta("056.106.905-01")
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "govbr_senha" in api_src
+    assert "set_govbr_senha" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "CONSULTA_RGP_CONFIG_TAB" in (ROOT / "controle" / "consulta_rgp.py").read_text(encoding="utf-8")
+    assert "consulta_rgp_prefs" in js
+    assert "consulta_rgp_govbr_senha" in (ROOT / "config" / "__init__.py").read_text(encoding="utf-8")
+    main = (ROOT / "main.py").read_text(encoding="utf-8")
+    assert WORKER_FLAG in main
+    assert "pesqbrasil-pescadorprofissional.mpa.gov.br" in MPA_CONSULTA_URL
+    assert "10582575524" in _js_consultar("105.825.755-24")
+    assert "grecaptcha.execute" in _js_consultar("10582575524")
+    assert "window.__sinapescRgp" in _js_start_consulta("10582575524")
+    assert "JSON.stringify(window.__sinapescRgp" in _js_poll_resultado()
+    assert "def consultar_rgp_pessoa" in api_src
+    assert "def cadastrar_consulta_rgp" in api_src
+    assert "desativada nesta etapa" in api_src
+    # falha NÃO abre o navegador automaticamente (só o botão Abrir site MPA)
+    consulta_fn = api_src.split("def consultar_rgp_pessoa", 1)[1].split("def importar_consulta_rgp", 1)[0]
+    assert "abrir_site_mpa_no_navegador" not in consulta_fn
+    assert "Abrir site MPA" in consulta_fn
+    assert "upsert_manual" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "upsert_from_reap" not in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+
+
+def test_consulta_rgp_mpa_polling_fake_window() -> None:
+    """Garante start sync + poll (pywebview não espera Promise async)."""
+    import json
+
+    from controle.consulta_rgp_mpa import drive_consulta_on_window
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.polls = 0
+            self.started = False
+
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                self.started = True
+                return True
+            if "JSON.stringify(window.__sinapescRgp" in script:
+                self.polls += 1
+                if self.polls < 3:
+                    return json.dumps({"done": False, "ok": False, "error": "aguardando"})
+                return json.dumps(
+                    {
+                        "done": True,
+                        "ok": True,
+                        "data": {
+                            "situacao": "Ativo",
+                            "cpf": "10582575524",
+                            "nome": "JOAO",
+                            "sobrenome": "SILVA",
+                            "municipio": "Casa Nova",
+                            "uf": "BA",
+                            "codigoRGP": "123",
+                        },
+                    }
+                )
+            return json.dumps({"done": False})
+
+    result = drive_consulta_on_window(
+        FakeWindow(),
+        "105.825.755-24",
+        settle_s=0,
+        timeout_s=2,
+        poll_s=0.01,
+    )
+    assert result.get("ok") is True
+    assert result.get("situacao") == "Ativo"
+    assert result.get("data", {}).get("municipio") == "Casa Nova"
+
+    class FailWindow:
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                return True
+            return json.dumps({"done": True, "ok": False, "error": "reCAPTCHA não carregou"})
+
+    fail = drive_consulta_on_window(FailWindow(), "10582575524", settle_s=0, timeout_s=2, poll_s=0.01)
+    assert fail.get("ok") is False
+    assert "reCAPTCHA" in str(fail.get("error") or "")
+
+    class NotFoundWindow:
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                return True
+            return json.dumps(
+                {
+                    "done": True,
+                    "ok": True,
+                    "data": {"sem_registros": True, "situacao": "Não encontrado", "cpf": "10582575524"},
+                }
+            )
+
+    nf = drive_consulta_on_window(NotFoundWindow(), "10582575524", settle_s=0, timeout_s=2, poll_s=0.01)
+    assert nf.get("ok") is True
+    assert nf.get("situacao") == "Não encontrado"
+
+
+def test_consulta_rgp_prefs_na_planilha() -> None:
+    """Senha Gov.br é chave/valor na aba Config da planilha Consulta RGP."""
+    from controle.consulta_rgp import (
+        CONSULTA_RGP_CONFIG_HEADER,
+        CONSULTA_RGP_CONFIG_TAB,
+        CONSULTA_RGP_PREF_GOVBR_SENHA,
+    )
+    from sheets.consulta_rgp_service import ConsultaRgpService
+
+    assert CONSULTA_RGP_CONFIG_TAB == "Config"
+    assert CONSULTA_RGP_CONFIG_HEADER == ["chave", "valor"]
+    assert CONSULTA_RGP_PREF_GOVBR_SENHA == "govbr_senha"
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.store: dict[str, list[list[str]]] = {
+                f"{CONSULTA_RGP_CONFIG_TAB}!A1:B1": [CONSULTA_RGP_CONFIG_HEADER],
+                f"{CONSULTA_RGP_CONFIG_TAB}!A2:B": [],
+            }
+            self.spreadsheet_id = "fake"
+            self._service = None
+
+        def get_values(self, range_a1: str):
+            return list(self.store.get(range_a1, []))
+
+        def update_values(self, range_a1: str, values):
+            # B2 write for existing key
+            if range_a1.endswith("!B2") or "!B" in range_a1:
+                rows = self.store.setdefault(f"{CONSULTA_RGP_CONFIG_TAB}!A2:B", [])
+                # find by updating B of matching row via range like Config!B3
+                import re
+
+                m = re.search(r"!B(\d+)$", range_a1)
+                if m:
+                    idx = int(m.group(1)) - 2
+                    while len(rows) <= idx:
+                        rows.append(["", ""])
+                    rows[idx] = [rows[idx][0] if rows[idx] else CONSULTA_RGP_PREF_GOVBR_SENHA, values[0][0]]
+                    return
+            self.store[range_a1] = [list(v) for v in values]
+
+        def append_values(self, range_a1: str, values):
+            key = f"{CONSULTA_RGP_CONFIG_TAB}!A2:B"
+            self.store.setdefault(key, []).extend([list(v) for v in values])
+
+    svc = ConsultaRgpService(FakeClient())  # type: ignore[arg-type]
+    svc._ready = True  # skip ensure/network
+    assert svc.get_govbr_senha() == ""
+    assert svc.set_govbr_senha("segredo123") == "segredo123"
+    assert svc.get_govbr_senha() == "segredo123"
+    assert svc.set_govbr_senha("nova") == "nova"
+    assert svc.get_govbr_senha() == "nova"
+
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "svc.set_govbr_senha" in api_src
+    assert "svc.get_govbr_senha" in api_src
+    assert "Salvando na planilha" in api_src
+
+
+
+
 if __name__ == "__main__":
     test_formatters()
     test_display_nome()
@@ -1024,6 +1352,27 @@ if __name__ == "__main__":
     test_js_filtros_defeso_e_sync_planilhas()
     test_js_payload_to_dict_aceita_json_e_dict()
     test_config_appdata_sobrescreve_exe()
+    test_consulta_rgp_dominio_e_ui()
+    test_consulta_rgp_mpa_polling_fake_window()
+    test_consulta_rgp_prefs_na_planilha()
+    from test_cpf_consulta_battery import (  # noqa: WPS433
+        test_api_consultar_accepts_dict_and_args,
+        test_consultar_cpf_isolado_gate,
+        test_incomplete_still_rejected,
+        test_js_has_object_consulta_and_helpers,
+        test_mpa_gate_accepts_all_inputs,
+        test_normalize_battery_targets,
+        test_only_digits_float_trap,
+        test_sheet_row_and_payload,
+    )
+    test_normalize_battery_targets()
+    test_only_digits_float_trap()
+    test_sheet_row_and_payload()
+    test_mpa_gate_accepts_all_inputs()
+    test_consultar_cpf_isolado_gate()
+    test_api_consultar_accepts_dict_and_args()
+    test_js_has_object_consulta_and_helpers()
+    test_incomplete_still_rejected()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()
