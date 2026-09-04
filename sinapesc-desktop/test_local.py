@@ -39,6 +39,12 @@ def test_formatters() -> None:
     assert format_cpf("9545332590") == "095.453.325-90"
     assert format_cpf(5610690501) == "056.106.905-01"
     assert len(normalize_cpf("12345")) == 5  # incompleto não inventa
+    # artefato float / planilha ".0"
+    assert normalize_cpf(9545332590.0) == "09545332590"
+    assert normalize_cpf("9545332590.0") == "09545332590"
+    assert normalize_cpf("09545332590.0") == "09545332590"
+    # only_digits sozinho AINDA erra no float — por isso cadastro/consulta usam normalize
+    assert only_digits(str(9545332590.0)) == "95453325900"
 
 
 def test_display_nome() -> None:
@@ -1329,6 +1335,24 @@ if __name__ == "__main__":
     test_consulta_rgp_dominio_e_ui()
     test_consulta_rgp_mpa_polling_fake_window()
     test_consulta_rgp_prefs_na_planilha()
+    from test_cpf_consulta_battery import (  # noqa: WPS433
+        test_api_consultar_accepts_dict_and_args,
+        test_consultar_cpf_isolado_gate,
+        test_incomplete_still_rejected,
+        test_js_has_object_consulta_and_helpers,
+        test_mpa_gate_accepts_all_inputs,
+        test_normalize_battery_targets,
+        test_only_digits_float_trap,
+        test_sheet_row_and_payload,
+    )
+    test_normalize_battery_targets()
+    test_only_digits_float_trap()
+    test_sheet_row_and_payload()
+    test_mpa_gate_accepts_all_inputs()
+    test_consultar_cpf_isolado_gate()
+    test_api_consultar_accepts_dict_and_args()
+    test_js_has_object_consulta_and_helpers()
+    test_incomplete_still_rejected()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

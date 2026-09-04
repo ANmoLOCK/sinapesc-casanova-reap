@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.36** — Corrige CPF com zero à esquerda + UI compacta.
+**v1.7.37** — CPF inválido na consulta (float/ponte) + bateria de testes.
 
 ## Requisitos (Windows)
 
@@ -41,7 +41,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.36.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.36/SinapescREAP-Windows-v1.7.36.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.37.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.37/SinapescREAP-Windows-v1.7.37.zip)
 
 ## Estrutura
 

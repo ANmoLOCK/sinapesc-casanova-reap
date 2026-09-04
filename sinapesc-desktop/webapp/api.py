@@ -1609,7 +1609,7 @@ class SinapescApi:
 
         def work():
             nome = str(local.get("nome") or "").strip()
-            cpf = only_digits(str(local.get("cpf") or ""))
+            cpf = normalize_cpf(local.get("cpf") or "")
             if not nome:
                 raise ValueError("Informe o nome.")
             if len(cpf) != 11:
@@ -1681,10 +1681,22 @@ class SinapescApi:
 
         return self._run_async("consulta_rgp_saved", work, "Salvando registro…")
 
-    def consultar_rgp_pessoa(self, registro_id: str = "", cpf: str = "") -> Dict[str, Any]:
-        """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP)."""
-        rid = str(registro_id or "").strip()
-        cpf_digits = normalize_cpf(cpf)
+    def consultar_rgp_pessoa(self, registro_id: Any = "", cpf: Any = "") -> Dict[str, Any]:
+        """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP).
+
+        Aceita ``(id, cpf)`` **ou** um dict/JSON ``{id, cpf}`` — o dict evita a ponte
+        pywebview converter CPF com zero à esquerda em número.
+        """
+        rid = ""
+        cpf_digits = ""
+        # Payload único (objeto JS / JSON string) — evita coerção de CPF com zero
+        if _is_consulta_payload(registro_id):
+            data = _js_payload_to_dict(registro_id)
+            rid = str(data.get("id") or data.get("registro_id") or "").strip()
+            cpf_digits = normalize_cpf(data.get("cpf") or cpf or "")
+        else:
+            rid = str(registro_id or "").strip()
+            cpf_digits = normalize_cpf(cpf)
 
         def work():
             svc = self._ensure_consulta_rgp()
@@ -1747,9 +1759,9 @@ class SinapescApi:
             "Os dados ficam só na planilha Consulta RGP."
         )
 
-    def abrir_consulta_rgp_mpa(self, cpf: str = "") -> Dict[str, Any]:
+    def abrir_consulta_rgp_mpa(self, cpf: Any = "") -> Dict[str, Any]:
         try:
-            abrir_site_mpa_no_navegador(cpf)
+            abrir_site_mpa_no_navegador(normalize_cpf(cpf) or str(cpf or ""))
             return ok(url=MPA_CONSULTA_URL)
         except Exception as exc:  # noqa: BLE001
             return err(str(exc))
@@ -1759,6 +1771,19 @@ class SinapescApi:
             webview.destroy_window()
         return ok()
 
+
+
+def _is_consulta_payload(obj: Any) -> bool:
+    """True se o 1º arg de consultar_rgp_pessoa é dict/JSON/JSObject com id/cpf."""
+    if isinstance(obj, dict):
+        return True
+    if isinstance(obj, str) and obj.strip().startswith("{"):
+        return True
+    try:
+        keys = {str(k) for k in list(obj.keys())}  # type: ignore[attr-defined]
+    except Exception:
+        return False
+    return bool(keys & {"id", "cpf", "registro_id"})
 
 
 def _normalize_atalhos_lista(raw: Any) -> List[str]:

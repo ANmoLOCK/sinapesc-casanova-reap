@@ -10,6 +10,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.37] — 2026-09-04 — CPF inválido (bateria + float/ponte)
+
+**Tag:** [`v1.7.37`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.37)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.37/SinapescREAP-Windows-v1.7.37.zip
+
+- Causa raiz: `only_digits(str(9545332590.0))` → `95453325900` (11 dígitos errados)
+- `normalize_cpf` trata float, `"….0"`, científica e zero à esquerda
+- `cadastrar_consulta_rgp` e consulta MPA usam normalize; JS chama com objeto `{id,cpf}`
+- Bateria `test_cpf_consulta_battery.py` (095… / 056… em todos os formatos)
+
 ## [v1.7.36] — 2026-09-04 — CPF zero à esquerda + UI compacta
 
 **Tag:** [`v1.7.36`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.36)  
