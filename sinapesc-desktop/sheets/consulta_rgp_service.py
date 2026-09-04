@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from controle.consulta_rgp import (
+    CONSULTA_RGP_CONFIG_HEADER,
+    CONSULTA_RGP_CONFIG_TAB,
     CONSULTA_RGP_HEADER,
+    CONSULTA_RGP_PREF_GOVBR_SENHA,
     CONSULTA_RGP_TAB,
     RegistroConsultaRgp,
     new_id,
@@ -58,15 +61,18 @@ class ConsultaRgpService:
             for sheet in meta.get("sheets", [])
             if sheet.get("properties", {}).get("title")
         }
+        to_add = []
         if CONSULTA_RGP_TAB not in existing:
+            to_add.append({"addSheet": {"properties": {"title": CONSULTA_RGP_TAB}}})
+        if CONSULTA_RGP_CONFIG_TAB not in existing:
+            to_add.append({"addSheet": {"properties": {"title": CONSULTA_RGP_CONFIG_TAB}}})
+        if to_add:
             self.client._service.spreadsheets().batchUpdate(
                 spreadsheetId=self.client.spreadsheet_id,
-                body={
-                    "requests": [
-                        {"addSheet": {"properties": {"title": CONSULTA_RGP_TAB}}}
-                    ]
-                },
+                body={"requests": to_add},
             ).execute()
+
+        if CONSULTA_RGP_TAB not in existing:
             self.client.update_values(f"{CONSULTA_RGP_TAB}!A1", [CONSULTA_RGP_HEADER])
         else:
             header = self.client.get_values(f"{CONSULTA_RGP_TAB}!A1:S1")
@@ -87,6 +93,28 @@ class ConsultaRgpService:
                         f"{CONSULTA_RGP_TAB}!A1:S1",
                         [row[: len(CONSULTA_RGP_HEADER)]],
                     )
+
+        cfg_header = self.client.get_values(f"{CONSULTA_RGP_CONFIG_TAB}!A1:B1")
+        if not cfg_header or not cfg_header[0]:
+            self.client.update_values(
+                f"{CONSULTA_RGP_CONFIG_TAB}!A1",
+                [CONSULTA_RGP_CONFIG_HEADER],
+            )
+        else:
+            row = list(cfg_header[0])
+            changed = False
+            for idx, label in enumerate(CONSULTA_RGP_CONFIG_HEADER):
+                while len(row) <= idx:
+                    row.append("")
+                    changed = True
+                if not str(row[idx]).strip():
+                    row[idx] = label
+                    changed = True
+            if changed:
+                self.client.update_values(
+                    f"{CONSULTA_RGP_CONFIG_TAB}!A1:B1",
+                    [row[: len(CONSULTA_RGP_CONFIG_HEADER)]],
+                )
         self._ready = True
 
     def listar(self) -> List[RegistroConsultaRgp]:
@@ -153,6 +181,44 @@ class ConsultaRgpService:
         else:
             self.client.append_values(f"{CONSULTA_RGP_TAB}!A2", [reg.to_row()])
         return reg
+
+    def prefs_map(self) -> Dict[str, str]:
+        """Lê aba Config (chave|valor) da planilha Consulta RGP."""
+        self.ensure()
+        rows = self.client.get_values(f"{CONSULTA_RGP_CONFIG_TAB}!A2:B")
+        out: Dict[str, str] = {}
+        for r in rows:
+            if r and str(r[0]).strip():
+                out[str(r[0]).strip()] = str(r[1]).strip() if len(r) > 1 else ""
+        return out
+
+    def get_pref(self, chave: str, default: str = "") -> str:
+        return self.prefs_map().get(str(chave or "").strip(), default)
+
+    def set_pref(self, chave: str, valor: str) -> None:
+        """Grava preferência na aba Config da planilha (fonte da verdade)."""
+        key = str(chave or "").strip()
+        if not key:
+            raise ValueError("Chave de preferência vazia.")
+        self.ensure()
+        rows = self.client.get_values(f"{CONSULTA_RGP_CONFIG_TAB}!A2:B")
+        idx = next(
+            (i for i, r in enumerate(rows) if r and str(r[0]).strip() == key),
+            -1,
+        )
+        val = str(valor or "")
+        if idx >= 0:
+            self.client.update_values(f"{CONSULTA_RGP_CONFIG_TAB}!B{idx + 2}", [[val]])
+        else:
+            self.client.append_values(f"{CONSULTA_RGP_CONFIG_TAB}!A2", [[key, val]])
+
+    def get_govbr_senha(self) -> str:
+        return self.get_pref(CONSULTA_RGP_PREF_GOVBR_SENHA, "")
+
+    def set_govbr_senha(self, senha: str) -> str:
+        val = str(senha or "")
+        self.set_pref(CONSULTA_RGP_PREF_GOVBR_SENHA, val)
+        return val
 
     def upsert_manual(
         self,

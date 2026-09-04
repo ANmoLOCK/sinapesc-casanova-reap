@@ -1091,6 +1091,9 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "Senha Gov.br (opcional)" not in js
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "govbr_senha" in api_src
+    assert "set_govbr_senha" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "CONSULTA_RGP_CONFIG_TAB" in (ROOT / "controle" / "consulta_rgp.py").read_text(encoding="utf-8")
+    assert "consulta_rgp_prefs" in js
     assert "consulta_rgp_govbr_senha" in (ROOT / "config" / "__init__.py").read_text(encoding="utf-8")
     main = (ROOT / "main.py").read_text(encoding="utf-8")
     assert WORKER_FLAG in main
@@ -1184,6 +1187,65 @@ def test_consulta_rgp_mpa_polling_fake_window() -> None:
     assert nf.get("situacao") == "Não encontrado"
 
 
+def test_consulta_rgp_prefs_na_planilha() -> None:
+    """Senha Gov.br é chave/valor na aba Config da planilha Consulta RGP."""
+    from controle.consulta_rgp import (
+        CONSULTA_RGP_CONFIG_HEADER,
+        CONSULTA_RGP_CONFIG_TAB,
+        CONSULTA_RGP_PREF_GOVBR_SENHA,
+    )
+    from sheets.consulta_rgp_service import ConsultaRgpService
+
+    assert CONSULTA_RGP_CONFIG_TAB == "Config"
+    assert CONSULTA_RGP_CONFIG_HEADER == ["chave", "valor"]
+    assert CONSULTA_RGP_PREF_GOVBR_SENHA == "govbr_senha"
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.store: dict[str, list[list[str]]] = {
+                f"{CONSULTA_RGP_CONFIG_TAB}!A1:B1": [CONSULTA_RGP_CONFIG_HEADER],
+                f"{CONSULTA_RGP_CONFIG_TAB}!A2:B": [],
+            }
+            self.spreadsheet_id = "fake"
+            self._service = None
+
+        def get_values(self, range_a1: str):
+            return list(self.store.get(range_a1, []))
+
+        def update_values(self, range_a1: str, values):
+            # B2 write for existing key
+            if range_a1.endswith("!B2") or "!B" in range_a1:
+                rows = self.store.setdefault(f"{CONSULTA_RGP_CONFIG_TAB}!A2:B", [])
+                # find by updating B of matching row via range like Config!B3
+                import re
+
+                m = re.search(r"!B(\d+)$", range_a1)
+                if m:
+                    idx = int(m.group(1)) - 2
+                    while len(rows) <= idx:
+                        rows.append(["", ""])
+                    rows[idx] = [rows[idx][0] if rows[idx] else CONSULTA_RGP_PREF_GOVBR_SENHA, values[0][0]]
+                    return
+            self.store[range_a1] = [list(v) for v in values]
+
+        def append_values(self, range_a1: str, values):
+            key = f"{CONSULTA_RGP_CONFIG_TAB}!A2:B"
+            self.store.setdefault(key, []).extend([list(v) for v in values])
+
+    svc = ConsultaRgpService(FakeClient())  # type: ignore[arg-type]
+    svc._ready = True  # skip ensure/network
+    assert svc.get_govbr_senha() == ""
+    assert svc.set_govbr_senha("segredo123") == "segredo123"
+    assert svc.get_govbr_senha() == "segredo123"
+    assert svc.set_govbr_senha("nova") == "nova"
+    assert svc.get_govbr_senha() == "nova"
+
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "svc.set_govbr_senha" in api_src
+    assert "svc.get_govbr_senha" in api_src
+    assert "Salvando na planilha" in api_src
+
+
 
 
 if __name__ == "__main__":
@@ -1208,6 +1270,7 @@ if __name__ == "__main__":
     test_config_appdata_sobrescreve_exe()
     test_consulta_rgp_dominio_e_ui()
     test_consulta_rgp_mpa_polling_fake_window()
+    test_consulta_rgp_prefs_na_planilha()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

@@ -1499,12 +1499,20 @@ class SinapescApi:
             cfg = load_config()
             svc = self._ensure_consulta_rgp()
             regs = svc.listar()
+            # Preferências (senha Gov.br etc.) vêm da aba Config da planilha
+            govbr_senha = ""
+            try:
+                govbr_senha = svc.get_govbr_senha()
+            except Exception:  # noqa: BLE001
+                govbr_senha = str(cfg.get("consulta_rgp_govbr_senha") or "")
             return {
                 "itens": [r.to_dict() for r in regs],
                 "kpis": resumo_kpis(regs),
                 "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
-                "govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
-                "govbr_senha": str(cfg.get("consulta_rgp_govbr_senha") or ""),
+                "govbr_opcional": bool(govbr_senha) or bool(
+                    cfg.get("consulta_rgp_govbr_opcional", False)
+                ),
+                "govbr_senha": govbr_senha,
                 "spreadsheet_id": normalize_sheet_id(
                     str(cfg.get("consulta_rgp_spreadsheet_id") or cfg.get("spreadsheet_id") or "")
                 ),
@@ -1514,23 +1522,37 @@ class SinapescApi:
         return self._run_async("consulta_rgp", work, "Carregando Consulta RGP…")
 
     def save_consulta_rgp_prefs(self, payload: Any = None) -> Dict[str, Any]:
+        """Grava preferências na planilha Consulta RGP (aba Config)."""
         data = _js_payload_to_dict(payload)
-        cfg = load_config()
-        if "importar_auto" in data:
-            cfg["consulta_rgp_importar_auto"] = bool(data.get("importar_auto"))
-        if "govbr_opcional" in data:
-            cfg["consulta_rgp_govbr_opcional"] = bool(data.get("govbr_opcional"))
-        if "govbr_senha" in data:
-            cfg["consulta_rgp_govbr_senha"] = str(data.get("govbr_senha") or "")
-            # Se digitou senha, marca como disponível para uso futuro
-            if cfg["consulta_rgp_govbr_senha"]:
-                cfg["consulta_rgp_govbr_opcional"] = True
-        save_config(cfg)
-        return ok(
-            importar_auto=bool(cfg.get("consulta_rgp_importar_auto", True)),
-            govbr_opcional=bool(cfg.get("consulta_rgp_govbr_opcional", False)),
-            govbr_senha=str(cfg.get("consulta_rgp_govbr_senha") or ""),
-        )
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            govbr_senha = None
+            if "govbr_senha" in data:
+                govbr_senha = svc.set_govbr_senha(str(data.get("govbr_senha") or ""))
+            else:
+                govbr_senha = svc.get_govbr_senha()
+
+            # Espelho local opcional (cache) — fonte da verdade é a planilha
+            cfg = load_config()
+            if "importar_auto" in data:
+                cfg["consulta_rgp_importar_auto"] = bool(data.get("importar_auto"))
+            cfg["consulta_rgp_govbr_senha"] = str(govbr_senha or "")
+            cfg["consulta_rgp_govbr_opcional"] = bool(govbr_senha)
+            if "govbr_opcional" in data and "govbr_senha" not in data:
+                cfg["consulta_rgp_govbr_opcional"] = bool(data.get("govbr_opcional"))
+            save_config(cfg)
+
+            return {
+                "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "govbr_opcional": bool(govbr_senha) or bool(
+                    cfg.get("consulta_rgp_govbr_opcional", False)
+                ),
+                "govbr_senha": str(govbr_senha or ""),
+                "mensagem": "Senha Gov.br salva na planilha Consulta RGP.",
+            }
+
+        return self._run_async("consulta_rgp_prefs", work, "Salvando na planilha…")
 
     def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
         """Desativado — Consulta RGP opera só na própria planilha nesta etapa."""

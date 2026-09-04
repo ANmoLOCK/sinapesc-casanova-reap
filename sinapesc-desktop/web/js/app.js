@@ -2494,8 +2494,8 @@
     $("#rgp-govbr-save")?.addEventListener("click", () => {
       const senha = String($("#rgp-govbr-senha")?.value || "");
       state.consultaRgpGovbrSenha = senha;
+      toast("Salvando senha Gov.br na planilha…", 2500);
       api("save_consulta_rgp_prefs", { govbr_senha: senha });
-      toast(senha ? "Senha Gov.br salva." : "Senha Gov.br limpa.", 2500);
     });
     $("#rgp-govbr-senha")?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -2821,6 +2821,18 @@
         toast(r.error || "Falha ao carregar Consulta RGP.");
         if (state.screen === "consulta_rgp") renderConsultaRgp();
       }
+    });
+    AppEvents.on("consulta_rgp_prefs", (r) => {
+      if (r.ok) {
+        if (typeof r.data?.govbr_senha === "string") {
+          state.consultaRgpGovbrSenha = r.data.govbr_senha;
+        }
+        if (typeof r.data?.govbr_opcional === "boolean") {
+          state.consultaRgpGovbr = r.data.govbr_opcional;
+        }
+        toast(r.data?.mensagem || "Preferências salvas na planilha.");
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
+      } else toast(r.error || "Falha ao salvar na planilha.");
     });
     AppEvents.on("consulta_rgp_sync", (r) => {
       if (r.ok) {

@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.32** — Layout folgado + campo Senha Gov.br (sem toggles).
+**v1.7.33** — Senha Gov.br e prefs na planilha Consulta RGP.
 
 ## Requisitos (Windows)
 
@@ -41,7 +41,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.32.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.32/SinapescREAP-Windows-v1.7.32.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.33.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.33/SinapescREAP-Windows-v1.7.33.zip)
 
 ## Estrutura
 

@@ -8,6 +8,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.33] — 2026-09-04 — Senha Gov.br na planilha
+
+**Tag:** [`v1.7.33`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.33)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.33/SinapescREAP-Windows-v1.7.33.zip
+
+- Senha Gov.br gravada na aba **Config** da planilha Consulta RGP (`chave|valor`)
+- Cadastros/edição já iam na aba **ConsultaRGP**; preferências também ficam na planilha
+- Fonte da verdade = Google Sheets (não só config local)
+
 ## [v1.7.32] — 2026-09-04 — Layout folgado + senha Gov.br
 
 **Tag:** [`v1.7.32`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.32)  

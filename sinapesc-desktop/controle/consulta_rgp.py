@@ -11,6 +11,9 @@ from ui.formatters import display_nome, format_cpf, format_nome, only_digits
 
 
 CONSULTA_RGP_TAB = "ConsultaRGP"
+CONSULTA_RGP_CONFIG_TAB = "Config"
+CONSULTA_RGP_CONFIG_HEADER = ["chave", "valor"]
+CONSULTA_RGP_PREF_GOVBR_SENHA = "govbr_senha"
 CONSULTA_RGP_HEADER = [
     "id",
     "personId",
