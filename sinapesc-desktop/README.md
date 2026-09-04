@@ -15,7 +15,9 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.23** — Município REAP e município Defeso totalmente isolados (tela e planilha).
+**v1.7.40** — Lote, consulta automática e auditoria RGP.
+
+**v1.7.39** — Rodapé global na Consulta RGP (crédito + status da planilha).
 
 ## Requisitos (Windows)
 
@@ -41,7 +43,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.23.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.23/SinapescREAP-Windows-v1.7.23.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.38.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.38/SinapescREAP-Windows-v1.7.38.zip)
 
 ## Estrutura
 
