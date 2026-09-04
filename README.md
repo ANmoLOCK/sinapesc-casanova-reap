@@ -11,19 +11,19 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.25**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.25) |
+| Versão atual | [**v1.7.26**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.26) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.25)
+## Download do EXE (v1.7.26)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.25/SinapescREAP-Windows-v1.7.25.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.26/SinapescREAP-Windows-v1.7.26.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.25
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.26
 
 Versão anterior: [v1.7.24](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.24)
 
@@ -49,11 +49,12 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.7.25
+## O que há na v1.7.26
 
-- Consulta RGP **independente**: você importa nome/CPF/telefone/município na planilha Consulta
-- **Sincronizar REAP** envia só situação **Ativo** (Consulta → REAP/Defeso), não o contrário
-- Interface do módulo alinhada ao mockup (barra navy, KPIs, tabela, sidebar)
+- Corrige cota 60 ao abrir Consulta RGP
+- **Cadastrar sócio** na planilha Consulta (nome, CPF, município, telefone, observação)
+- Sem sync Consulta ↔ REAP nesta etapa
+- Interface fiel ao mockup
 
 ## O que há na v1.7.24
 

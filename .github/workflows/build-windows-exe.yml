@@ -50,7 +50,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.25)
+          SINAPESC REAP — COMO USAR (v1.7.26)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -73,9 +73,9 @@ jobs:
              declaracao (Padrao, Allura ou Architects Daughter).
           10. Municipio REAP (planilha Pessoas) e municipio Defeso (declaracao)
              sao campos separados — salvar um nao altera o outro.
-          11. Modulo Consulta RGP (independente): Importar registros
-             (nome/CPF/telefone/municipio). Consultar no MPA. Sincronizar REAP
-             envia so situacao Ativo para REAP (mun+tel) e Defeso (CPF+nome).
+          11. Modulo Consulta RGP: Cadastrar socio (nome/CPF/municipio/telefone/
+             observacao) na planilha Consulta. Consultar no MPA. Nesta etapa
+             NAO ha sync Consulta <-> REAP.
 
           12. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar

@@ -1053,10 +1053,9 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "renderConsultaRgp" in js
     assert "go-consulta-rgp" in js
     assert "consultar_rgp_pessoa" in js
-    assert "importar_lote_consulta_rgp" in js
-    assert "Importar registros" in js
-    assert "Sincronizar REAP" in js
-    assert "sync_consulta_rgp_reap" in js
+    assert "cadastrar_consulta_rgp" in js
+    assert "Cadastrar sócio" in js
+    assert "consultaRgpLoading" in js
     css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
     assert "rgp-shell" in css
     assert "rgp-topbar" in css
@@ -1065,19 +1064,13 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "pesqbrasil-pescadorprofissional.mpa.gov.br" in MPA_CONSULTA_URL
     assert "10582575524" in _js_consultar("105.825.755-24")
     assert "grecaptcha.execute" in _js_consultar("10582575524")
-
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "def consultar_rgp_pessoa" in api_src
-    assert "def sync_consulta_rgp_reap" in api_src
-    assert "def importar_lote_consulta_rgp" in api_src
-    assert "def importar_consulta_rgp" in api_src
-    assert "Enviando Ativos da Consulta" in api_src
-    assert "upsert_manual" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(
-        encoding="utf-8"
-    )
-    assert "upsert_from_reap" not in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(
-        encoding="utf-8"
-    )
+    assert "def cadastrar_consulta_rgp" in api_src
+    assert "desativada nesta etapa" in api_src
+    assert "upsert_manual" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "upsert_from_reap" not in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+
 
 
 if __name__ == "__main__":

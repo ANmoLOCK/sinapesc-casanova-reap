@@ -1526,40 +1526,14 @@ class SinapescApi:
         )
 
     def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
-        """Envia registros Ativo da Consulta → REAP e Defeso (não puxa do REAP)."""
-
-        def work():
-            crgp = self._ensure_consulta_rgp()
-            regs = crgp.listar()
-            aptos = [r for r in regs if situacao_apta_import(r.situacao_rgp)]
-            ok_n = 0
-            falhas: List[str] = []
-            for r in aptos:
-                try:
-                    self._importar_consulta_para_planilhas(r.id)
-                    ok_n += 1
-                except Exception as exc:  # noqa: BLE001
-                    falhas.append(f"{r.nome or r.cpf}: {exc}")
-            regs2 = crgp.listar()
-            return {
-                "enviados": ok_n,
-                "aptos": len(aptos),
-                "falhas": falhas[:20],
-                "total": len(regs2),
-                "itens": [r.to_dict() for r in regs2],
-                "kpis": resumo_kpis(regs2),
-                "mensagem": (
-                    f"Sincronizado para REAP/Defeso: {ok_n} de {len(aptos)} ativo(s)."
-                    + (f" Falhas: {len(falhas)}." if falhas else "")
-                ),
-            }
-
-        return self._run_async(
-            "consulta_rgp_sync", work, "Enviando Ativos da Consulta → REAP/Defeso…"
+        """Desativado — Consulta RGP opera só na própria planilha nesta etapa."""
+        return err(
+            "Sincronização com REAP/Defeso desativada nesta etapa. "
+            "Cadastre e consulte só na planilha Consulta RGP."
         )
 
     def importar_lote_consulta_rgp(self, rows: Any = None) -> Dict[str, Any]:
-        """Importa nome/CPF/telefone/município na planilha Consulta (módulo independente)."""
+        """Importa nome/CPF/telefone/município na planilha Consulta."""
         itens = _lote_itens_from_rows(rows)
 
         def work():
@@ -1600,18 +1574,77 @@ class SinapescApi:
 
         return self._run_async("consulta_rgp_lote", work, "Importando para Consulta RGP…")
 
+    def cadastrar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Cadastra/atualiza sócio na Consulta (nome, CPF, município, telefone, obs)."""
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            nome = str(local.get("nome") or "").strip()
+            cpf = only_digits(str(local.get("cpf") or ""))
+            if not nome:
+                raise ValueError("Informe o nome.")
+            if len(cpf) != 11:
+                raise ValueError("CPF inválido (11 dígitos).")
+            svc = self._ensure_consulta_rgp()
+            reg = svc.upsert_manual(
+                nome=nome,
+                cpf=cpf,
+                telefone=str(local.get("telefone") or "").strip(),
+                municipio=str(local.get("municipio") or "").strip(),
+                uf=str(local.get("uf") or "").strip(),
+                email=str(local.get("email") or "").strip(),
+                observacao=str(local.get("observacao") or "").strip(),
+            )
+            regs = svc.listar()
+            return {
+                "registro": reg.to_dict(),
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "mensagem": "Sócio salvo na Consulta RGP.",
+            }
+
+        return self._run_async("consulta_rgp_cadastro", work, "Salvando sócio…")
+
     def save_consulta_rgp_registro(self, payload: Any = None) -> Dict[str, Any]:
         local = _js_payload_to_dict(payload)
 
         def work():
             svc = self._ensure_consulta_rgp()
-            reg = svc.salvar(local)
-            return reg.to_dict()
+            if not str(local.get("id") or "").strip():
+                reg = svc.upsert_manual(
+                    nome=str(local.get("nome") or "").strip(),
+                    cpf=str(local.get("cpf") or ""),
+                    telefone=str(local.get("telefone") or "").strip(),
+                    municipio=str(local.get("municipio") or "").strip(),
+                    uf=str(local.get("uf") or "").strip(),
+                    email=str(local.get("email") or "").strip(),
+                    observacao=str(local.get("observacao") or "").strip(),
+                )
+            else:
+                # preserva situação/consulta ao editar cadastro
+                existing = svc.por_id(str(local.get("id")))
+                if existing:
+                    local.setdefault("situacao_rgp", existing.situacao_rgp)
+                    local.setdefault("ultima_consulta_em", existing.ultima_consulta_em)
+                    local.setdefault("codigo_rgp", existing.codigo_rgp)
+                    local.setdefault("categoria", existing.categoria)
+                    local.setdefault("timeline", existing.timeline)
+                    local.setdefault("importado_reap_em", existing.importado_reap_em)
+                    local.setdefault("importado_defeso_em", existing.importado_defeso_em)
+                    local.setdefault("cadastro_reap_em", existing.cadastro_reap_em)
+                    local.setdefault("person_id", existing.person_id)
+                reg = svc.salvar(local)
+            regs = svc.listar()
+            return {
+                "registro": reg.to_dict(),
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+            }
 
         return self._run_async("consulta_rgp_saved", work, "Salvando registro…")
 
     def consultar_rgp_pessoa(self, registro_id: str = "", cpf: str = "") -> Dict[str, Any]:
-        """Abre consulta MPA em processo isolado e grava situação na planilha."""
+        """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP)."""
         rid = str(registro_id or "").strip()
         cpf_digits = only_digits(cpf)
 
@@ -1622,15 +1655,13 @@ class SinapescApi:
                 reg = svc.por_cpf(cpf_digits)
             if reg is None:
                 raise ValueError(
-                    "Registro não encontrado na Consulta RGP. "
-                    "Importe nome/CPF na planilha Consulta primeiro."
+                    "Registro não encontrado. Cadastre o sócio na Consulta RGP primeiro."
                 )
 
             alvo = only_digits(reg.cpf) or cpf_digits
             if len(alvo) != 11:
                 raise ValueError("CPF inválido para consulta.")
 
-            # Processo separado (estilo .bat) — falha não derruba o EXE
             try:
                 result = consultar_cpf_isolado(alvo)
             except Exception as exc:  # noqa: BLE001
@@ -1641,7 +1672,6 @@ class SinapescApi:
                 ) from exc
 
             if not result.get("ok"):
-                # Fallback: abre site sem quebrar o fluxo
                 try:
                     abrir_site_mpa_no_navegador(alvo)
                 except Exception:  # noqa: BLE001
@@ -1657,127 +1687,20 @@ class SinapescApi:
 
             aplicar_resultado_mpa(reg, data, ator="Sistema")
             salvo = svc.salvar(reg.to_dict())
-
-            imports: Dict[str, Any] = {}
-            cfg = load_config()
-            if bool(cfg.get("consulta_rgp_importar_auto", True)) and situacao_apta_import(
-                salvo.situacao_rgp
-            ):
-                try:
-                    imports = self._importar_consulta_para_planilhas(salvo.id)
-                except Exception as exc:  # noqa: BLE001
-                    imports = {"ok": False, "aviso": str(exc)}
-
             return {
                 "registro": salvo.to_dict(),
                 "situacao": salvo.situacao_rgp,
-                "imports": imports,
+                "imports": {},
                 "mensagem": f"Situação RGP: {salvo.situacao_rgp}",
             }
 
         return self._run_async("consulta_rgp_consulta", work, "Consultando RGP no MPA…")
 
-    def _importar_consulta_para_planilhas(self, registro_id: str) -> Dict[str, Any]:
-        """Consulta → REAP (cria/atualiza com município+telefone) e Defeso (CPF+nome)."""
-        crgp = self._ensure_consulta_rgp()
-        reg = crgp.por_id(registro_id)
-        if not reg:
-            raise ValueError("Registro não encontrado.")
-        if not situacao_apta_import(reg.situacao_rgp):
-            raise ValueError(
-                f"Situação '{reg.situacao_rgp}' ainda não está apta para importação "
-                "(somente Ativo)."
-            )
-
-        reap = self._ensure_service()
-        out: Dict[str, Any] = {"reap": None, "defeso": None}
-
-        # --- REAP (município + telefone); cria sócio se ainda não existir ---
-        pessoa = None
-        if reg.person_id:
-            try:
-                pessoa = next((p for p in reap.get_all_pessoas() if p.id == reg.person_id), None)
-            except Exception:  # noqa: BLE001
-                pessoa = None
-        if pessoa is None:
-            pessoa = reap.pessoa_por_cpf(reg.cpf)
-
-        mun = (reg.municipio or "").strip()
-        tel = (reg.telefone or "").strip()
-        if pessoa:
-            mun = mun or str(getattr(pessoa, "municipio", "") or "")
-            tel = tel or str(getattr(pessoa, "telefone", "") or "")
-            reap.update_pessoa(pessoa.id, pessoa.nome or reg.nome, pessoa.cpf, mun, tel)
-            person_id = pessoa.id
-            out["reap"] = {
-                "ok": True,
-                "person_id": person_id,
-                "municipio": mun,
-                "telefone": tel,
-                "criado": False,
-            }
-        else:
-            criado = reap.add_pessoa(reg.nome, reg.cpf, mun, tel)
-            person_id = criado.id
-            # vincula person_id na Consulta
-            reg.person_id = person_id
-            svc_save = crgp.salvar(
-                {
-                    **reg.to_dict(),
-                    "person_id": person_id,
-                }
-            )
-            reg = svc_save
-            out["reap"] = {
-                "ok": True,
-                "person_id": person_id,
-                "municipio": mun,
-                "telefone": tel,
-                "criado": True,
-            }
-        crgp.marcar_import_reap(reg.id)
-
-        # --- Defeso (CPF + nome) ---
-        try:
-            defeso = self._ensure_defeso()
-            existing = defeso.por_cpf(reg.cpf)
-            payload = {
-                "id": existing.id if existing else "",
-                "person_id": reg.person_id or person_id,
-                "nome": reg.nome,
-                "cpf": reg.cpf,
-                "municipio": "",  # município Defeso isolado
-                "telefone_reap": tel,
-            }
-            if existing:
-                payload["municipio"] = existing.municipio
-                payload["rg"] = existing.rg
-                payload["cep"] = existing.cep
-                payload["endereco"] = existing.endereco
-                payload["numero"] = existing.numero
-                payload["bairro"] = existing.bairro
-                payload["uf"] = existing.uf
-                payload["telefone"] = existing.telefone
-                payload["email"] = existing.email or reg.email
-                payload["status"] = existing.status
-            ficha = defeso.salvar(payload)
-            crgp.marcar_import_defeso(reg.id)
-            out["defeso"] = {"ok": True, "ficha_id": ficha.id}
-        except Exception as exc:  # noqa: BLE001
-            out["defeso"] = {"ok": False, "aviso": str(exc)}
-
-        reg2 = crgp.por_id(reg.id)
-        out["registro"] = reg2.to_dict() if reg2 else reg.to_dict()
-        out["ok"] = True
-        return out
-
     def importar_consulta_rgp(self, registro_id: str = "") -> Dict[str, Any]:
-        rid = str(registro_id or "").strip()
-
-        def work():
-            return self._importar_consulta_para_planilhas(rid)
-
-        return self._run_async("consulta_rgp_import", work, "Importando para REAP/Defeso…")
+        return err(
+            "Envio para REAP/Defeso desativado nesta etapa. "
+            "Os dados ficam só na planilha Consulta RGP."
+        )
 
     def abrir_consulta_rgp_mpa(self, cpf: str = "") -> Dict[str, Any]:
         try:
@@ -1790,6 +1713,7 @@ class SinapescApi:
         if webview:
             webview.destroy_window()
         return ok()
+
 
 
 def _normalize_atalhos_lista(raw: Any) -> List[str]:

@@ -178,11 +178,11 @@ class ConsultaRgpService:
                 "person_id": person_id or existing.person_id,
                 "nome": nome or existing.nome,
                 "cpf": digits,
-                "telefone": telefone if telefone is not None else existing.telefone,
-                "municipio": municipio if municipio is not None else existing.municipio,
-                "uf": uf or existing.uf,
-                "email": email if email is not None else existing.email,
-                "observacao": observacao if observacao is not None else existing.observacao,
+                "telefone": str(telefone or "").strip(),
+                "municipio": str(municipio or "").strip(),
+                "uf": (str(uf or "").strip().upper()[:2] or existing.uf),
+                "email": str(email or "").strip() if email is not None else existing.email,
+                "observacao": str(observacao or "").strip(),
                 "situacao_rgp": existing.situacao_rgp,
                 "ultima_consulta_em": existing.ultima_consulta_em,
                 "codigo_rgp": existing.codigo_rgp,
@@ -192,11 +192,6 @@ class ConsultaRgpService:
                 "cadastro_reap_em": existing.cadastro_reap_em,
                 "timeline": existing.timeline,
             }
-            # Se telefone/município vieram no lote, atualiza
-            if str(telefone or "").strip():
-                payload["telefone"] = str(telefone).strip()
-            if str(municipio or "").strip():
-                payload["municipio"] = str(municipio).strip()
             return self.salvar(payload)
 
         reg = RegistroConsultaRgp(

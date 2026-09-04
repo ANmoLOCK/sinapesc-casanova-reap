@@ -48,8 +48,10 @@
     consultaRgpTab: "resumo",
     consultaRgpPage: 1,
     consultaRgpPageSize: 20,
-    consultaRgpImportAuto: true,
+    consultaRgpImportAuto: false,
     consultaRgpGovbr: false,
+    consultaRgpLoaded: false,
+    consultaRgpLoading: false,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -383,8 +385,9 @@
 
   function goConsultaRgp() {
     if (state.loggedIn) {
+      state.consultaRgpLoaded = false;
       navigate("consulta_rgp");
-      loadConsultaRgp();
+      loadConsultaRgp(true);
       return;
     }
     state.afterLogin = "consulta_rgp";
@@ -416,7 +419,7 @@
         </div>
         <div class="home-card">
           <h3>Módulo Consulta</h3>
-          <p>Planilha própria de Consulta RGP: você importa nome/CPF/telefone e consulta no MPA. Só Ativo vai ao REAP/Defeso.</p>
+          <p>Planilha própria: cadastre nome, CPF, município, telefone e observação; consulte o RGP no MPA.</p>
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
@@ -462,8 +465,9 @@
       state.afterLogin = "";
       if (dest === "defeso") navigate("defeso", { push: false });
       else if (dest === "consulta_rgp") {
+        state.consultaRgpLoaded = false;
         navigate("consulta_rgp", { push: false });
-        loadConsultaRgp();
+        loadConsultaRgp(true);
       }
       else {
         navigate("admin", { push: false, tab: "socies" });
@@ -2049,7 +2053,10 @@
     });
   }
 
-  function loadConsultaRgp() {
+  function loadConsultaRgp(force) {
+    if (state.consultaRgpLoading) return;
+    if (state.consultaRgpLoaded && !force) return;
+    state.consultaRgpLoading = true;
     api("load_consulta_rgp");
   }
 
@@ -2074,99 +2081,65 @@
     });
   }
 
-  function openConsultaImportModal() {
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop";
-    backdrop.innerHTML = `
-      <div class="modal-card" style="max-width:560px">
-        <div class="modal-head">Importar para Consulta RGP</div>
-        <p class="page-sub">Módulo independente. Cole nome, CPF, telefone e município (um por linha).</p>
-        <p class="page-sub">Formatos: <code>Nome;CPF;Telefone;Município</code> ou <code>Nome,CPF</code></p>
-        <textarea id="rgp-lote-text" rows="10" placeholder="Maria Silva;10582575524;(74) 98888-1111;Casa Nova&#10;João Santos;12345678901"></textarea>
-        <div class="form-actions" style="justify-content:flex-end;margin-top:10px">
-          <button type="button" class="btn btn-outline-dark" id="rgp-lote-cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="rgp-lote-ok">Importar</button>
-        </div>
-      </div>`;
-    document.body.appendChild(backdrop);
-    const close = () => backdrop.remove();
-    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
-    $("#rgp-lote-cancel").addEventListener("click", close);
-    $("#rgp-lote-ok").addEventListener("click", () => {
-      const raw = ($("#rgp-lote-text")?.value || "").trim();
-      if (!raw) { toast("Cole ao menos uma linha."); return; }
-      const rows = [];
-      for (const line of raw.split(/\n+/)) {
-        const t = line.trim();
-        if (!t || /^nome/i.test(t)) continue;
-        let parts;
-        if (t.includes(";")) parts = t.split(";");
-        else if (t.includes("\t")) parts = t.split("\t");
-        else if (t.includes(",")) parts = t.split(",");
-        else parts = [t];
-        const nome = (parts[0] || "").trim();
-        const cpf = (parts[1] || "").trim();
-        const tel = (parts[2] || "").trim();
-        const mun = (parts[3] || "").trim();
-        if (nome || cpf) rows.push({ nome, cpf, telefone: tel, municipio: mun });
-      }
-      if (!rows.length) { toast("Nenhuma linha válida."); return; }
-      close();
-      api("importar_lote_consulta_rgp", JSON.stringify(rows));
-    });
-  }
-
-  function openConsultaEditModal(reg) {
-    if (!reg) return;
+  function openConsultaSocioModal(reg) {
+    const edit = !!reg;
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
     backdrop.innerHTML = `
       <div class="modal-card" style="max-width:480px">
-        <div class="modal-head">Editar registro</div>
-        <label>Nome</label>
-        <input id="rgp-ed-nome" value="${esc(reg.nome || "")}" />
-        <label>CPF</label>
-        <input id="rgp-ed-cpf" value="${esc(reg.cpf_formatado || reg.cpf || "")}" />
-        <label>Telefone</label>
-        <input id="rgp-ed-tel" value="${esc(reg.telefone || "")}" />
+        <div class="modal-head">${edit ? "Editar sócio" : "Cadastrar sócio"}</div>
+        <p class="page-sub">Salva na planilha Consulta RGP (nome, CPF, município, telefone e observação).</p>
+        <label>Nome *</label>
+        <input id="rgp-ed-nome" value="${esc(reg?.nome || "")}" />
+        <label>CPF *</label>
+        <input id="rgp-ed-cpf" value="${esc(reg?.cpf_formatado || reg?.cpf || "")}" placeholder="000.000.000-00" />
         <label>Município</label>
-        <input id="rgp-ed-mun" value="${esc(reg.municipio || "")}" />
-        <label>UF</label>
-        <input id="rgp-ed-uf" maxlength="2" value="${esc(reg.uf || "")}" />
-        <label>E-mail</label>
-        <input id="rgp-ed-email" value="${esc(reg.email || "")}" />
+        <input id="rgp-ed-mun" value="${esc(reg?.municipio || "")}" />
+        <label>Telefone</label>
+        <input id="rgp-ed-tel" value="${esc(reg?.telefone || "")}" placeholder="(00) 00000-0000" />
         <label>Observação</label>
-        <textarea id="rgp-ed-obs" rows="3">${esc(reg.observacao || "")}</textarea>
+        <textarea id="rgp-ed-obs" rows="3">${esc(reg?.observacao || "")}</textarea>
         <div class="form-actions" style="justify-content:flex-end;margin-top:10px">
           <button type="button" class="btn btn-outline-dark" id="rgp-ed-cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="rgp-ed-ok">Salvar</button>
+          <button type="button" class="btn btn-primary" id="rgp-ed-ok">${edit ? "Salvar" : "Cadastrar"}</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
     const close = () => backdrop.remove();
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     $("#rgp-ed-cancel").addEventListener("click", close);
+    const cpfInput = $("#rgp-ed-cpf");
+    if (cpfInput && typeof bindCpfMask === "function") bindCpfMask(cpfInput);
     $("#rgp-ed-ok").addEventListener("click", () => {
-      api("save_consulta_rgp_registro", {
-        id: reg.id,
-        person_id: reg.person_id,
-        nome: $("#rgp-ed-nome")?.value || "",
-        cpf: $("#rgp-ed-cpf")?.value || "",
-        telefone: $("#rgp-ed-tel")?.value || "",
-        municipio: $("#rgp-ed-mun")?.value || "",
-        uf: $("#rgp-ed-uf")?.value || "",
-        email: $("#rgp-ed-email")?.value || "",
-        observacao: $("#rgp-ed-obs")?.value || "",
-        situacao_rgp: reg.situacao_rgp,
-        ultima_consulta_em: reg.ultima_consulta_em,
-        codigo_rgp: reg.codigo_rgp,
-        categoria: reg.categoria,
-        importado_reap_em: reg.importado_reap_em,
-        importado_defeso_em: reg.importado_defeso_em,
-        cadastro_reap_em: reg.cadastro_reap_em,
-        timeline: reg.timeline,
-      });
+      const nome = ($("#rgp-ed-nome")?.value || "").trim();
+      const cpf = ($("#rgp-ed-cpf")?.value || "").trim();
+      const municipio = ($("#rgp-ed-mun")?.value || "").trim();
+      const telefone = ($("#rgp-ed-tel")?.value || "").trim();
+      const observacao = ($("#rgp-ed-obs")?.value || "").trim();
+      if (!nome) { toast("Informe o nome."); return; }
+      if ((cpf.replace(/\D/g, "")).length !== 11) { toast("CPF inválido."); return; }
+      const payload = {
+        id: reg?.id || "",
+        person_id: reg?.person_id || "",
+        nome,
+        cpf,
+        municipio,
+        telefone,
+        observacao,
+        uf: reg?.uf || "",
+        email: reg?.email || "",
+        situacao_rgp: reg?.situacao_rgp || "",
+        ultima_consulta_em: reg?.ultima_consulta_em || "",
+        codigo_rgp: reg?.codigo_rgp || "",
+        categoria: reg?.categoria || "",
+        timeline: reg?.timeline || "",
+        importado_reap_em: reg?.importado_reap_em || "",
+        importado_defeso_em: reg?.importado_defeso_em || "",
+        cadastro_reap_em: reg?.cadastro_reap_em || "",
+      };
       close();
+      if (edit && reg?.id) api("save_consulta_rgp_registro", payload);
+      else api("cadastrar_consulta_rgp", payload);
     });
   }
 
@@ -2186,6 +2159,9 @@
     const selected = (state.consultaRgpItens || []).find((r) => r.id === state.consultaRgpSelectedId) || null;
     const situacoes = [...new Set((state.consultaRgpItens || []).map((r) => r.situacao_rgp).filter(Boolean))].sort();
     const userName = (state.adminUser || "Administrador").split("@")[0] || "Administrador";
+    const loadingHint = state.consultaRgpLoading && !state.consultaRgpLoaded
+      ? `<tr><td colspan="7" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
+      : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Clique em <strong>Cadastrar sócio</strong> para gravar nome, CPF, município, telefone e observação.</td></tr>`;
 
     setPage(`
       <div class="rgp-shell">
@@ -2216,8 +2192,8 @@
             <span>Importar automático REAP</span>
           </label>
           <div class="rgp-config-actions">
-            <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-import">⇪ Importar registros</button>
-            <button type="button" class="btn btn-primary btn-sm" id="rgp-sync">↻ Sincronizar REAP</button>
+            <button type="button" class="btn btn-primary btn-sm" id="rgp-cadastrar">＋ Cadastrar sócio</button>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-sync">↻ Sincronizar REAP</button>
           </div>
         </div>
 
@@ -2290,7 +2266,7 @@
                         <button type="button" class="btn-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
                       </td>
                     </tr>
-                  `).join("") : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Use <strong>Importar registros</strong> para cadastrar nome, CPF, telefone e município nesta planilha.</td></tr>`}
+                  `).join("") : loadingHint}
                 </tbody>
               </table>
             </div>
@@ -2322,9 +2298,9 @@
               <div>
                 <div class="rgp-side-name">${esc(selected.nome_display || selected.nome || "")}</div>
                 <div class="rgp-side-cpf">${esc(selected.cpf_formatado || selected.cpf || "")}</div>
-                <div class="rgp-sync-pill">${selected.importado_reap_em
-                  ? `REAP sincronizado em ${esc(selected.importado_reap_em)}`
-                  : "Ainda não enviado ao REAP"}</div>
+                <div class="rgp-sync-pill">${selected.municipio
+                  ? esc([selected.municipio, selected.uf].filter(Boolean).join(" - "))
+                  : "Município não informado"}</div>
               </div>
             </div>
             <div class="rgp-tabs">
@@ -2335,17 +2311,15 @@
               ${state.consultaRgpTab === "cadastro" ? `
                 <div class="rgp-field"><span>Nome</span><strong>${esc(selected.nome_display || selected.nome || "")}</strong></div>
                 <div class="rgp-field"><span>CPF</span><strong>${esc(selected.cpf_formatado || selected.cpf || "")}</strong></div>
-                <div class="rgp-field"><span>Código RGP</span><strong>${esc(selected.codigo_rgp || "—")}</strong></div>
-                <div class="rgp-field"><span>Categoria</span><strong>${esc(selected.categoria || "—")}</strong></div>
-                <div class="rgp-field"><span>E-mail</span><strong>${esc(selected.email || "—")}</strong></div>
                 <div class="rgp-field"><span>Município</span><strong>${esc([selected.municipio, selected.uf].filter(Boolean).join(" - ") || "—")}</strong></div>
                 <div class="rgp-field"><span>Telefone</span><strong>${esc(selected.telefone || "—")}</strong></div>
+                <div class="rgp-field"><span>Observação</span><strong>${esc(selected.observacao || "—")}</strong></div>
+                <div class="rgp-field"><span>Código RGP</span><strong>${esc(selected.codigo_rgp || "—")}</strong></div>
               ` : `
                 <h4>Informações principais</h4>
-                <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(selected.badge_class || "")}">${esc(selected.situacao_rgp || "")}</span></strong></div>
+                <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(selected.badge_class || "")}">${esc(selected.situacao_rgp || "Não consultado")}</span></strong></div>
                 <div class="rgp-field"><span>Última consulta</span><strong>${esc(selected.ultima_consulta_em || "—")}</strong></div>
                 <div class="rgp-field"><span>Telefone</span><strong>${esc(selected.telefone || "—")}</strong></div>
-                <div class="rgp-field"><span>E-mail</span><strong>${esc(selected.email || "—")}</strong></div>
                 <div class="rgp-field"><span>Município</span><strong>${esc([selected.municipio, selected.uf].filter(Boolean).join(" - ") || "—")}</strong></div>
                 <div class="rgp-field"><span>Observação</span><strong>${esc(selected.observacao || "—")}</strong></div>
                 <h4>Linha do tempo</h4>
@@ -2367,7 +2341,6 @@
               <div class="btn-row" style="margin-top:8px;flex-wrap:wrap">
                 <button type="button" class="btn btn-primary btn-sm" id="rgp-save-obs">Salvar observação</button>
                 <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-consultar-sel">Consultar no MPA</button>
-                ${selected.apta_import ? `<button type="button" class="btn btn-primary btn-sm" id="rgp-import-sel">Enviar ao REAP/Defeso</button>` : ""}
                 <button type="button" class="btn btn-ghost btn-sm" id="rgp-open-mpa">Abrir site MPA</button>
               </div>
             </div>
@@ -2376,7 +2349,7 @@
       </div>
     `);
 
-    if (!(state.consultaRgpItens || []).length) loadConsultaRgp();
+    // NÃO recarregar a planilha aqui — evita loop/quota 60
 
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
@@ -2407,15 +2380,22 @@
       state.consultaRgpPage = (state.consultaRgpPage || 1) + 1;
       renderConsultaRgp();
     });
-    $("#rgp-import")?.addEventListener("click", () => openConsultaImportModal());
-    $("#rgp-sync")?.addEventListener("click", () => api("sync_consulta_rgp_reap"));
+    $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal(null));
+    $("#rgp-sync")?.addEventListener("click", () => {
+      toast("Sincronização com REAP desativada nesta etapa. Cadastre e consulte só na Consulta RGP.", 5000);
+    });
     $("#rgp-govbr")?.addEventListener("change", (e) => {
       state.consultaRgpGovbr = !!e.target.checked;
-      api("save_consulta_rgp_prefs", { govbr_opcional: state.consultaRgpGovbr, importar_auto: state.consultaRgpImportAuto });
+      api("save_consulta_rgp_prefs", { govbr_opcional: state.consultaRgpGovbr, importar_auto: false });
     });
     $("#rgp-auto")?.addEventListener("change", (e) => {
       state.consultaRgpImportAuto = !!e.target.checked;
-      api("save_consulta_rgp_prefs", { govbr_opcional: state.consultaRgpGovbr, importar_auto: state.consultaRgpImportAuto });
+      if (state.consultaRgpImportAuto) {
+        toast("Importação automática para REAP desativada nesta etapa.", 4000);
+        state.consultaRgpImportAuto = false;
+        e.target.checked = false;
+      }
+      api("save_consulta_rgp_prefs", { govbr_opcional: state.consultaRgpGovbr, importar_auto: false });
     });
 
     document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
@@ -2440,7 +2420,7 @@
         const id = btn.dataset.id || "";
         const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         state.consultaRgpSelectedId = id;
-        openConsultaEditModal(reg);
+        openConsultaSocioModal(reg || null);
       });
     });
     $("#rgp-side-close")?.addEventListener("click", () => {
@@ -2478,9 +2458,6 @@
     $("#rgp-consultar-sel")?.addEventListener("click", () => {
       if (selected) api("consultar_rgp_pessoa", selected.id, selected.cpf);
     });
-    $("#rgp-import-sel")?.addEventListener("click", () => {
-      if (selected) api("importar_consulta_rgp", selected.id);
-    });
     $("#rgp-open-mpa")?.addEventListener("click", () => {
       api("abrir_consulta_rgp_mpa", selected?.cpf || "");
     });
@@ -2490,8 +2467,10 @@
     if (!data) return;
     if (Array.isArray(data.itens)) state.consultaRgpItens = data.itens;
     if (data.kpis) state.consultaRgpKpis = data.kpis;
-    if (typeof data.importar_auto === "boolean") state.consultaRgpImportAuto = data.importar_auto;
+    state.consultaRgpImportAuto = false;
     if (typeof data.govbr_opcional === "boolean") state.consultaRgpGovbr = data.govbr_opcional;
+    state.consultaRgpLoaded = true;
+    state.consultaRgpLoading = false;
   }
 
   function wireEvents() {
@@ -2696,10 +2675,15 @@
       } else toast(r.error);
     });
     AppEvents.on("consulta_rgp", (r) => {
+      state.consultaRgpLoading = false;
       if (r.ok) {
         applyConsultaRgpPayload(r.data);
         if (state.screen === "consulta_rgp") renderConsultaRgp();
-      } else toast(r.error);
+      } else {
+        state.consultaRgpLoaded = true; // evita loop de retry
+        toast(r.error || "Falha ao carregar Consulta RGP.");
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
+      }
     });
     AppEvents.on("consulta_rgp_sync", (r) => {
       if (r.ok) {
@@ -2716,16 +2700,27 @@
         if (state.screen === "consulta_rgp") renderConsultaRgp();
       } else toast(r.error);
     });
+    AppEvents.on("consulta_rgp_cadastro", (r) => {
+      if (r.ok) {
+        applyConsultaRgpPayload(r.data);
+        const item = r.data?.registro;
+        if (item?.id) state.consultaRgpSelectedId = item.id;
+        toast(r.data?.mensagem || "Sócio cadastrado.");
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
+      } else toast(r.error || "Falha ao cadastrar.");
+    });
     AppEvents.on("consulta_rgp_saved", (r) => {
       if (r.ok) {
-        toast("Registro salvo.");
-        const item = r.data;
+        if (r.data?.itens) applyConsultaRgpPayload(r.data);
+        const item = r.data?.registro || r.data;
         if (item?.id) {
           const idx = state.consultaRgpItens.findIndex((x) => x.id === item.id);
           if (idx >= 0) state.consultaRgpItens[idx] = item;
-          else state.consultaRgpItens.push(item);
+          else if (!r.data?.itens) state.consultaRgpItens.push(item);
           state.consultaRgpSelectedId = item.id;
+          if (r.data?.kpis) state.consultaRgpKpis = r.data.kpis;
         }
+        toast("Registro salvo.");
         if (state.screen === "consulta_rgp") renderConsultaRgp();
       } else toast(r.error);
     });
@@ -2740,7 +2735,7 @@
           state.consultaRgpSelectedId = item.id;
         }
         if (r.data?.imports?.aviso) toast(r.data.imports.aviso, 6000);
-        loadConsultaRgp();
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
       } else toast(r.error || "Falha na consulta MPA.", 7000);
     });
     AppEvents.on("consulta_rgp_import", (r) => {
