@@ -416,7 +416,7 @@
         </div>
         <div class="home-card">
           <h3>Módulo Consulta</h3>
-          <p>Consulta RGP no MPA, situação automática e importação para REAP e Defeso.</p>
+          <p>Planilha própria de Consulta RGP: você importa nome/CPF/telefone e consulta no MPA. Só Ativo vai ao REAP/Defeso.</p>
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
@@ -2053,6 +2053,11 @@
     api("load_consulta_rgp");
   }
 
+  function fmtBrNum(n) {
+    const s = String(Math.max(0, Number(n) || 0));
+    return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+
   function filtrarConsultaRgp() {
     const q = (state.consultaRgpSearch || "").trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
@@ -2069,6 +2074,102 @@
     });
   }
 
+  function openConsultaImportModal() {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" style="max-width:560px">
+        <div class="modal-head">Importar para Consulta RGP</div>
+        <p class="page-sub">Módulo independente. Cole nome, CPF, telefone e município (um por linha).</p>
+        <p class="page-sub">Formatos: <code>Nome;CPF;Telefone;Município</code> ou <code>Nome,CPF</code></p>
+        <textarea id="rgp-lote-text" rows="10" placeholder="Maria Silva;10582575524;(74) 98888-1111;Casa Nova&#10;João Santos;12345678901"></textarea>
+        <div class="form-actions" style="justify-content:flex-end;margin-top:10px">
+          <button type="button" class="btn btn-outline-dark" id="rgp-lote-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="rgp-lote-ok">Importar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    const close = () => backdrop.remove();
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    $("#rgp-lote-cancel").addEventListener("click", close);
+    $("#rgp-lote-ok").addEventListener("click", () => {
+      const raw = ($("#rgp-lote-text")?.value || "").trim();
+      if (!raw) { toast("Cole ao menos uma linha."); return; }
+      const rows = [];
+      for (const line of raw.split(/\n+/)) {
+        const t = line.trim();
+        if (!t || /^nome/i.test(t)) continue;
+        let parts;
+        if (t.includes(";")) parts = t.split(";");
+        else if (t.includes("\t")) parts = t.split("\t");
+        else if (t.includes(",")) parts = t.split(",");
+        else parts = [t];
+        const nome = (parts[0] || "").trim();
+        const cpf = (parts[1] || "").trim();
+        const tel = (parts[2] || "").trim();
+        const mun = (parts[3] || "").trim();
+        if (nome || cpf) rows.push({ nome, cpf, telefone: tel, municipio: mun });
+      }
+      if (!rows.length) { toast("Nenhuma linha válida."); return; }
+      close();
+      api("importar_lote_consulta_rgp", JSON.stringify(rows));
+    });
+  }
+
+  function openConsultaEditModal(reg) {
+    if (!reg) return;
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" style="max-width:480px">
+        <div class="modal-head">Editar registro</div>
+        <label>Nome</label>
+        <input id="rgp-ed-nome" value="${esc(reg.nome || "")}" />
+        <label>CPF</label>
+        <input id="rgp-ed-cpf" value="${esc(reg.cpf_formatado || reg.cpf || "")}" />
+        <label>Telefone</label>
+        <input id="rgp-ed-tel" value="${esc(reg.telefone || "")}" />
+        <label>Município</label>
+        <input id="rgp-ed-mun" value="${esc(reg.municipio || "")}" />
+        <label>UF</label>
+        <input id="rgp-ed-uf" maxlength="2" value="${esc(reg.uf || "")}" />
+        <label>E-mail</label>
+        <input id="rgp-ed-email" value="${esc(reg.email || "")}" />
+        <label>Observação</label>
+        <textarea id="rgp-ed-obs" rows="3">${esc(reg.observacao || "")}</textarea>
+        <div class="form-actions" style="justify-content:flex-end;margin-top:10px">
+          <button type="button" class="btn btn-outline-dark" id="rgp-ed-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="rgp-ed-ok">Salvar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    const close = () => backdrop.remove();
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    $("#rgp-ed-cancel").addEventListener("click", close);
+    $("#rgp-ed-ok").addEventListener("click", () => {
+      api("save_consulta_rgp_registro", {
+        id: reg.id,
+        person_id: reg.person_id,
+        nome: $("#rgp-ed-nome")?.value || "",
+        cpf: $("#rgp-ed-cpf")?.value || "",
+        telefone: $("#rgp-ed-tel")?.value || "",
+        municipio: $("#rgp-ed-mun")?.value || "",
+        uf: $("#rgp-ed-uf")?.value || "",
+        email: $("#rgp-ed-email")?.value || "",
+        observacao: $("#rgp-ed-obs")?.value || "",
+        situacao_rgp: reg.situacao_rgp,
+        ultima_consulta_em: reg.ultima_consulta_em,
+        codigo_rgp: reg.codigo_rgp,
+        categoria: reg.categoria,
+        importado_reap_em: reg.importado_reap_em,
+        importado_defeso_em: reg.importado_defeso_em,
+        cadastro_reap_em: reg.cadastro_reap_em,
+        timeline: reg.timeline,
+      });
+      close();
+    });
+  }
+
   function renderConsultaRgp() {
     const kpis = state.consultaRgpKpis || {
       total: 0, ativos: 0, ativos_pct: 0,
@@ -2077,68 +2178,95 @@
     };
     const filtered = filtrarConsultaRgp();
     const pageSize = state.consultaRgpPageSize || 20;
-    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize) || 1);
     if (state.consultaRgpPage > pages) state.consultaRgpPage = pages;
     const page = state.consultaRgpPage || 1;
     const start = (page - 1) * pageSize;
     const slice = filtered.slice(start, start + pageSize);
     const selected = (state.consultaRgpItens || []).find((r) => r.id === state.consultaRgpSelectedId) || null;
     const situacoes = [...new Set((state.consultaRgpItens || []).map((r) => r.situacao_rgp).filter(Boolean))].sort();
+    const userName = (state.adminUser || "Administrador").split("@")[0] || "Administrador";
 
     setPage(`
       <div class="rgp-shell">
-        <div class="rgp-brand">
-          <div>
-            <div class="rgp-brand-title">Consulta RGP</div>
-            <div class="rgp-brand-sub">Registro Geral da Atividade Pesqueira</div>
+        <header class="rgp-topbar">
+          <div class="rgp-topbar-left">
+            <div class="rgp-logo">${esc(state.bootstrap?.org_short || "SINAPESC")}</div>
+            <div class="rgp-topbar-titles">
+              <div class="rgp-topbar-title">Consulta RGP</div>
+              <div class="rgp-topbar-sub">Registro Geral da Atividade Pesqueira</div>
+            </div>
           </div>
-          <div class="rgp-brand-user">${esc(state.adminUser || "Administrador")}</div>
-        </div>
+          <div class="rgp-topbar-user">
+            <span class="rgp-user-ico" aria-hidden="true">👤</span>
+            <span>${esc(userName)}</span>
+          </div>
+        </header>
 
         <div class="rgp-config-bar">
           <span class="rgp-config-label">CONFIGURAÇÕES</span>
-          <label class="rgp-toggle">
+          <label class="rgp-switch">
             <input type="checkbox" id="rgp-govbr" ${state.consultaRgpGovbr ? "checked" : ""} />
+            <span class="rgp-switch-ui"></span>
             <span>Senha Gov.br (opcional)</span>
           </label>
-          <label class="rgp-toggle">
+          <label class="rgp-switch">
             <input type="checkbox" id="rgp-auto" ${state.consultaRgpImportAuto ? "checked" : ""} />
+            <span class="rgp-switch-ui"></span>
             <span>Importar automático REAP</span>
           </label>
-          <button type="button" class="btn btn-primary btn-sm" id="rgp-sync">↻ Sincronizar REAP</button>
+          <div class="rgp-config-actions">
+            <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-import">⇪ Importar registros</button>
+            <button type="button" class="btn btn-primary btn-sm" id="rgp-sync">↻ Sincronizar REAP</button>
+          </div>
         </div>
 
         <div class="rgp-kpis">
           <div class="rgp-kpi">
-            <div class="rgp-kpi-label">Total de registros</div>
-            <div class="rgp-kpi-value">${esc(String(kpis.total || 0))}</div>
+            <div class="rgp-kpi-top">
+              <div class="rgp-kpi-label">Total de registros</div>
+              <div class="rgp-kpi-ico rgp-ico-blue">👥</div>
+            </div>
+            <div class="rgp-kpi-value">${esc(fmtBrNum(kpis.total))}</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-label">Ativos</div>
-            <div class="rgp-kpi-value rgp-kpi-ok">${esc(String(kpis.ativos || 0))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.ativos_pct || 0))}% do total</div>
+            <div class="rgp-kpi-top">
+              <div class="rgp-kpi-label">Ativos</div>
+              <div class="rgp-kpi-ico rgp-ico-green">✓</div>
+            </div>
+            <div class="rgp-kpi-value rgp-kpi-ok">${esc(fmtBrNum(kpis.ativos))}</div>
+            <div class="rgp-kpi-meta">${esc(String(kpis.ativos_pct || 0).replace(".", ","))}% do total</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-label">Aguardando análise</div>
-            <div class="rgp-kpi-value rgp-kpi-warn">${esc(String(kpis.aguardando_analise || 0))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.aguardando_analise_pct || 0))}% do total</div>
+            <div class="rgp-kpi-top">
+              <div class="rgp-kpi-label">Aguardando análise</div>
+              <div class="rgp-kpi-ico rgp-ico-yellow">⏱</div>
+            </div>
+            <div class="rgp-kpi-value rgp-kpi-warn">${esc(fmtBrNum(kpis.aguardando_analise))}</div>
+            <div class="rgp-kpi-meta">${esc(String(kpis.aguardando_analise_pct || 0).replace(".", ","))}% do total</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-label">Pendentes / Irregulares</div>
-            <div class="rgp-kpi-value rgp-kpi-bad">${esc(String(kpis.pendentes || 0))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.pendentes_pct || 0))}% do total</div>
+            <div class="rgp-kpi-top">
+              <div class="rgp-kpi-label">Pendentes / Irregulares</div>
+              <div class="rgp-kpi-ico rgp-ico-red">✕</div>
+            </div>
+            <div class="rgp-kpi-value rgp-kpi-bad">${esc(fmtBrNum(kpis.pendentes))}</div>
+            <div class="rgp-kpi-meta">${esc(String(kpis.pendentes_pct || 0).replace(".", ","))}% do total</div>
           </div>
         </div>
 
         <div class="rgp-main ${selected ? "has-side" : ""}">
           <div class="rgp-table-wrap">
             <div class="rgp-toolbar">
-              <input type="search" id="rgp-search" placeholder="Buscar por nome, CPF ou telefone…" value="${esc(state.consultaRgpSearch)}" />
+              <div class="rgp-search-wrap">
+                <span class="rgp-search-ico">⌕</span>
+                <input type="search" id="rgp-search" placeholder="Buscar por nome, CPF ou telefone…" value="${esc(state.consultaRgpSearch)}" />
+              </div>
               <select id="rgp-filtro">
-                <option value="">Filtros (situação)</option>
+                <option value="">Filtros</option>
                 ${situacoes.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
               </select>
-              <button type="button" class="btn btn-ghost btn-sm" id="rgp-clear">Limpar filtros</button>
+              <button type="button" class="btn-link" id="rgp-clear">Limpar filtros</button>
             </div>
             <div class="rgp-table-scroll">
               <table class="rgp-table">
@@ -2149,8 +2277,8 @@
                   </tr>
                 </thead>
                 <tbody>
-                  ${slice.length ? slice.map((r) => `
-                    <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""}" data-id="${esc(r.id)}">
+                  ${slice.length ? slice.map((r, i) => `
+                    <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
                       <td>${esc(r.nome_display || r.nome || "")}</td>
                       <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
                       <td>${esc(r.telefone || "—")}</td>
@@ -2158,16 +2286,16 @@
                       <td>${esc(r.ultima_consulta_em || "—")}</td>
                       <td class="rgp-obs">${esc(r.observacao || "—")}</td>
                       <td class="rgp-actions">
-                        <button type="button" class="btn-link" data-act="consultar" data-id="${esc(r.id)}">Consultar</button>
-                        <button type="button" class="btn-link" data-act="editar" data-id="${esc(r.id)}">Editar</button>
+                        <button type="button" class="btn-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
+                        <button type="button" class="btn-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
                       </td>
                     </tr>
-                  `).join("") : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Clique em <strong>Sincronizar REAP</strong> para importar os sócios.</td></tr>`}
+                  `).join("") : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Use <strong>Importar registros</strong> para cadastrar nome, CPF, telefone e município nesta planilha.</td></tr>`}
                 </tbody>
               </table>
             </div>
             <div class="rgp-footer">
-              <span>Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${filtered.length} registros</span>
+              <span>Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${fmtBrNum(filtered.length)} registros</span>
               <label>Registros por página
                 <select id="rgp-pagesize">
                   ${[10, 20, 50, 100].map((n) => `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n}</option>`).join("")}
@@ -2184,15 +2312,20 @@
           ${selected ? `
           <aside class="rgp-side">
             <div class="rgp-side-head">
-              <div class="rgp-avatar">${esc(selected.iniciais || "?")}</div>
               <div>
-                <div class="rgp-side-title">Detalhes do registro RGP</div>
-                <div class="rgp-side-name">${esc(selected.nome_display || selected.nome || "")}</div>
-                <div class="rgp-sync-pill">${selected.importado_reap_em
-                  ? `REAP sincronizado em ${esc(selected.importado_reap_em)}`
-                  : (selected.cadastro_reap_em ? `Cadastro REAP em ${esc(selected.cadastro_reap_em)}` : "Aguardando sync/import")}</div>
+                <div class="rgp-side-kicker">Detalhes do registro <span class="rgp-tag">RGP</span></div>
               </div>
               <button type="button" class="btn btn-ghost btn-sm" id="rgp-side-close">✕</button>
+            </div>
+            <div class="rgp-side-profile">
+              <div class="rgp-avatar">${esc(selected.iniciais || "?")}</div>
+              <div>
+                <div class="rgp-side-name">${esc(selected.nome_display || selected.nome || "")}</div>
+                <div class="rgp-side-cpf">${esc(selected.cpf_formatado || selected.cpf || "")}</div>
+                <div class="rgp-sync-pill">${selected.importado_reap_em
+                  ? `REAP sincronizado em ${esc(selected.importado_reap_em)}`
+                  : "Ainda não enviado ao REAP"}</div>
+              </div>
             </div>
             <div class="rgp-tabs">
               <button type="button" class="rgp-tab ${state.consultaRgpTab === "resumo" ? "active" : ""}" data-tab="resumo">Resumo</button>
@@ -2206,6 +2339,7 @@
                 <div class="rgp-field"><span>Categoria</span><strong>${esc(selected.categoria || "—")}</strong></div>
                 <div class="rgp-field"><span>E-mail</span><strong>${esc(selected.email || "—")}</strong></div>
                 <div class="rgp-field"><span>Município</span><strong>${esc([selected.municipio, selected.uf].filter(Boolean).join(" - ") || "—")}</strong></div>
+                <div class="rgp-field"><span>Telefone</span><strong>${esc(selected.telefone || "—")}</strong></div>
               ` : `
                 <h4>Informações principais</h4>
                 <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(selected.badge_class || "")}">${esc(selected.situacao_rgp || "")}</span></strong></div>
@@ -2233,7 +2367,7 @@
               <div class="btn-row" style="margin-top:8px;flex-wrap:wrap">
                 <button type="button" class="btn btn-primary btn-sm" id="rgp-save-obs">Salvar observação</button>
                 <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-consultar-sel">Consultar no MPA</button>
-                ${selected.apta_import ? `<button type="button" class="btn btn-primary btn-sm" id="rgp-import-sel">Importar REAP/Defeso</button>` : ""}
+                ${selected.apta_import ? `<button type="button" class="btn btn-primary btn-sm" id="rgp-import-sel">Enviar ao REAP/Defeso</button>` : ""}
                 <button type="button" class="btn btn-ghost btn-sm" id="rgp-open-mpa">Abrir site MPA</button>
               </div>
             </div>
@@ -2273,6 +2407,7 @@
       state.consultaRgpPage = (state.consultaRgpPage || 1) + 1;
       renderConsultaRgp();
     });
+    $("#rgp-import")?.addEventListener("click", () => openConsultaImportModal());
     $("#rgp-sync")?.addEventListener("click", () => api("sync_consulta_rgp_reap"));
     $("#rgp-govbr")?.addEventListener("change", (e) => {
       state.consultaRgpGovbr = !!e.target.checked;
@@ -2302,9 +2437,10 @@
     document.querySelectorAll("[data-act=editar]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        state.consultaRgpSelectedId = btn.dataset.id || "";
-        state.consultaRgpTab = "resumo";
-        renderConsultaRgp();
+        const id = btn.dataset.id || "";
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        state.consultaRgpSelectedId = id;
+        openConsultaEditModal(reg);
       });
     });
     $("#rgp-side-close")?.addEventListener("click", () => {
@@ -2568,7 +2704,15 @@
     AppEvents.on("consulta_rgp_sync", (r) => {
       if (r.ok) {
         applyConsultaRgpPayload(r.data);
-        toast(r.data?.mensagem || "REAP sincronizado.");
+        toast(r.data?.mensagem || "Enviado ao REAP/Defeso.");
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
+      } else toast(r.error);
+    });
+    AppEvents.on("consulta_rgp_lote", (r) => {
+      if (r.ok) {
+        applyConsultaRgpPayload(r.data);
+        toast(r.data?.mensagem || "Importado na Consulta.");
+        if (r.data?.erros?.length) toast(r.data.erros.slice(0, 3).join(" · "), 7000);
         if (state.screen === "consulta_rgp") renderConsultaRgp();
       } else toast(r.error);
     });

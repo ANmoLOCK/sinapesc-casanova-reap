@@ -1526,39 +1526,79 @@ class SinapescApi:
         )
 
     def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
+        """Envia registros Ativo da Consulta → REAP e Defeso (não puxa do REAP)."""
+
         def work():
-            reap = self._ensure_service()
             crgp = self._ensure_consulta_rgp()
-            pessoas = reap.get_all_pessoas()
+            regs = crgp.listar()
+            aptos = [r for r in regs if situacao_apta_import(r.situacao_rgp)]
+            ok_n = 0
+            falhas: List[str] = []
+            for r in aptos:
+                try:
+                    self._importar_consulta_para_planilhas(r.id)
+                    ok_n += 1
+                except Exception as exc:  # noqa: BLE001
+                    falhas.append(f"{r.nome or r.cpf}: {exc}")
+            regs2 = crgp.listar()
+            return {
+                "enviados": ok_n,
+                "aptos": len(aptos),
+                "falhas": falhas[:20],
+                "total": len(regs2),
+                "itens": [r.to_dict() for r in regs2],
+                "kpis": resumo_kpis(regs2),
+                "mensagem": (
+                    f"Sincronizado para REAP/Defeso: {ok_n} de {len(aptos)} ativo(s)."
+                    + (f" Falhas: {len(falhas)}." if falhas else "")
+                ),
+            }
+
+        return self._run_async(
+            "consulta_rgp_sync", work, "Enviando Ativos da Consulta → REAP/Defeso…"
+        )
+
+    def importar_lote_consulta_rgp(self, rows: Any = None) -> Dict[str, Any]:
+        """Importa nome/CPF/telefone/município na planilha Consulta (módulo independente)."""
+        itens = _lote_itens_from_rows(rows)
+
+        def work():
+            if not itens:
+                raise ValueError("Nenhuma linha para importar (nome + CPF).")
+            svc = self._ensure_consulta_rgp()
             criados = 0
             atualizados = 0
-            for p in pessoas:
-                before = crgp.por_cpf(p.cpf)
-                crgp.upsert_from_reap(
-                    person_id=p.id,
-                    nome=p.nome,
-                    cpf=p.cpf,
-                    telefone=str(getattr(p, "telefone", "") or ""),
-                    municipio=str(getattr(p, "municipio", "") or ""),
-                )
-                if before:
-                    atualizados += 1
-                else:
-                    criados += 1
-            regs = crgp.listar()
+            erros: List[str] = []
+            for nome, cpf, mun, tel in itens:
+                try:
+                    before = svc.por_cpf(cpf)
+                    svc.upsert_manual(
+                        nome=nome,
+                        cpf=cpf,
+                        telefone=tel,
+                        municipio=mun,
+                    )
+                    if before:
+                        atualizados += 1
+                    else:
+                        criados += 1
+                except Exception as exc:  # noqa: BLE001
+                    erros.append(f"{nome or cpf}: {exc}")
+            regs = svc.listar()
             return {
                 "criados": criados,
                 "atualizados": atualizados,
+                "erros": erros[:30],
                 "total": len(regs),
                 "itens": [r.to_dict() for r in regs],
                 "kpis": resumo_kpis(regs),
                 "mensagem": (
-                    f"REAP sincronizado: {criados} novos, {atualizados} atualizados "
-                    f"({len(regs)} na Consulta RGP)."
+                    f"Importados na Consulta: {criados} novos, {atualizados} atualizados"
+                    + (f" ({len(erros)} erro(s))." if erros else ".")
                 ),
             }
 
-        return self._run_async("consulta_rgp_sync", work, "Sincronizando REAP → Consulta RGP…")
+        return self._run_async("consulta_rgp_lote", work, "Importando para Consulta RGP…")
 
     def save_consulta_rgp_registro(self, payload: Any = None) -> Dict[str, Any]:
         local = _js_payload_to_dict(payload)
@@ -1581,7 +1621,10 @@ class SinapescApi:
             if reg is None and cpf_digits:
                 reg = svc.por_cpf(cpf_digits)
             if reg is None:
-                raise ValueError("Registro não encontrado na Consulta RGP. Sincronize o REAP antes.")
+                raise ValueError(
+                    "Registro não encontrado na Consulta RGP. "
+                    "Importe nome/CPF na planilha Consulta primeiro."
+                )
 
             alvo = only_digits(reg.cpf) or cpf_digits
             if len(alvo) != 11:
@@ -1635,7 +1678,7 @@ class SinapescApi:
         return self._run_async("consulta_rgp_consulta", work, "Consultando RGP no MPA…")
 
     def _importar_consulta_para_planilhas(self, registro_id: str) -> Dict[str, Any]:
-        """REAP: município + telefone; Defeso: CPF + nome."""
+        """Consulta → REAP (cria/atualiza com município+telefone) e Defeso (CPF+nome)."""
         crgp = self._ensure_consulta_rgp()
         reg = crgp.por_id(registro_id)
         if not reg:
@@ -1649,7 +1692,7 @@ class SinapescApi:
         reap = self._ensure_service()
         out: Dict[str, Any] = {"reap": None, "defeso": None}
 
-        # --- REAP (município + telefone) ---
+        # --- REAP (município + telefone); cria sócio se ainda não existir ---
         pessoa = None
         if reg.person_id:
             try:
@@ -1658,17 +1701,41 @@ class SinapescApi:
                 pessoa = None
         if pessoa is None:
             pessoa = reap.pessoa_por_cpf(reg.cpf)
+
+        mun = (reg.municipio or "").strip()
+        tel = (reg.telefone or "").strip()
         if pessoa:
-            mun = (reg.municipio or "").strip() or str(getattr(pessoa, "municipio", "") or "")
-            tel = (reg.telefone or "").strip() or str(getattr(pessoa, "telefone", "") or "")
-            reap.update_pessoa(pessoa.id, pessoa.nome, pessoa.cpf, mun, tel)
-            crgp.marcar_import_reap(reg.id)
-            out["reap"] = {"ok": True, "person_id": pessoa.id, "municipio": mun, "telefone": tel}
-        else:
+            mun = mun or str(getattr(pessoa, "municipio", "") or "")
+            tel = tel or str(getattr(pessoa, "telefone", "") or "")
+            reap.update_pessoa(pessoa.id, pessoa.nome or reg.nome, pessoa.cpf, mun, tel)
+            person_id = pessoa.id
             out["reap"] = {
-                "ok": False,
-                "aviso": "CPF não encontrado no REAP — sincronize ou cadastre o sócio.",
+                "ok": True,
+                "person_id": person_id,
+                "municipio": mun,
+                "telefone": tel,
+                "criado": False,
             }
+        else:
+            criado = reap.add_pessoa(reg.nome, reg.cpf, mun, tel)
+            person_id = criado.id
+            # vincula person_id na Consulta
+            reg.person_id = person_id
+            svc_save = crgp.salvar(
+                {
+                    **reg.to_dict(),
+                    "person_id": person_id,
+                }
+            )
+            reg = svc_save
+            out["reap"] = {
+                "ok": True,
+                "person_id": person_id,
+                "municipio": mun,
+                "telefone": tel,
+                "criado": True,
+            }
+        crgp.marcar_import_reap(reg.id)
 
         # --- Defeso (CPF + nome) ---
         try:
@@ -1676,14 +1743,13 @@ class SinapescApi:
             existing = defeso.por_cpf(reg.cpf)
             payload = {
                 "id": existing.id if existing else "",
-                "person_id": reg.person_id or (pessoa.id if pessoa else ""),
+                "person_id": reg.person_id or person_id,
                 "nome": reg.nome,
                 "cpf": reg.cpf,
-                "municipio": "",  # município Defeso isolado — não copia do REAP
-                "telefone_reap": (reg.telefone or "").strip(),
+                "municipio": "",  # município Defeso isolado
+                "telefone_reap": tel,
             }
             if existing:
-                # Mantém município/endereço já preenchidos na ficha Defeso
                 payload["municipio"] = existing.municipio
                 payload["rg"] = existing.rg
                 payload["cep"] = existing.cep

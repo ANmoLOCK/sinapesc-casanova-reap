@@ -8,6 +8,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.25] — 2026-09-04 — Consulta RGP independente
+
+**Tag:** [`v1.7.25`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.25)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.25/SinapescREAP-Windows-v1.7.25.zip
+
+- Módulo Consulta opera sozinho: você importa nome/CPF/telefone/município
+- **Sincronizar REAP** = envia Ativos da Consulta → REAP/Defeso (não puxa do REAP)
+- UI alinhada ao mockup (header navy, KPIs, tabela, sidebar)
+
 ## [v1.7.24] — 2026-09-04 — Módulo Consulta RGP
 
 **Tag:** [`v1.7.24`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.24)  

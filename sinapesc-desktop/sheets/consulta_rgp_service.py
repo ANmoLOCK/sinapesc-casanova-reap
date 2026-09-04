@@ -154,18 +154,23 @@ class ConsultaRgpService:
             self.client.append_values(f"{CONSULTA_RGP_TAB}!A2", [reg.to_row()])
         return reg
 
-    def upsert_from_reap(
+    def upsert_manual(
         self,
         *,
-        person_id: str,
         nome: str,
         cpf: str,
         telefone: str = "",
         municipio: str = "",
+        uf: str = "",
+        email: str = "",
+        observacao: str = "",
+        person_id: str = "",
     ) -> RegistroConsultaRgp:
-        """Inclui/atualiza linha a partir do sócio REAP (não sobrescreve situação consultada)."""
+        """Inclui/atualiza registro na Consulta (módulo independente — dados vindos do usuário)."""
         digits = only_digits(cpf)
-        existing = self.por_cpf(digits) if digits else None
+        if len(digits) != 11:
+            raise ValueError("CPF inválido (11 dígitos).")
+        existing = self.por_cpf(digits)
         agora = now_stamp()
         if existing:
             payload = {
@@ -173,19 +178,25 @@ class ConsultaRgpService:
                 "person_id": person_id or existing.person_id,
                 "nome": nome or existing.nome,
                 "cpf": digits,
-                "telefone": telefone or existing.telefone,
-                "municipio": municipio or existing.municipio,
+                "telefone": telefone if telefone is not None else existing.telefone,
+                "municipio": municipio if municipio is not None else existing.municipio,
+                "uf": uf or existing.uf,
+                "email": email if email is not None else existing.email,
+                "observacao": observacao if observacao is not None else existing.observacao,
                 "situacao_rgp": existing.situacao_rgp,
-                "observacao": existing.observacao,
                 "ultima_consulta_em": existing.ultima_consulta_em,
                 "codigo_rgp": existing.codigo_rgp,
                 "categoria": existing.categoria,
-                "email": existing.email,
                 "importado_reap_em": existing.importado_reap_em,
                 "importado_defeso_em": existing.importado_defeso_em,
-                "cadastro_reap_em": existing.cadastro_reap_em or agora,
+                "cadastro_reap_em": existing.cadastro_reap_em,
                 "timeline": existing.timeline,
             }
+            # Se telefone/município vieram no lote, atualiza
+            if str(telefone or "").strip():
+                payload["telefone"] = str(telefone).strip()
+            if str(municipio or "").strip():
+                payload["municipio"] = str(municipio).strip()
             return self.salvar(payload)
 
         reg = RegistroConsultaRgp(
@@ -195,11 +206,14 @@ class ConsultaRgpService:
             cpf=digits,
             telefone=str(telefone or "").strip(),
             municipio=str(municipio or "").strip(),
-            cadastro_reap_em=agora,
+            uf=str(uf or "").strip().upper()[:2],
+            email=str(email or "").strip(),
+            observacao=str(observacao or "").strip(),
             criado_em=agora,
             atualizado_em=agora,
         )
-        reg.append_timeline("Cadastro criado (sync REAP)", ator="Sistema")
+        reg.append_timeline("Cadastro criado", ator="Usuário")
+        self.ensure()
         self.client.append_values(f"{CONSULTA_RGP_TAB}!A2", [reg.to_row()])
         return reg
 

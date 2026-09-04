@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.24** — Módulo Consulta RGP (MPA) + importação só Ativo para REAP/Defeso.
+**v1.7.25** — Consulta RGP independente (import manual) + envio só Ativo ao REAP/Defeso.
 
 ## Requisitos (Windows)
 
@@ -41,7 +41,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.24.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.24/SinapescREAP-Windows-v1.7.24.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.25.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.25/SinapescREAP-Windows-v1.7.25.zip)
 
 ## Estrutura
 
