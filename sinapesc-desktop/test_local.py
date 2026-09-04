@@ -1004,6 +1004,178 @@ def test_config_appdata_sobrescreve_exe() -> None:
         cfgmod.app_data_dir = old_app  # type: ignore[assignment]
 
 
+def test_consulta_rgp_dominio_e_ui() -> None:
+    from controle.consulta_rgp import (
+        SITUACAO_ATIVO,
+        SITUACAO_NAO_ENCONTRADO,
+        aplicar_resultado_mpa,
+        extract_situacao_from_mpa,
+        flatten_mpa_payload,
+        normalize_situacao,
+        resumo_kpis,
+        row_to_registro,
+        situacao_apta_import,
+        RegistroConsultaRgp,
+    )
+    from controle.consulta_rgp_mpa import (
+        MPA_CONSULTA_URL,
+        WORKER_FLAG,
+        _js_consultar,
+        _js_poll_resultado,
+        _js_start_consulta,
+        drive_consulta_on_window,
+    )
+
+    assert normalize_situacao("rascunho") == "Rascunho"
+    assert normalize_situacao("Finalizado") == "Finalizada"
+    assert normalize_situacao(4) == "Ativo"
+    assert extract_situacao_from_mpa({"situacaoRgp": "Ativo"}) == "Ativo"
+    assert extract_situacao_from_mpa({"content": [{"situacao": "Ativo", "nome": "A"}]}) == "Ativo"
+    assert extract_situacao_from_mpa({"content": []}) == SITUACAO_NAO_ENCONTRADO
+    assert extract_situacao_from_mpa({"sem_registros": True}) == SITUACAO_NAO_ENCONTRADO
+    assert flatten_mpa_payload({"content": [{"situacao": "Suspenso", "uf": "BA"}]})["uf"] == "BA"
+    assert situacao_apta_import("Ativo")
+    assert not situacao_apta_import("Aguardando análise")
+    assert not situacao_apta_import("Finalizada")
+    assert not situacao_apta_import("Finalizado")
+
+    reg = RegistroConsultaRgp(id="abc", nome="Teste", cpf="10582575524")
+    aplicar_resultado_mpa(
+        reg,
+        {
+            "situacao": "Aguardando análise",
+            "cpf": "10582575524",
+            "municipio": "Casa Nova",
+            "uf": "BA",
+            "telefone": "74999990000",
+            "codigoRGP": "RGP1",
+        },
+    )
+    assert reg.situacao_rgp == "Aguardando análise"
+    assert reg.municipio == "Casa Nova"
+    assert reg.ultima_consulta_em
+    assert any("Consulta realizada" in t["evento"] for t in reg.timeline_items())
+
+    row = reg.to_row()
+    back = row_to_registro(row)
+    assert back and back.cpf == "10582575524"
+    assert resumo_kpis([reg])["aguardando_analise"] == 1
+
+    aplicar_resultado_mpa(reg, {"situacao": "Ativo"})
+    assert reg.situacao_rgp == SITUACAO_ATIVO
+    assert situacao_apta_import(reg.situacao_rgp)
+
+    aplicar_resultado_mpa(reg, {"sem_registros": True})
+    assert reg.situacao_rgp == SITUACAO_NAO_ENCONTRADO
+
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "renderConsultaRgp" in js
+    assert "go-consulta-rgp" in js
+    assert "consultar_rgp_pessoa" in js
+    assert "cadastrar_consulta_rgp" in js
+    assert "Cadastrar sócio" in js
+    assert "consultaRgpLoading" in js
+    # botão da tabela dispara consulta real (não só abre o painel)
+    assert 'data-act="consultar"' in js
+    assert "Consultando situação RGP no MPA" in js
+    css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert "rgp-shell" in css
+    assert "rgp-topbar" in css
+    main = (ROOT / "main.py").read_text(encoding="utf-8")
+    assert WORKER_FLAG in main
+    assert "pesqbrasil-pescadorprofissional.mpa.gov.br" in MPA_CONSULTA_URL
+    assert "10582575524" in _js_consultar("105.825.755-24")
+    assert "grecaptcha.execute" in _js_consultar("10582575524")
+    assert "window.__sinapescRgp" in _js_start_consulta("10582575524")
+    assert "JSON.stringify(window.__sinapescRgp" in _js_poll_resultado()
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "def consultar_rgp_pessoa" in api_src
+    assert "def cadastrar_consulta_rgp" in api_src
+    assert "desativada nesta etapa" in api_src
+    # falha NÃO abre o navegador automaticamente (só o botão Abrir site MPA)
+    consulta_fn = api_src.split("def consultar_rgp_pessoa", 1)[1].split("def importar_consulta_rgp", 1)[0]
+    assert "abrir_site_mpa_no_navegador" not in consulta_fn
+    assert "Abrir site MPA" in consulta_fn
+    assert "upsert_manual" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "upsert_from_reap" not in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+
+
+def test_consulta_rgp_mpa_polling_fake_window() -> None:
+    """Garante start sync + poll (pywebview não espera Promise async)."""
+    import json
+
+    from controle.consulta_rgp_mpa import drive_consulta_on_window
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.polls = 0
+            self.started = False
+
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                self.started = True
+                return True
+            if "JSON.stringify(window.__sinapescRgp" in script:
+                self.polls += 1
+                if self.polls < 3:
+                    return json.dumps({"done": False, "ok": False, "error": "aguardando"})
+                return json.dumps(
+                    {
+                        "done": True,
+                        "ok": True,
+                        "data": {
+                            "situacao": "Ativo",
+                            "cpf": "10582575524",
+                            "nome": "JOAO",
+                            "sobrenome": "SILVA",
+                            "municipio": "Casa Nova",
+                            "uf": "BA",
+                            "codigoRGP": "123",
+                        },
+                    }
+                )
+            return json.dumps({"done": False})
+
+    result = drive_consulta_on_window(
+        FakeWindow(),
+        "105.825.755-24",
+        settle_s=0,
+        timeout_s=2,
+        poll_s=0.01,
+    )
+    assert result.get("ok") is True
+    assert result.get("situacao") == "Ativo"
+    assert result.get("data", {}).get("municipio") == "Casa Nova"
+
+    class FailWindow:
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                return True
+            return json.dumps({"done": True, "ok": False, "error": "reCAPTCHA não carregou"})
+
+    fail = drive_consulta_on_window(FailWindow(), "10582575524", settle_s=0, timeout_s=2, poll_s=0.01)
+    assert fail.get("ok") is False
+    assert "reCAPTCHA" in str(fail.get("error") or "")
+
+    class NotFoundWindow:
+        def evaluate_js(self, script: str):
+            if "window.__sinapescRgp = { done: false" in script:
+                return True
+            return json.dumps(
+                {
+                    "done": True,
+                    "ok": True,
+                    "data": {"sem_registros": True, "situacao": "Não encontrado", "cpf": "10582575524"},
+                }
+            )
+
+    nf = drive_consulta_on_window(NotFoundWindow(), "10582575524", settle_s=0, timeout_s=2, poll_s=0.01)
+    assert nf.get("ok") is True
+    assert nf.get("situacao") == "Não encontrado"
+
+
+
+
 if __name__ == "__main__":
     test_formatters()
     test_display_nome()
@@ -1024,6 +1196,8 @@ if __name__ == "__main__":
     test_js_filtros_defeso_e_sync_planilhas()
     test_js_payload_to_dict_aceita_json_e_dict()
     test_config_appdata_sobrescreve_exe()
+    test_consulta_rgp_dominio_e_ui()
+    test_consulta_rgp_mpa_polling_fake_window()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.23**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.23) |
+| Versão atual | [**v1.7.31**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.31) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.23)
+## Download do EXE (v1.7.31)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.23/SinapescREAP-Windows-v1.7.23.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.31/SinapescREAP-Windows-v1.7.31.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.23
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.31
 
-Versão anterior: [v1.7.22](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.22)
+Versão anterior: [v1.7.30](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.30)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,50 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.31
+
+- Corrige Consulta RGP: consulta MPA grava situação (não só abre o site)
+- Polling estável no worker (não depende de Promise async do pywebview)
+- «Abrir site MPA» só no botão manual; falha mostra erro sem abrir o navegador
+
+## O que há na v1.7.30
+
+- Consulta MPA mais robusta: espera reCAPTCHA, grava situação RGP no módulo
+- Cadastro automático dispara consulta e atualiza tabela/KPIs
+- UI com mais respiro (menos apertada)
+
+## O que há na v1.7.29
+
+- Consulta RGP em tela cheia, proporções fiéis ao mockup (sem achatar)
+- Header navy alto, KPIs com ícone à esquerda, linhas de tabela espaçosas
+- Painel lateral e modal de cadastro com mais altura e respiro
+
+## O que há na v1.7.28
+
+- Modal **Cadastrar sócio** sólido (sem transparência), campos em grade limpa
+- Mesmo padrão visual na edição do painel lateral
+
+## O que há na v1.7.27
+
+- Consulta RGP: usuário real no header, chips de situação, coluna Município
+- **Consultar** abre o painel; consulta MPA fica no painel
+- Painel sem abas: botão **Editar cadastro**
+- **Cadastrar sócio** salva e consulta MPA automaticamente
+
+## O que há na v1.7.26
+
+- Corrige cota 60 ao abrir Consulta RGP
+- **Cadastrar sócio** na planilha Consulta (nome, CPF, município, telefone, observação)
+- Sem sync Consulta ↔ REAP nesta etapa
+- Interface fiel ao mockup
+
+## O que há na v1.7.24
+
+- **Módulo Consulta RGP** na Home (4º card): KPIs, tabela e sidebar
+- Planilha/aba `ConsultaRGP` com sync a partir do REAP
+- Consulta MPA em janela isolada (situação Ativo, Aguardando análise, Rascunho, Finalizada, etc.)
+- Importação para REAP/Defeso **somente se Ativo** (REAP: município+telefone · Defeso: CPF+nome)
 
 ## O que há na v1.7.23
 
