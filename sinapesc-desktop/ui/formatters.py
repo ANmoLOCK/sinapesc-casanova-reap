@@ -2,13 +2,74 @@
 
 from __future__ import annotations
 
+import math
+import re
+from typing import Any
+
 
 def only_digits(value: str, max_len: int = 11) -> str:
-    return "".join(ch for ch in value if ch.isdigit())[:max_len]
+    return "".join(ch for ch in str(value or "") if ch.isdigit())[:max_len]
+
+
+def normalize_cpf(value: Any) -> str:
+    """CPF com 11 dígitos e zeros à esquerda.
+
+    Casos reais que quebravam a consulta MPA («CPF inválido»):
+    - planilha/JSON numérico: ``095.453.325-90`` → ``9545332590`` (10 dígitos)
+    - pywebview/float: ``9545332590.0`` → dígitos ``95453325900`` (11 errados)
+    - string ``"9545332590.0"`` / notação científica
+    """
+    if value is None or isinstance(value, bool):
+        return ""
+
+    digits = ""
+
+    if isinstance(value, int):
+        digits = str(abs(value))
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        digits = str(abs(int(round(value))))
+    else:
+        raw = str(value).strip()
+        if raw.startswith("'"):
+            raw = raw[1:].strip()
+        # Artefato de float/Sheets: "9545332590.0" / "09545332590.0"
+        if re.fullmatch(r"\d+\.0+", raw):
+            raw = raw.split(".", 1)[0]
+        # Científica (ponto ou vírgula decimal)
+        sci = raw.replace(",", ".")
+        if re.fullmatch(r"\d+\.?\d*[eE][+-]?\d+", sci):
+            try:
+                digits = str(abs(int(round(float(sci)))))
+            except (TypeError, ValueError):
+                digits = ""
+        if not digits:
+            digits = "".join(ch for ch in raw if ch.isdigit())
+
+    if not digits:
+        return ""
+
+    # Sobra de ".0" que virou dígito extra (12 chars terminando em 0)
+    if len(digits) == 12 and digits.endswith("0"):
+        digits = digits[:-1]
+    if len(digits) > 11:
+        digits = digits[-11:]
+
+    if len(digits) < 11:
+        # 9–10 dígitos = zero(s) à esquerda perdidos; <9 = digitação incompleta
+        if len(digits) >= 9:
+            digits = digits.zfill(11)
+        else:
+            return digits
+
+    return digits[:11]
 
 
 def format_cpf(digits: str) -> str:
-    clean = only_digits(digits)
+    clean = normalize_cpf(digits)
+    if len(clean) != 11:
+        clean = only_digits(str(digits or ""))
     part1, part2, part3, part4 = clean[:3], clean[3:6], clean[6:9], clean[9:11]
     result = part1
     if part2:
@@ -21,9 +82,9 @@ def format_cpf(digits: str) -> str:
 
 
 def format_cpf_masked(digits: str) -> str:
-    clean = only_digits(digits)
+    clean = normalize_cpf(digits)
     if len(clean) != 11:
-        return format_cpf(clean)
+        return format_cpf(digits)
     return f"***.***.{clean[6:9]}-**"
 
 
@@ -64,8 +125,6 @@ def display_nome(name: str) -> str:
 
 def parse_lote_lines(raw: str) -> list[tuple[str, str]]:
     """Lê Nome + CPF de texto/CSV (uma pessoa por linha)."""
-    import re
-
     itens: list[tuple[str, str]] = []
     for line in raw.splitlines():
         line = line.strip()
