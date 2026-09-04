@@ -465,6 +465,96 @@ class ConsultaRgpService:
             "ok": criados + atualizados,
         }
 
+    def editar_lote_batch(self, itens: List[dict]) -> dict:
+        """Corrige vários registros de uma vez (anti-cota).
+
+        itens = [{id, nome, cpf, telefone, municipio, observacao}, ...]
+        1 leitura + batchUpdate (sem 1 write por linha via salvar).
+        """
+        self.ensure()
+        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        by_id: Dict[str, RegistroConsultaRgp] = {}
+        id_to_row: Dict[str, int] = {}
+        cpf_to_id: Dict[str, str] = {}
+        for i, r in enumerate(rows_raw):
+            reg = row_to_registro(r)
+            if not reg:
+                continue
+            by_id[reg.id] = reg
+            id_to_row[reg.id] = i + 2
+            digits = normalize_cpf(reg.cpf)
+            if len(digits) == 11:
+                cpf_to_id[digits] = reg.id
+
+        agora = now_stamp()
+        updates: List[dict] = []
+        atualizados = 0
+        erros: List[str] = []
+        vistos_cpf: set[str] = set()
+
+        for i, raw in enumerate(itens or [], start=1):
+            if not isinstance(raw, dict):
+                erros.append(f"Linha {i}: dados inválidos.")
+                continue
+            rid = str(raw.get("id") or "").strip()
+            if not rid or rid not in by_id:
+                erros.append(f"Linha {i}: registro não encontrado.")
+                continue
+            reg = by_id[rid]
+            nome = format_nome(str(raw.get("nome") or "").strip())
+            cpf = normalize_cpf(raw.get("cpf") or reg.cpf)
+            tel = str(raw.get("telefone") or "").strip()
+            mun = str(raw.get("municipio") or "").strip()
+            obs = str(raw.get("observacao") or "").strip()
+
+            if not nome:
+                erros.append(f"Linha {i}: nome vazio.")
+                continue
+            if len(cpf) != 11:
+                erros.append(f"Linha {i} ({nome}): CPF inválido.")
+                continue
+            if cpf in vistos_cpf:
+                erros.append(f"Linha {i} ({nome}): CPF duplicado no lote.")
+                continue
+            outro = cpf_to_id.get(cpf)
+            if outro and outro != rid:
+                erros.append(f"Linha {i} ({nome}): CPF já usado por outro sócio.")
+                continue
+            vistos_cpf.add(cpf)
+
+            old_cpf = normalize_cpf(reg.cpf)
+            if old_cpf in cpf_to_id and cpf_to_id[old_cpf] == rid:
+                del cpf_to_id[old_cpf]
+            cpf_to_id[cpf] = rid
+
+            reg.nome = nome
+            reg.cpf = cpf
+            reg.telefone = tel
+            reg.municipio = mun
+            reg.observacao = obs
+            reg.atualizado_em = agora
+            reg.append_timeline("Corrigido em lote", ator="Usuário")
+            row_idx = id_to_row.get(rid)
+            if not row_idx:
+                erros.append(f"Linha {i} ({nome}): sem linha na planilha.")
+                continue
+            updates.append(
+                {
+                    "range": f"{CONSULTA_RGP_TAB}!A{row_idx}",
+                    "values": [reg.to_row()],
+                }
+            )
+            atualizados += 1
+
+        if updates:
+            self.client.batch_update_values(updates, chunk_size=80)
+
+        return {
+            "atualizados": atualizados,
+            "erros": erros,
+            "ok": atualizados,
+        }
+
     def marcar_import_reap(self, registro_id: str) -> RegistroConsultaRgp:
         reg = self.por_id(registro_id)
         if not reg:

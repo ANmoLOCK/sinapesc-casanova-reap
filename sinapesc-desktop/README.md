@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.46** — Corrigir em lote (nome/CPF/tel/mun/obs + senha Gov.br).
+
 **v1.7.45** — Scroll da lista + import nome+CPF (TXT/XLSX/PDF).
 
 **v1.7.44** — Filtros RGP oficiais + anti-cota na consulta em lote.
@@ -72,7 +74,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.45.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.45/SinapescREAP-Windows-v1.7.45.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.46.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.46/SinapescREAP-Windows-v1.7.46.zip)
 
 ## Estrutura
 

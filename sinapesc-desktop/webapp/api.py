@@ -1974,6 +1974,29 @@ class SinapescApi:
             "consulta_rgp_export", work, "Gerando relatório HTML geral…"
         )
 
+    def editar_lote_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Corrige em lote: nome, CPF, telefone, município, observação (+ senha Gov.br)."""
+        from webapp.consulta_rgp_ext import editar_lote_payload
+
+        local = _js_payload_to_dict(payload)
+        itens = local.get("itens") or local.get("rows") or []
+        atualizar_govbr = bool(local.get("atualizar_govbr"))
+        govbr = str(local.get("govbr_senha") or "") if atualizar_govbr else None
+
+        def work():
+            return editar_lote_payload(
+                self._ensure_consulta_rgp(),
+                itens if isinstance(itens, list) else [],
+                govbr_senha=govbr,
+                atualizar_govbr=atualizar_govbr,
+            )
+
+        return self._run_async(
+            "consulta_rgp_editar_lote",
+            work,
+            "Salvando correções em lote…",
+        )
+
     def abrir_csv_erros_consulta_rgp(self, path: str = "") -> Dict[str, Any]:
         """Abre CSV de erros da fila inteligente."""
         p = Path(str(path or "")).expanduser()

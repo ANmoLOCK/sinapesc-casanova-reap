@@ -2832,6 +2832,7 @@
           </div>
           <div class="rgp-action-buttons">
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-lote">⇪ Cadastro em lote</button>
+            <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-editar-lote" title="Editar nome, CPF, telefone, município, observação e senha Gov.br">✎ Corrigir em lote</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-sel">Consultar selecionados</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-todos">Consultar todos</button>
             ${(window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.toolbarButtonsHtml)
@@ -2958,6 +2959,19 @@
       });
     });
     $("#rgp-lote")?.addEventListener("click", () => openConsultaLoteModal());
+    $("#rgp-editar-lote")?.addEventListener("click", () => {
+      if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.openEditarLoteModal) {
+        window.SinapescRgpFuncoes.openEditarLoteModal({
+          selectedIds: selectedConsultaIds(),
+          formatNome,
+          formatCpf,
+          bindNomeMask,
+          bindCpfMask,
+        });
+      } else {
+        toast("Módulo de correção em lote indisponível.");
+      }
+    });
     $("#rgp-consulta-sel")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: false, ids: selectedConsultaIds() }));
     $("#rgp-consulta-todos")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: true }));
     if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.bindToolbar) {
@@ -3345,6 +3359,17 @@
           refreshConsultaDetalheModalIfOpen();
         }
       } else toast(r.error);
+    });
+    AppEvents.on("consulta_rgp_editar_lote", (r) => {
+      if (r.ok) {
+        applyConsultaRgpPayload(r.data);
+        toast(r.data?.mensagem || "Correções salvas.");
+        if (r.data?.erros?.length) toast(r.data.erros.slice(0, 3).join(" · "), 7000);
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
+      } else toast(r.error || "Falha ao corrigir em lote.");
     });
     AppEvents.on("consulta_rgp_lote_progress", (p) => {
       const modal = state._rgpLoteModal;

@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.46] — 2026-09-04 — Corrigir em lote (nome/CPF/tel/mun/obs + senha Gov.br)
+
+**Tag:** [`v1.7.46`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.46)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.46/SinapescREAP-Windows-v1.7.46.zip
+
+- Botão **Corrigir em lote**: edita nome, CPF, número, município e observação de vários sócios
+- Opção de atualizar a **senha Gov.br** do módulo na mesma tela
+- Gravação em batch (anti-cota Sheets)
+- Usa os selecionados; se nenhum, usa a lista filtrada (até 200)
+
 ## [v1.7.45] — 2026-09-04 — Scroll da lista + import nome+CPF (TXT/XLSX/PDF)
 
 **Tag:** [`v1.7.45`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.45)  
