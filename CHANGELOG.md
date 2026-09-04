@@ -8,6 +8,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.27] — 2026-09-04 — Consulta RGP UI (opções escolhidas)
+
+**Tag:** [`v1.7.27`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.27)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.27/SinapescREAP-Windows-v1.7.27.zip
+
+- Header com usuário logado real
+- Chips rápidos de situação + coluna Município
+- Consultar abre painel; MPA só no painel; Editar abre formulário
+- Painel sem abas com **Editar cadastro**
+- Cadastrar sócio dispara consulta MPA automática
+
 ## [v1.7.26] — 2026-09-04 — Consulta RGP cadastro local (sem sync REAP)
 
 **Tag:** [`v1.7.26`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.26)  
