@@ -384,3 +384,33 @@ def editar_lote_payload(
             + (" Senha Gov.br salva." if atualizar_govbr else "")
         ),
     }
+
+
+def excluir_payload(svc: Any, ids: Any) -> Dict[str, Any]:
+    from controle.consulta_rgp_funcoes.excluir import ids_para_excluir, resumo_exclusao
+
+    lista = ids_para_excluir(ids)
+    if not lista:
+        raise ValueError("Selecione ao menos um sócio para excluir.")
+    result = svc.excluir_varios(lista)
+    ok_n = int(result.get("ok") or 0)
+    nomes = list(result.get("nomes") or [])
+    try:
+        svc.registrar_auditoria(
+            "consulta_rgp_excluir",
+            f"Excluiu {ok_n} registro(s) da Consulta RGP"
+            + (f": {', '.join(nomes[:8])}" if nomes else ""),
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    regs = svc.listar()
+    out = resumo_exclusao(ok=ok_n, erros=[], nomes=nomes)
+    out["ids"] = list(result.get("ids") or lista)
+    out["itens"] = [r.to_dict() for r in regs]
+    out["kpis"] = resumo_kpis(regs)
+    out["total"] = len(regs)
+    try:
+        out["govbr_senha"] = str(svc.get_govbr_senha() or "")
+    except Exception:  # noqa: BLE001
+        out["govbr_senha"] = ""
+    return out

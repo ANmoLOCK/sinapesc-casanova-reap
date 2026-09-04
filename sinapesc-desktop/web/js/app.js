@@ -125,6 +125,9 @@
   }
 
   function formatCpf(value) {
+    if (window.SinapescMasks && window.SinapescMasks.formatCpf) {
+      return window.SinapescMasks.formatCpf(value);
+    }
     const d = normalizeCpf(value);
     const digits = d.length === 11 ? d : String(value || "").replace(/\D/g, "").slice(0, 11);
     const p1 = digits.slice(0, 3);
@@ -138,8 +141,28 @@
     return out;
   }
 
+  /** Formatação durante digitação — sem padStart/recover (corrige bug do REAP). */
+  function formatCpfInput(value) {
+    if (window.SinapescMasks && window.SinapescMasks.formatCpfInput) {
+      return window.SinapescMasks.formatCpfInput(value);
+    }
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+    const p1 = digits.slice(0, 3);
+    const p2 = digits.slice(3, 6);
+    const p3 = digits.slice(6, 9);
+    const p4 = digits.slice(9, 11);
+    let out = p1;
+    if (p2) out += `.${p2}`;
+    if (p3) out += `.${p3}`;
+    if (p4) out += `-${p4}`;
+    return out;
+  }
+
   /** CPF com 11 dígitos — recupera zero à esquerda e artefatos de float/planilha. */
   function normalizeCpf(value) {
+    if (window.SinapescMasks && window.SinapescMasks.normalizeCpf) {
+      return window.SinapescMasks.normalizeCpf(value);
+    }
     if (value == null || value === "") return "";
     if (typeof value === "number" && Number.isFinite(value)) {
       let d = String(Math.abs(Math.round(value)));
@@ -211,6 +234,9 @@
   }
 
   function formatNome(value) {
+    if (window.SinapescMasks && window.SinapescMasks.formatNome) {
+      return window.SinapescMasks.formatNome(value);
+    }
     return String(value || "")
       .trim()
       .split(/\s+/)
@@ -223,6 +249,10 @@
   }
 
   function bindNomeMask(input) {
+    if (window.SinapescMasks && window.SinapescMasks.bindNomeMask) {
+      window.SinapescMasks.bindNomeMask(input);
+      return;
+    }
     if (!input) return;
     const paint = () => { input.value = formatNome(input.value); };
     input.addEventListener("blur", paint);
@@ -230,10 +260,31 @@
   }
 
   function bindCpfMask(input) {
+    if (window.SinapescMasks && window.SinapescMasks.bindCpfMask) {
+      window.SinapescMasks.bindCpfMask(input);
+      return;
+    }
     if (!input) return;
-    const paint = () => { input.value = formatCpf(input.value); };
-    input.addEventListener("input", paint);
-    paint();
+    // fallback seguro: formata sem pad/recover no meio da digitação
+    input.addEventListener("input", () => {
+      const start = input.selectionStart || 0;
+      const digitsBefore = String(input.value.slice(0, start)).replace(/\D/g, "").length;
+      const formatted = formatCpfInput(input.value);
+      input.value = formatted;
+      let pos = formatted.length;
+      let seen = 0;
+      for (let i = 0; i < formatted.length; i++) {
+        if (/\d/.test(formatted[i])) {
+          seen += 1;
+          if (seen >= digitsBefore) {
+            pos = i + 1;
+            break;
+          }
+        }
+      }
+      if (digitsBefore === 0) pos = 0;
+      try { input.setSelectionRange(pos, pos); } catch (_e) {}
+    });
   }
 
   function createModal(html, className = "") {
@@ -2398,6 +2449,152 @@
     });
   }
 
+  function consultaRgpRowHtml(r, absIndex) {
+    return `
+      <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${absIndex % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
+        <td class="rgp-check-col" data-stop="1">
+          <input type="checkbox" class="rgp-row-check" data-id="${esc(r.id)}" ${state.consultaRgpSelectedIds[r.id] ? "checked" : ""} />
+        </td>
+        <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
+        <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
+        <td>${esc(r.telefone || "—")}</td>
+        <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
+        <td>${esc(r.ultima_consulta_em || "—")}</td>
+        <td class="rgp-obs">${esc(r.observacao || "—")}</td>
+        <td class="rgp-actions" data-stop="1">
+          <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
+          <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
+          <button type="button" class="rgp-link rgp-link-danger" data-act="excluir" data-id="${esc(r.id)}">🗑 Excluir</button>
+        </td>
+      </tr>`;
+  }
+
+  function bindConsultaRgpTableRowEvents(slice) {
+    const toggleSel = (id, on) => {
+      if (!id) return;
+      if (on) state.consultaRgpSelectedIds[id] = true;
+      else delete state.consultaRgpSelectedIds[id];
+    };
+    document.querySelectorAll(".rgp-row-check").forEach((ck) => {
+      ck.addEventListener("click", (e) => e.stopPropagation());
+      ck.addEventListener("change", () => {
+        toggleSel(ck.dataset.id || "", !!ck.checked);
+      });
+    });
+    document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
+      tr.addEventListener("click", (e) => {
+        if (e.target.closest("[data-act], [data-stop]")) return;
+        const id = tr.dataset.id || "";
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg) return;
+        openConsultaDetalheModal(reg, { tab: "resumo" });
+      });
+    });
+    document.querySelectorAll("[data-act=consultar]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id || "";
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg?.id) {
+          toast("Selecione um registro válido.");
+          return;
+        }
+        openConsultaDetalheModal(reg, { tab: "resumo" });
+        consultarRgpRegistro(reg);
+      });
+    });
+    document.querySelectorAll("[data-act=editar]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id || "";
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg) return;
+        openConsultaSocioModal(reg);
+      });
+    });
+    document.querySelectorAll("[data-act=excluir]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id || "";
+        if (!id) return;
+        excluirConsultaRgpIds([id]);
+      });
+    });
+    if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.markAlertaRows) {
+      window.SinapescRgpFuncoes.markAlertaRows(state.consultaRgpAlertas || []);
+    }
+    // keep slice for check-all handlers that close over it
+    return { slice, toggleSel };
+  }
+
+  /** Atualiza só a tabela (não recria a barra de busca — evita «1 letra por vez»). */
+  function paintConsultaRgpTableBody() {
+    const tbody = document.querySelector(".rgp-table tbody");
+    if (!tbody) {
+      renderConsultaRgp();
+      return null;
+    }
+    const filtered = filtrarConsultaRgp();
+    const pageSize = state.consultaRgpPageSize || 20;
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize) || 1);
+    if ((state.consultaRgpPage || 1) > pages) state.consultaRgpPage = pages;
+    const page = state.consultaRgpPage || 1;
+    const start = (page - 1) * pageSize;
+    const slice = filtered.slice(start, start + pageSize);
+    const loadingHint = state.consultaRgpLoading && !state.consultaRgpLoaded
+      ? `<tr><td colspan="8" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
+      : `<tr><td colspan="8" class="rgp-empty">Nenhum registro. Use <strong>Cadastrar sócio</strong> ou <strong>Cadastro em lote</strong>.</td></tr>`;
+    tbody.innerHTML = slice.length
+      ? slice.map((r, i) => consultaRgpRowHtml(r, start + i)).join("")
+      : loadingHint;
+
+    const footer = document.querySelector(".rgp-footer span");
+    if (footer) {
+      footer.textContent = `Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${fmtBrNum(filtered.length)} registros`;
+    }
+    const pagerLabel = document.querySelector(".rgp-pager span");
+    if (pagerLabel) pagerLabel.textContent = `${page}/${pages}`;
+    const prev = document.getElementById("rgp-prev");
+    const next = document.getElementById("rgp-next");
+    if (prev) prev.disabled = page <= 1;
+    if (next) next.disabled = page >= pages;
+    const meta = document.querySelector(".rgp-action-bar .page-meta");
+    if (meta) {
+      const selCount = selectedConsultaIds().length;
+      meta.textContent = selCount ? `${selCount} selecionado(s)` : "Registro Geral da Atividade Pesqueira";
+    }
+    return bindConsultaRgpTableRowEvents(slice);
+  }
+
+  let _rgpSearchRepaintTimer = null;
+  function scheduleConsultaRgpSearchRepaint() {
+    clearTimeout(_rgpSearchRepaintTimer);
+    _rgpSearchRepaintTimer = setTimeout(() => {
+      paintConsultaRgpTableBody();
+    }, 120);
+  }
+
+  async function excluirConsultaRgpIds(ids) {
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) {
+      toast("Selecione ao menos um sócio para excluir.");
+      return;
+    }
+    const ok = await confirmModal(
+      "Excluir da Consulta RGP",
+      list.length === 1
+        ? "Remover este sócio da planilha Consulta RGP?\nEsta ação não apaga o REAP/Defeso."
+        : `Remover ${list.length} sócio(s) da planilha Consulta RGP?\nEsta ação não apaga o REAP/Defeso.`
+    );
+    if (!ok) return;
+    list.forEach((id) => { delete state.consultaRgpSelectedIds[id]; });
+    api("excluir_consulta_rgp", JSON.stringify({ ids: list }));
+  }
+
+  function excluirConsultaRgpSelecionados() {
+    excluirConsultaRgpIds(selectedConsultaIds());
+  }
+
   /** Filtros oficiais da UI (o robô MPA grava a situação verdadeira, não só estes). */
   const RGP_CHIP_SITUACOES = [
     "Ativo",
@@ -2606,6 +2803,7 @@
             ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar</button>
                <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-save-cadastro">Salvar cadastro</button>`
             : `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-edit-cadastro">✎ Editar cadastro</button>
+               <button type="button" class="rgp-btn rgp-btn-ghost rgp-btn-danger" id="rgp-excluir-um">🗑 Excluir sócio</button>
                <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-consultar-sel">Consultar no MPA</button>`}
         </div>
         <div class="rgp-detalhe-body">
@@ -2745,6 +2943,11 @@
     $("#rgp-consultar-sel")?.addEventListener("click", () => {
       consultarRgpRegistro(reg);
     });
+    $("#rgp-excluir-um")?.addEventListener("click", () => {
+      if (!reg?.id) return;
+      closeConsultaDetalheModal();
+      excluirConsultaRgpIds([reg.id]);
+    });
     $("#rgp-open-mpa")?.addEventListener("click", () => {
       api("abrir_consulta_rgp_mpa", cpfForConsulta(reg));
     });
@@ -2833,6 +3036,7 @@
           <div class="rgp-action-buttons">
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-lote">⇪ Cadastro em lote</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-editar-lote" title="Editar nome, CPF, telefone, município, observação e senha Gov.br">✎ Corrigir em lote</button>
+            <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-excluir-sel" title="Excluir selecionados">🗑 Excluir</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-sel">Consultar selecionados</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-todos">Consultar todos</button>
             ${(window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.toolbarButtonsHtml)
@@ -2894,6 +3098,7 @@
                 <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
                 <button type="button" class="rgp-link" id="rgp-sel-page">Selecionar página</button>
                 <button type="button" class="rgp-link" id="rgp-sel-clear">Limpar seleção</button>
+                <button type="button" class="rgp-link rgp-link-danger" id="rgp-excluir-sel-2">Excluir selecionados</button>
               </div>
               <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
                 <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
@@ -2911,23 +3116,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${slice.length ? slice.map((r, i) => `
-                      <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
-                        <td class="rgp-check-col" data-stop="1">
-                          <input type="checkbox" class="rgp-row-check" data-id="${esc(r.id)}" ${state.consultaRgpSelectedIds[r.id] ? "checked" : ""} />
-                        </td>
-                        <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
-                        <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
-                        <td>${esc(r.telefone || "—")}</td>
-                        <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
-                        <td>${esc(r.ultima_consulta_em || "—")}</td>
-                        <td class="rgp-obs">${esc(r.observacao || "—")}</td>
-                        <td class="rgp-actions" data-stop="1">
-                          <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
-                          <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
-                        </td>
-                      </tr>
-                    `).join("") : loadingHint}
+                    ${slice.length ? slice.map((r, i) => consultaRgpRowHtml(r, start + i)).join("") : loadingHint}
                   </tbody>
                 </table>
               </div>
@@ -2978,10 +3167,13 @@
       window.SinapescRgpFuncoes.bindToolbar();
     }
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal());
+    $("#rgp-excluir-sel")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
+    $("#rgp-excluir-sel-2")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
+    // Busca: atualiza só o tbody (não recria o input — bug «1 letra por vez»).
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
       state.consultaRgpPage = 1;
-      renderConsultaRgp();
+      scheduleConsultaRgpSearchRepaint();
     });
     const setFiltro = (val) => {
       state.consultaRgpFiltro = val || "";
@@ -3012,65 +3204,33 @@
       renderConsultaRgp();
     });
 
-    const toggleSel = (id, on) => {
-      if (!id) return;
-      if (on) state.consultaRgpSelectedIds[id] = true;
-      else delete state.consultaRgpSelectedIds[id];
-    };
+    bindConsultaRgpTableRowEvents(slice);
     $("#rgp-check-all")?.addEventListener("change", (e) => {
       const on = !!e.target.checked;
-      slice.forEach((r) => toggleSel(r.id, on));
-      renderConsultaRgp();
+      const filtered = filtrarConsultaRgp();
+      const pageSize = state.consultaRgpPageSize || 20;
+      const page = state.consultaRgpPage || 1;
+      const start = (page - 1) * pageSize;
+      filtered.slice(start, start + pageSize).forEach((r) => {
+        if (on) state.consultaRgpSelectedIds[r.id] = true;
+        else delete state.consultaRgpSelectedIds[r.id];
+      });
+      paintConsultaRgpTableBody();
     });
     $("#rgp-sel-page")?.addEventListener("click", () => {
-      slice.forEach((r) => toggleSel(r.id, true));
-      renderConsultaRgp();
+      const filtered = filtrarConsultaRgp();
+      const pageSize = state.consultaRgpPageSize || 20;
+      const page = state.consultaRgpPage || 1;
+      const start = (page - 1) * pageSize;
+      filtered.slice(start, start + pageSize).forEach((r) => {
+        state.consultaRgpSelectedIds[r.id] = true;
+      });
+      paintConsultaRgpTableBody();
     });
     $("#rgp-sel-clear")?.addEventListener("click", () => {
       state.consultaRgpSelectedIds = {};
-      renderConsultaRgp();
+      paintConsultaRgpTableBody();
     });
-    document.querySelectorAll(".rgp-row-check").forEach((ck) => {
-      ck.addEventListener("click", (e) => e.stopPropagation());
-      ck.addEventListener("change", () => {
-        toggleSel(ck.dataset.id || "", !!ck.checked);
-      });
-    });
-
-    document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
-      tr.addEventListener("click", (e) => {
-        if (e.target.closest("[data-act], [data-stop]")) return;
-        const id = tr.dataset.id || "";
-        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
-        if (!reg) return;
-        openConsultaDetalheModal(reg, { tab: "resumo" });
-      });
-    });
-    document.querySelectorAll("[data-act=consultar]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.id || "";
-        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
-        if (!reg?.id) {
-          toast("Selecione um registro válido.");
-          return;
-        }
-        openConsultaDetalheModal(reg, { tab: "resumo" });
-        consultarRgpRegistro(reg);
-      });
-    });
-    document.querySelectorAll("[data-act=editar]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.id || "";
-        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
-        if (!reg) return;
-        openConsultaSocioModal(reg);
-      });
-    });
-    if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.markAlertaRows) {
-      window.SinapescRgpFuncoes.markAlertaRows(state.consultaRgpAlertas || []);
-    }
   }
 
   function paintConsultaAuditoria() {
@@ -3370,6 +3530,18 @@
           refreshConsultaDetalheModalIfOpen();
         }
       } else toast(r.error || "Falha ao corrigir em lote.");
+    });
+    AppEvents.on("consulta_rgp_excluir", (r) => {
+      if (r.ok) {
+        applyConsultaRgpPayload(r.data);
+        toast(r.data?.mensagem || "Sócio(s) excluído(s).");
+        const gone = new Set((r.data?.ids || []).map(String));
+        if (gone.has(String(state.consultaRgpSelectedId || ""))) {
+          state.consultaRgpSelectedId = "";
+          closeConsultaDetalheModal();
+        }
+        if (state.screen === "consulta_rgp") renderConsultaRgp();
+      } else toast(r.error || "Falha ao excluir.");
     });
     AppEvents.on("consulta_rgp_lote_progress", (p) => {
       const modal = state._rgpLoteModal;

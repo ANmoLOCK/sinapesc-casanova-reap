@@ -7,6 +7,7 @@ Módulos:
   - fila_inteligente.py → fila com pausa após falhas seguidas + CSV de erros
   - importar_arquivo.py → parse PDF / XLS / TXT para lote (anti-cota)
   - editar_lote.py      → correção em lote (nome/CPF/tel/mun/obs)
+  - excluir.py          → exclusão de sócio(s)
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from controle.consulta_rgp_funcoes.fila_inteligente import (
     rodar_fila_inteligente,
 )
 from controle.consulta_rgp_funcoes.editar_lote import normalizar_itens_edicao
+from controle.consulta_rgp_funcoes.excluir import ids_para_excluir, resumo_exclusao
 from controle.consulta_rgp_funcoes.importar_arquivo import (
     itens_para_dicts,
     parse_arquivo_lote,
@@ -46,11 +48,13 @@ __all__ = [
     "exportar_erros_csv",
     "filtrar_registros_export",
     "formatar_alerta",
+    "ids_para_excluir",
     "ids_vencidos",
     "itens_para_dicts",
     "listar_vencidos",
     "normalizar_itens_edicao",
     "parse_arquivo_lote",
     "parse_texto_lote",
+    "resumo_exclusao",
     "rodar_fila_inteligente",
 ]

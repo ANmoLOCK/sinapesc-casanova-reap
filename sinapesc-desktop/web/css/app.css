@@ -1357,6 +1357,15 @@ body.screen-rgp .footer-legal {
   padding: 6px 8px;
 }
 .rgp-link:hover { text-decoration: underline; }
+.rgp-link-danger,
+.rgp-btn-danger {
+  color: #b91c1c;
+}
+.rgp-link-danger:hover,
+.rgp-btn-danger:hover {
+  color: #991b1b;
+  text-decoration: underline;
+}
 
 .rgp-kpis {
   flex: 0 0 auto;

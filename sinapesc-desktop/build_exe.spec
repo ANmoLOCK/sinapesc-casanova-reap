@@ -38,6 +38,7 @@ hiddenimports = [
     "controle.consulta_rgp_funcoes.fila_inteligente",
     "controle.consulta_rgp_funcoes.importar_arquivo",
     "controle.consulta_rgp_funcoes.editar_lote",
+    "controle.consulta_rgp_funcoes.excluir",
     "webapp.consulta_rgp_ext",
     "pymupdf",
     "fitz",

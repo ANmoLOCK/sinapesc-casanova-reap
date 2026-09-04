@@ -555,6 +555,67 @@ class ConsultaRgpService:
             "ok": atualizados,
         }
 
+    def excluir(self, registro_id: str) -> dict:
+        """Remove um registro da aba ConsultaRGP (anti-cota: 1 meta + 1 batch)."""
+        return self.excluir_varios([registro_id])
+
+    def excluir_varios(self, ids: List[str]) -> dict:
+        """Apaga várias linhas de uma vez (deleteDimension de baixo para cima)."""
+        wanted = [str(x).strip() for x in (ids or []) if str(x).strip()]
+        if not wanted:
+            raise ValueError("Nenhum registro para excluir.")
+        self.ensure()
+        sheet_ids = self.client.get_sheet_ids_by_title()
+        tab_id = sheet_ids.get(CONSULTA_RGP_TAB)
+        if tab_id is None:
+            raise ValueError("Aba ConsultaRGP não encontrada.")
+
+        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        idset = set(wanted)
+        to_delete: List[tuple] = []  # (row_index_0based, nome, id)
+        for i, r in enumerate(rows):
+            rid = str(r[0]).strip() if r else ""
+            if rid in idset:
+                nome = str(r[2]).strip() if len(r) > 2 else ""
+                # planilha: linha 1 = header → dados começam na linha 2 → índice 1
+                to_delete.append((i + 1, nome, rid))
+
+        if not to_delete:
+            raise ValueError("Registro(s) não encontrado(s) na planilha.")
+
+        # de baixo para cima
+        to_delete.sort(key=lambda t: t[0], reverse=True)
+        requests = []
+        nomes: List[str] = []
+        for row_index, nome, rid in to_delete:
+            requests.append(
+                {
+                    "deleteDimension": {
+                        "range": {
+                            "sheetId": tab_id,
+                            "dimension": "ROWS",
+                            "startIndex": row_index,
+                            "endIndex": row_index + 1,
+                        }
+                    }
+                }
+            )
+            if nome:
+                nomes.append(nome)
+
+        # fatias para lotes grandes
+        CHUNK = 80
+        for start in range(0, len(requests), CHUNK):
+            self.client.batch_update(requests[start : start + CHUNK])
+            if start + CHUNK < len(requests):
+                time.sleep(0.35)
+
+        return {
+            "ok": len(to_delete),
+            "ids": [t[2] for t in to_delete],
+            "nomes": nomes,
+        }
+
     def marcar_import_reap(self, registro_id: str) -> RegistroConsultaRgp:
         reg = self.por_id(registro_id)
         if not reg:

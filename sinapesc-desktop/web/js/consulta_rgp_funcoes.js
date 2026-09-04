@@ -346,6 +346,8 @@
       }
     });
   }
+
+  function markAlertaRows(alertas) {
     const st = getState();
     if (!st) return;
     st.consultaRgpAlertas = alertas || [];

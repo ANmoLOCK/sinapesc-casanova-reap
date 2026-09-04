@@ -1997,6 +1997,24 @@ class SinapescApi:
             "Salvando correções em lote…",
         )
 
+    def excluir_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Exclui um ou vários sócios da planilha Consulta RGP."""
+        from webapp.consulta_rgp_ext import excluir_payload
+
+        local = _js_payload_to_dict(payload)
+        ids = local.get("ids") if isinstance(local, dict) else payload
+        if isinstance(local, dict) and local.get("id") and not ids:
+            ids = [local.get("id")]
+
+        def work():
+            return excluir_payload(self._ensure_consulta_rgp(), ids)
+
+        return self._run_async(
+            "consulta_rgp_excluir",
+            work,
+            "Excluindo da Consulta RGP…",
+        )
+
     def abrir_csv_erros_consulta_rgp(self, path: str = "") -> Dict[str, Any]:
         """Abre CSV de erros da fila inteligente."""
         p = Path(str(path or "")).expanduser()

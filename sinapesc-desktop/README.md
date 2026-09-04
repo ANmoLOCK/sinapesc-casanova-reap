@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.47** — CPF digitação REAP + busca RGP + excluir sócio.
+
 **v1.7.46** — Corrigir em lote (nome/CPF/tel/mun/obs + senha Gov.br).
 
 **v1.7.45** — Scroll da lista + import nome+CPF (TXT/XLSX/PDF).
@@ -74,7 +76,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.46.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.46/SinapescREAP-Windows-v1.7.46.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.47.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.47/SinapescREAP-Windows-v1.7.47.zip)
 
 ## Estrutura
 
@@ -84,6 +86,7 @@ Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows
 | `webapp/` | API Python ↔ JavaScript (pywebview) |
 | `ui/` | Tkinter legado (`--tk`) |
 | `controle/` | Regras: calendário, pendências, relatório, backup, auditoria, Consulta RGP |
-| `controle/consulta_rgp_funcoes/` | Fila, alertas, export, vencidos, import arquivo |
+| `controle/consulta_rgp_funcoes/` | Fila, alertas, export, vencidos, import, editar lote, excluir |
+| `web/js/masks.js` | Máscaras CPF/nome compartilhadas (REAP / Defeso / RGP) |
 | `sheets/` | Cliente e serviço Google Sheets |
 | `build_exe.spec` | PyInstaller (empacota `web/` + `assets/`) |

@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.47] — 2026-09-04 — CPF digitação + busca RGP + excluir sócio
+
+**Tag:** [`v1.7.47`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.47)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.47/SinapescREAP-Windows-v1.7.47.zip
+
+- **REAP:** máscara de CPF na digitação sem `padStart`/recover no meio (CPF completo volta a funcionar)
+- **Consulta RGP:** busca por nome atualiza só a tabela (não recria o input a cada letra)
+- **Consulta RGP:** opção **Excluir** (toolbar, linha e detalhe) — remove da planilha Consulta RGP sem apagar REAP/Defeso
+- Máscaras compartilhadas em `web/js/masks.js`; exclusão em `controle/consulta_rgp_funcoes/excluir.py`
+
 ## [v1.7.46] — 2026-09-04 — Corrigir em lote (nome/CPF/tel/mun/obs + senha Gov.br)
 
 **Tag:** [`v1.7.46`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.46)  
