@@ -58,6 +58,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "consulta_rgp_spreadsheet_id": "",
     "consulta_rgp_importar_auto": True,
     "consulta_rgp_govbr_opcional": False,
+    "consulta_rgp_govbr_senha": "",
     "service_account_email": "",
     "private_key": "",
     "credentials_json": None,

@@ -51,6 +51,7 @@
     consultaRgpPageSize: 20,
     consultaRgpImportAuto: false,
     consultaRgpGovbr: false,
+    consultaRgpGovbrSenha: "",
     consultaRgpLoaded: false,
     consultaRgpLoading: false,
   };
@@ -2258,21 +2259,21 @@
           </div>` : `<div class="rgp-topbar-user rgp-topbar-user-empty">Sem usuário</div>`}
         </header>
 
-        <div class="rgp-config-bar">
-          <span class="rgp-config-label">CONFIGURAÇÕES</span>
-          <label class="rgp-switch">
-            <input type="checkbox" id="rgp-govbr" ${state.consultaRgpGovbr ? "checked" : ""} />
-            <span class="rgp-switch-ui"></span>
-            <span class="rgp-switch-text">Senha Gov.br (opcional)</span>
+        <div class="rgp-action-bar">
+          <label class="rgp-govbr-field">
+            <span class="rgp-govbr-label">Senha Gov.br</span>
+            <input
+              type="password"
+              id="rgp-govbr-senha"
+              autocomplete="current-password"
+              placeholder="Digite a senha Gov.br"
+              value="${esc(state.consultaRgpGovbrSenha || "")}"
+            />
           </label>
-          <label class="rgp-switch">
-            <input type="checkbox" id="rgp-auto" ${state.consultaRgpImportAuto ? "checked" : ""} />
-            <span class="rgp-switch-ui"></span>
-            <span class="rgp-switch-text">Importar automático REAP</span>
-          </label>
-          <div class="rgp-config-actions">
+          <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-govbr-save">Salvar senha</button>
+          <div class="rgp-action-spacer" aria-hidden="true"></div>
+          <div class="rgp-action-buttons">
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
-            <button type="button" class="rgp-btn rgp-btn-sync" id="rgp-sync">↻ Sincronizar REAP</button>
           </div>
         </div>
 
@@ -2490,28 +2491,17 @@
       renderConsultaRgp();
     });
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal(null));
-    $("#rgp-sync")?.addEventListener("click", () => {
-      api("sync_consulta_rgp_reap");
+    $("#rgp-govbr-save")?.addEventListener("click", () => {
+      const senha = String($("#rgp-govbr-senha")?.value || "");
+      state.consultaRgpGovbrSenha = senha;
+      api("save_consulta_rgp_prefs", { govbr_senha: senha });
+      toast(senha ? "Senha Gov.br salva." : "Senha Gov.br limpa.", 2500);
     });
-    $("#rgp-govbr")?.addEventListener("change", (e) => {
-      state.consultaRgpGovbr = !!e.target.checked;
-      api("save_consulta_rgp_prefs", {
-        govbr_opcional: state.consultaRgpGovbr,
-        importar_auto: state.consultaRgpImportAuto,
-      });
-    });
-    $("#rgp-auto")?.addEventListener("change", (e) => {
-      state.consultaRgpImportAuto = !!e.target.checked;
-      api("save_consulta_rgp_prefs", {
-        govbr_opcional: state.consultaRgpGovbr,
-        importar_auto: state.consultaRgpImportAuto,
-      });
-      toast(
-        state.consultaRgpImportAuto
-          ? "Preferência salva: importar automático REAP ligado (quando a sync estiver ativa)."
-          : "Preferência salva: importar automático REAP desligado.",
-        3500
-      );
+    $("#rgp-govbr-senha")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("#rgp-govbr-save")?.click();
+      }
     });
 
     document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
@@ -2615,6 +2605,7 @@
     if (data.kpis) state.consultaRgpKpis = data.kpis;
     if (typeof data.importar_auto === "boolean") state.consultaRgpImportAuto = data.importar_auto;
     if (typeof data.govbr_opcional === "boolean") state.consultaRgpGovbr = data.govbr_opcional;
+    if (typeof data.govbr_senha === "string") state.consultaRgpGovbrSenha = data.govbr_senha;
     state.consultaRgpLoaded = true;
     state.consultaRgpLoading = false;
   }

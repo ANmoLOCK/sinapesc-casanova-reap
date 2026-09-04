@@ -8,6 +8,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.32] — 2026-09-04 — Layout folgado + senha Gov.br
+
+**Tag:** [`v1.7.32`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.32)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.32/SinapescREAP-Windows-v1.7.32.zip
+
+- Remove barra CONFIGURAÇÕES com toggles (Gov.br / Importar REAP)
+- Campo **Senha Gov.br** no topo (com Salvar senha) + Cadastrar sócio
+- Layout espaçoso alinhado ao mockup (header, KPIs, linhas da tabela, painel)
+
 ## [v1.7.31] — 2026-09-04 — Corrige consulta MPA (polling + gravação)
 
 **Tag:** [`v1.7.31`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.31)  

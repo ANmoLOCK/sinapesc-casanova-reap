@@ -1081,6 +1081,17 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
     assert "rgp-shell" in css
     assert "rgp-topbar" in css
+    assert "rgp-action-bar" in css
+    assert "rgp-govbr-field" in css
+    assert "Senha Gov.br" in js
+    assert "rgp-govbr-senha" in js
+    assert "govbr_senha" in js
+    assert "CONFIGURAÇÕES" not in js
+    assert "Importar automático REAP" not in js
+    assert "Senha Gov.br (opcional)" not in js
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "govbr_senha" in api_src
+    assert "consulta_rgp_govbr_senha" in (ROOT / "config" / "__init__.py").read_text(encoding="utf-8")
     main = (ROOT / "main.py").read_text(encoding="utf-8")
     assert WORKER_FLAG in main
     assert "pesqbrasil-pescadorprofissional.mpa.gov.br" in MPA_CONSULTA_URL
@@ -1088,7 +1099,6 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "grecaptcha.execute" in _js_consultar("10582575524")
     assert "window.__sinapescRgp" in _js_start_consulta("10582575524")
     assert "JSON.stringify(window.__sinapescRgp" in _js_poll_resultado()
-    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "def consultar_rgp_pessoa" in api_src
     assert "def cadastrar_consulta_rgp" in api_src
     assert "desativada nesta etapa" in api_src

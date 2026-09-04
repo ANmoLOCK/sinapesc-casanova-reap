@@ -4,6 +4,7 @@
   "consulta_rgp_spreadsheet_id": "",
   "consulta_rgp_importar_auto": true,
   "consulta_rgp_govbr_opcional": false,
+  "consulta_rgp_govbr_senha": "",
   "defeso_anexos_dir": "D:\\Meu Drive\\Sinapesc-Defeso",
   "defeso_declaracao_fonte": "allura",
   "defeso_drive_folder_id": "",

@@ -1504,6 +1504,7 @@ class SinapescApi:
                 "kpis": resumo_kpis(regs),
                 "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
                 "govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+                "govbr_senha": str(cfg.get("consulta_rgp_govbr_senha") or ""),
                 "spreadsheet_id": normalize_sheet_id(
                     str(cfg.get("consulta_rgp_spreadsheet_id") or cfg.get("spreadsheet_id") or "")
                 ),
@@ -1519,10 +1520,16 @@ class SinapescApi:
             cfg["consulta_rgp_importar_auto"] = bool(data.get("importar_auto"))
         if "govbr_opcional" in data:
             cfg["consulta_rgp_govbr_opcional"] = bool(data.get("govbr_opcional"))
+        if "govbr_senha" in data:
+            cfg["consulta_rgp_govbr_senha"] = str(data.get("govbr_senha") or "")
+            # Se digitou senha, marca como disponível para uso futuro
+            if cfg["consulta_rgp_govbr_senha"]:
+                cfg["consulta_rgp_govbr_opcional"] = True
         save_config(cfg)
         return ok(
             importar_auto=bool(cfg.get("consulta_rgp_importar_auto", True)),
             govbr_opcional=bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+            govbr_senha=str(cfg.get("consulta_rgp_govbr_senha") or ""),
         )
 
     def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
