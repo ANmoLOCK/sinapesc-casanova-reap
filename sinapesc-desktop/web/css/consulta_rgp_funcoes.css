@@ -11,44 +11,16 @@
 
 .modal-rgp-edit-lote .modal,
 .modal.modal-rgp-edit-lote {
-  max-width: min(1100px, 96vw);
+  max-width: min(1280px, 98vw);
 }
 .rgp-edit-lote-body {
   max-height: min(70vh, 640px);
   overflow: auto;
 }
-.rgp-edit-govbr {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  background: #F3F8FC;
-  border: 1px solid #D5E0EA;
-  border-radius: 10px;
-}
-.rgp-edit-govbr-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #0A2F52;
-  font-weight: 600;
-}
-.rgp-edit-govbr input[type="password"],
-.rgp-edit-govbr input[type="text"] {
-  flex: 1 1 180px;
-  min-width: 140px;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid #C9D6E3;
-  border-radius: 8px;
-}
 .rgp-edit-lote-head,
 .rgp-edit-lote-row {
   display: grid;
-  grid-template-columns: 1.6fr 0.9fr 0.9fr 0.85fr 1.2fr;
+  grid-template-columns: 1.5fr 0.85fr 0.85fr 0.8fr 1fr 0.9fr;
   gap: 6px;
   align-items: center;
 }

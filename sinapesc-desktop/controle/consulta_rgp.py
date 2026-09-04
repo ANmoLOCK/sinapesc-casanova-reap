@@ -35,7 +35,12 @@ CONSULTA_RGP_HEADER = [
     "atualizadoEm",
     "criadoEm",
     "timeline",
+    "govbrSenha",  # senha Gov.br individual por sócio (coluna T)
 ]
+
+# Intervalo de dados da aba (A…T) — inclui senha individual
+CONSULTA_RGP_DATA_RANGE = "A2:T"
+CONSULTA_RGP_HEADER_RANGE = "A1:T1"
 
 # Estimativa de UX: ~20 min para 500 consultas sequenciais (~2,4 s/CPF).
 # O site MPA pode demorar mais; a UI mostra progresso real.
@@ -278,6 +283,7 @@ class RegistroConsultaRgp:
     atualizado_em: str = ""
     criado_em: str = ""
     timeline: str = ""  # linhas "data|ator|evento" separadas por \n
+    govbr_senha: str = ""  # senha Gov.br deste sócio (não compartilhada)
 
     def to_row(self) -> List[str]:
         return [
@@ -300,6 +306,7 @@ class RegistroConsultaRgp:
             self.atualizado_em,
             self.criado_em,
             self.timeline,
+            self.govbr_senha,
         ]
 
     def timeline_items(self) -> List[Dict[str, str]]:
@@ -370,6 +377,7 @@ def row_to_registro(row: Sequence[Any] | None) -> Optional[RegistroConsultaRgp]:
         atualizado_em=cells[16].strip(),
         criado_em=cells[17].strip(),
         timeline=cells[18].strip() if len(cells) > 18 else "",
+        govbr_senha=cells[19].strip() if len(cells) > 19 else "",
     )
 
 
@@ -405,6 +413,9 @@ def payload_to_registro(
         atualizado_em=agora,
         criado_em=base.criado_em or agora,
         timeline=str(payload.get("timeline") or base.timeline or "").strip(),
+        govbr_senha=(
+            str(payload.get("govbr_senha") if "govbr_senha" in payload else base.govbr_senha or "")
+        ).strip(),
     )
     return reg
 

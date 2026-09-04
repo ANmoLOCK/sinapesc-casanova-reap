@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.48] — 2026-09-04 — Senha Gov.br individual por sócio
+
+**Tag:** [`v1.7.48`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.48/SinapescREAP-Windows-v1.7.48.zip
+
+- Senha Gov.br passa a ser **por sócio** (coluna `govbrSenha` na planilha ConsultaRGP)
+- Cadastro, edição e detalhe gravam a senha daquele registro
+- **Corrigir em lote** permite redigitar a senha de cada linha
+- Relatório HTML geral lista a senha de cada sócio
+
 ## [v1.7.47] — 2026-09-04 — CPF digitação + busca RGP + excluir sócio
 
 **Tag:** [`v1.7.47`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.47)  

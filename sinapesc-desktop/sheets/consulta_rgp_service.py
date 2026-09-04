@@ -12,7 +12,9 @@ from controle.consulta_rgp import (
     CONSULTA_RGP_AUDITORIA_TAB,
     CONSULTA_RGP_CONFIG_HEADER,
     CONSULTA_RGP_CONFIG_TAB,
+    CONSULTA_RGP_DATA_RANGE,
     CONSULTA_RGP_HEADER,
+    CONSULTA_RGP_HEADER_RANGE,
     CONSULTA_RGP_PREF_GOVBR_SENHA,
     CONSULTA_RGP_TAB,
     RegistroConsultaRgp,
@@ -81,7 +83,7 @@ class ConsultaRgpService:
         if CONSULTA_RGP_TAB not in existing:
             self.client.update_values(f"{CONSULTA_RGP_TAB}!A1", [CONSULTA_RGP_HEADER])
         else:
-            header = self.client.get_values(f"{CONSULTA_RGP_TAB}!A1:S1")
+            header = self.client.get_values(f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_HEADER_RANGE}")
             if not header:
                 self.client.update_values(f"{CONSULTA_RGP_TAB}!A1", [CONSULTA_RGP_HEADER])
             elif header and header[0]:
@@ -91,12 +93,14 @@ class ConsultaRgpService:
                     while len(row) <= idx:
                         row.append("")
                         changed = True
-                    if not str(row[idx]).strip():
-                        row[idx] = label
-                        changed = True
+                    if str(row[idx]).strip() != label:
+                        # preenche vazio ou corrige rótulo da coluna nova (govbrSenha)
+                        if not str(row[idx]).strip() or idx >= 19:
+                            row[idx] = label
+                            changed = True
                 if changed:
                     self.client.update_values(
-                        f"{CONSULTA_RGP_TAB}!A1:S1",
+                        f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_HEADER_RANGE}",
                         [row[: len(CONSULTA_RGP_HEADER)]],
                     )
 
@@ -134,7 +138,7 @@ class ConsultaRgpService:
 
     def listar(self) -> List[RegistroConsultaRgp]:
         self.ensure()
-        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_DATA_RANGE}")
         out: List[RegistroConsultaRgp] = []
         for r in rows:
             reg = row_to_registro(r)
@@ -309,6 +313,7 @@ class ConsultaRgpService:
         email: str = "",
         observacao: str = "",
         person_id: str = "",
+        govbr_senha: Optional[str] = None,
     ) -> RegistroConsultaRgp:
         """Inclui/atualiza registro na Consulta (módulo independente — dados vindos do usuário)."""
         digits = normalize_cpf(cpf)
@@ -335,6 +340,11 @@ class ConsultaRgpService:
                 "importado_defeso_em": existing.importado_defeso_em,
                 "cadastro_reap_em": existing.cadastro_reap_em,
                 "timeline": existing.timeline,
+                "govbr_senha": (
+                    str(govbr_senha or "").strip()
+                    if govbr_senha is not None
+                    else existing.govbr_senha
+                ),
             }
             return self.salvar(payload)
 
@@ -348,6 +358,7 @@ class ConsultaRgpService:
             uf=str(uf or "").strip().upper()[:2],
             email=str(email or "").strip(),
             observacao=str(observacao or "").strip(),
+            govbr_senha=str(govbr_senha or "").strip(),
             criado_em=agora,
             atualizado_em=agora,
         )
@@ -366,7 +377,7 @@ class ConsultaRgpService:
           + 1 auditoria — em vez de ~2–3 mil writes do loop ``upsert_manual``.
         """
         self.ensure()
-        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_DATA_RANGE}")
         by_cpf: Dict[str, RegistroConsultaRgp] = {}
         id_to_row: Dict[str, int] = {}
         for i, r in enumerate(rows_raw):
@@ -468,11 +479,11 @@ class ConsultaRgpService:
     def editar_lote_batch(self, itens: List[dict]) -> dict:
         """Corrige vários registros de uma vez (anti-cota).
 
-        itens = [{id, nome, cpf, telefone, municipio, observacao}, ...]
+        itens = [{id, nome, cpf, telefone, municipio, observacao, govbr_senha}, ...]
         1 leitura + batchUpdate (sem 1 write por linha via salvar).
         """
         self.ensure()
-        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_DATA_RANGE}")
         by_id: Dict[str, RegistroConsultaRgp] = {}
         id_to_row: Dict[str, int] = {}
         cpf_to_id: Dict[str, str] = {}
@@ -506,6 +517,7 @@ class ConsultaRgpService:
             tel = str(raw.get("telefone") or "").strip()
             mun = str(raw.get("municipio") or "").strip()
             obs = str(raw.get("observacao") or "").strip()
+            senha = str(raw.get("govbr_senha") if "govbr_senha" in raw else reg.govbr_senha or "").strip()
 
             if not nome:
                 erros.append(f"Linha {i}: nome vazio.")
@@ -532,6 +544,7 @@ class ConsultaRgpService:
             reg.telefone = tel
             reg.municipio = mun
             reg.observacao = obs
+            reg.govbr_senha = senha
             reg.atualizado_em = agora
             reg.append_timeline("Corrigido em lote", ator="Usuário")
             row_idx = id_to_row.get(rid)
@@ -570,7 +583,7 @@ class ConsultaRgpService:
         if tab_id is None:
             raise ValueError("Aba ConsultaRGP não encontrada.")
 
-        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!{CONSULTA_RGP_DATA_RANGE}")
         idset = set(wanted)
         to_delete: List[tuple] = []  # (row_index_0based, nome, id)
         for i, r in enumerate(rows):

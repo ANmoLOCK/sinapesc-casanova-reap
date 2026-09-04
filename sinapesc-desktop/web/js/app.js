@@ -2621,7 +2621,7 @@
 
   function openConsultaSocioModal(reg) {
     const edit = !!reg;
-    const senhaAtual = state.consultaRgpGovbrSenha || "";
+    const senhaAtual = String(reg?.govbr_senha || "");
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop rgp-modal-backdrop";
     backdrop.innerHTML = `
@@ -2630,7 +2630,7 @@
           <div>
             <div class="rgp-cadastro-kicker">Consulta RGP <span class="rgp-tag">${edit ? "EDITAR" : "CADASTRO"}</span></div>
             <h2 id="rgp-ed-title" class="rgp-cadastro-title">${edit ? "Editar sócio" : "Cadastrar sócio"}</h2>
-            <p class="rgp-cadastro-sub">Dados do sócio e senha Gov.br são gravados na planilha Consulta RGP (aba Config).</p>
+            <p class="rgp-cadastro-sub">Dados do sócio e senha Gov.br individual são gravados na planilha Consulta RGP.</p>
           </div>
           <button type="button" class="rgp-cadastro-close" id="rgp-ed-x" aria-label="Fechar">✕</button>
         </div>
@@ -2661,7 +2661,7 @@
                 <input id="rgp-ed-govbr" type="password" autocomplete="new-password" placeholder="${senhaAtual ? "Senha já salva — altere se quiser" : "Digite a senha Gov.br"}" value="${esc(senhaAtual)}" />
                 <button type="button" class="rgp-btn rgp-btn-ghost rgp-senha-toggle" id="rgp-ed-govbr-toggle" aria-label="Mostrar senha">Mostrar</button>
               </div>
-              <span class="rgp-field-hint">Usada nas consultas MPA. Uma senha para o módulo (não por sócio).</span>
+              <span class="rgp-field-hint">Senha Gov.br deste sócio (cada um tem a sua).</span>
             </label>
 
             <div class="rgp-form-section rgp-span-2">Observação</div>
@@ -2721,7 +2721,6 @@
         cadastro_reap_em: reg?.cadastro_reap_em || "",
         govbr_senha: govbrSenha,
       };
-      state.consultaRgpGovbrSenha = govbrSenha;
       close();
       if (edit && reg?.id) {
         state.consultaRgpPendingConsulta = false;
@@ -2754,7 +2753,7 @@
       timeline: selected.timeline,
       govbr_senha: $("#rgp-det-govbr")
         ? String($("#rgp-det-govbr").value || "")
-        : (state.consultaRgpGovbrSenha || ""),
+        : String(selected.govbr_senha || ""),
     };
   }
 
@@ -2830,10 +2829,10 @@
               <label class="rgp-field-block rgp-span-2">
                 <span>Senha Gov.br</span>
                 <div class="rgp-senha-row">
-                  <input id="rgp-det-govbr" type="password" autocomplete="new-password" placeholder="${state.consultaRgpGovbrSenha ? "Senha já salva — altere se quiser" : "Digite a senha Gov.br"}" value="${esc(state.consultaRgpGovbrSenha || "")}" />
+                  <input id="rgp-det-govbr" type="password" autocomplete="new-password" placeholder="${reg.govbr_senha ? "Senha já salva — altere se quiser" : "Digite a senha Gov.br"}" value="${esc(reg.govbr_senha || "")}" />
                   <button type="button" class="rgp-btn rgp-btn-ghost rgp-senha-toggle" id="rgp-det-govbr-toggle">Mostrar</button>
                 </div>
-                <span class="rgp-field-hint">Uma senha para o módulo (não por sócio). Gravada na aba Config.</span>
+                <span class="rgp-field-hint">Senha Gov.br deste sócio (individual).</span>
               </label>
               <div class="rgp-form-section rgp-span-2">Observação</div>
               <label class="rgp-field-block rgp-span-2">
@@ -2904,7 +2903,6 @@
         toast("CPF inválido.");
         return;
       }
-      state.consultaRgpGovbrSenha = String(payload.govbr_senha || "");
       state.consultaRgpEditMode = false;
       state.consultaRgpSideTab = "resumo";
       state.consultaRgpPendingConsulta = false;

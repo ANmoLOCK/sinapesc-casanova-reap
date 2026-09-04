@@ -331,41 +331,30 @@ def editar_lote_payload(
     govbr_senha: Optional[str] = None,
     atualizar_govbr: bool = False,
 ) -> Dict[str, Any]:
-    """Aplica correções em lote + opcionalmente senha Gov.br do módulo."""
+    """Aplica correções em lote (senha Gov.br individual por linha)."""
     from controle.consulta_rgp_funcoes.editar_lote import normalizar_itens_edicao
 
     limpos = normalizar_itens_edicao(itens)
     if not limpos:
         raise ValueError("Nenhuma linha para corrigir (selecione sócios ou carregue a lista).")
 
+    # Compat: senha única antiga → aplica nas linhas sem senha própria
+    if atualizar_govbr and govbr_senha is not None:
+        comum = str(govbr_senha or "").strip()
+        for row in limpos:
+            if "govbr_senha" not in row:
+                row["govbr_senha"] = comum
+
     result = svc.editar_lote_batch(limpos)
     atualizados = int(result.get("atualizados") or 0)
     erros = list(result.get("erros") or [])
-
-    govbr = ""
-    if atualizar_govbr and govbr_senha is not None:
-        try:
-            govbr = svc.set_govbr_senha(str(govbr_senha or ""))
-            from config import load_config, save_config
-
-            cfg = load_config()
-            cfg["consulta_rgp_govbr_senha"] = govbr
-            cfg["consulta_rgp_govbr_opcional"] = bool(govbr)
-            save_config(cfg)
-        except Exception as exc:  # noqa: BLE001
-            erros.append(f"Senha Gov.br: {exc}")
-    else:
-        try:
-            govbr = str(svc.get_govbr_senha() or "")
-        except Exception:  # noqa: BLE001
-            govbr = ""
 
     try:
         svc.registrar_auditoria(
             "consulta_rgp_editar_lote",
             f"Correção em lote: {atualizados} atualizado(s)"
             + (f", {len(erros)} aviso(s)" if erros else "")
-            + (" · senha Gov.br atualizada" if atualizar_govbr else ""),
+            + (" · senhas Gov.br por sócio" if any("govbr_senha" in x for x in limpos) else ""),
         )
     except Exception:  # noqa: BLE001
         pass
@@ -377,11 +366,9 @@ def editar_lote_payload(
         "total": len(regs),
         "itens": [r.to_dict() for r in regs],
         "kpis": resumo_kpis(regs),
-        "govbr_senha": govbr,
         "mensagem": (
             f"Corrigidos {atualizados} registro(s) em lote"
             + (f" ({len(erros)} aviso(s))." if erros else ".")
-            + (" Senha Gov.br salva." if atualizar_govbr else "")
         ),
     }
 

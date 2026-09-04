@@ -119,15 +119,16 @@ def _html_export(
         if v:
             filtro_bits.append(f"{label}: {html.escape(v)}")
     filtro_txt = " · ".join(filtro_bits) if filtro_bits else "Sem filtros (lista completa)"
-    senha = str(govbr_senha or "").strip()
+    senha_modulo = str(govbr_senha or "").strip()
     senha_bloco = ""
     if modo_geral:
         senha_bloco = (
-            f'<p class="gov"><strong>Senha Gov.br (módulo):</strong> '
-            f"{html.escape(senha) if senha else '(não cadastrada)'}</p>"
+            '<p class="gov"><strong>Senha Gov.br:</strong> '
+            "cada sócio tem a própria senha (coluna na tabela).</p>"
         )
     trs = []
     for r in regs:
+        senha_pessoa = str(getattr(r, "govbr_senha", "") or "").strip() or senha_modulo
         if modo_geral:
             trs.append(
                 "<tr>"
@@ -136,7 +137,7 @@ def _html_export(
                 f"<td>{html.escape(str(getattr(r, 'municipio', '') or ''))}</td>"
                 f"<td>{html.escape(str(getattr(r, 'telefone', '') or ''))}</td>"
                 f"<td>{html.escape(normalize_situacao(getattr(r, 'situacao_rgp', '') or ''))}</td>"
-                f"<td>{html.escape(senha) if senha else '—'}</td>"
+                f"<td>{html.escape(senha_pessoa) if senha_pessoa else '—'}</td>"
                 "</tr>"
             )
         else:

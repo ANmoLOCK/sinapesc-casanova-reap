@@ -1,4 +1,4 @@
-"""Correção / edição em lote na Consulta RGP (nome, CPF, tel, mun, obs)."""
+"""Correção / edição em lote na Consulta RGP (nome, CPF, tel, mun, obs, senha Gov.br)."""
 
 from __future__ import annotations
 
@@ -16,14 +16,23 @@ def normalizar_itens_edicao(raw: Sequence[Any]) -> List[Dict[str, str]]:
         rid = str(item.get("id") or "").strip()
         if not rid:
             continue
-        out.append(
-            {
-                "id": rid,
-                "nome": format_nome(str(item.get("nome") or "").strip()),
-                "cpf": normalize_cpf(item.get("cpf") or ""),
-                "telefone": str(item.get("telefone") or item.get("numero") or "").strip(),
-                "municipio": str(item.get("municipio") or "").strip(),
-                "observacao": str(item.get("observacao") or item.get("obs") or "").strip(),
-            }
-        )
+        row: Dict[str, str] = {
+            "id": rid,
+            "nome": format_nome(str(item.get("nome") or "").strip()),
+            "cpf": normalize_cpf(item.get("cpf") or ""),
+            "telefone": str(item.get("telefone") or item.get("numero") or "").strip(),
+            "municipio": str(item.get("municipio") or "").strip(),
+            "observacao": str(item.get("observacao") or item.get("obs") or "").strip(),
+        }
+        # senha individual por sócio (sempre envia a chave para gravar o valor digitado)
+        if "govbr_senha" in item or "senha_govbr" in item or "senha" in item:
+            row["govbr_senha"] = str(
+                item.get("govbr_senha")
+                if "govbr_senha" in item
+                else item.get("senha_govbr")
+                if "senha_govbr" in item
+                else item.get("senha")
+                or ""
+            ).strip()
+        out.append(row)
     return out

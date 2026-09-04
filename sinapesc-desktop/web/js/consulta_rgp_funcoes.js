@@ -196,7 +196,7 @@
     }, 50);
   }
 
-  /** Correção em lote — nome, CPF, telefone, município, observação + senha Gov.br */
+  /** Correção em lote — nome, CPF, telefone, município, observação + senha Gov.br por sócio */
   function openEditarLoteModal(opts) {
     opts = opts || {};
     const st = getState();
@@ -215,7 +215,6 @@
       const idset = new Set(selectedIds);
       regs = (st.consultaRgpItens || []).filter((r) => idset.has(r.id));
     } else {
-      // sem seleção → lista filtrada na tela (via busca/filtro já aplicada no state)
       const q = (st.consultaRgpSearch || "").trim().toLowerCase();
       const digits = q.replace(/\D/g, "");
       const filtro = st.consultaRgpFiltro || "";
@@ -246,7 +245,6 @@
       return;
     }
 
-    const senhaAtual = st.consultaRgpGovbrSenha || "";
     const origem = selectedIds.length
       ? `${regs.length} selecionado(s)`
       : `${regs.length} da lista filtrada`;
@@ -254,23 +252,16 @@
     const backdrop = openModal(`
       <div class="modal-head">Corrigir em lote — Consulta RGP</div>
       <div class="modal-body rgp-edit-lote-body">
-        <p class="page-sub">Edite nome, CPF, número, município e observação. Gravação em lote (anti-cota). ${esc(origem)}.</p>
-        <div class="rgp-edit-govbr">
-          <label class="rgp-edit-govbr-check">
-            <input type="checkbox" id="rgp-el-govbr-on" />
-            Atualizar senha Gov.br do módulo
-          </label>
-          <input type="password" id="rgp-el-govbr" value="${esc(senhaAtual)}" placeholder="Senha Gov.br" disabled autocomplete="new-password" />
-          <button type="button" class="btn btn-ghost btn-sm" id="rgp-el-govbr-toggle">Mostrar</button>
-        </div>
+        <p class="page-sub">Edite nome, CPF, número, município, observação e <strong>senha Gov.br de cada sócio</strong>. Gravação em lote (anti-cota). ${esc(origem)}.</p>
         <div class="rgp-edit-lote-head">
-          <span>Nome</span><span>CPF</span><span>Município</span><span>Número</span><span>Observação</span>
+          <span>Nome</span><span>CPF</span><span>Município</span><span>Número</span><span>Observação</span><span>Senha Gov.br</span>
         </div>
         <div class="rgp-edit-lote-rows" id="rgp-el-rows"></div>
         <p class="page-sub" id="rgp-el-status"></p>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="rgp-el-toggle-senhas">Mostrar senhas</button>
         <button type="button" class="btn btn-primary" id="rgp-el-save">Salvar correções</button>
       </div>
     `, "modal-wide modal-rgp-edit-lote");
@@ -278,18 +269,6 @@
     const host = backdrop.querySelector("#rgp-el-rows");
     const statusEl = backdrop.querySelector("#rgp-el-status");
     const saveBtn = backdrop.querySelector("#rgp-el-save");
-    const govOn = backdrop.querySelector("#rgp-el-govbr-on");
-    const govInput = backdrop.querySelector("#rgp-el-govbr");
-
-    govOn.addEventListener("change", () => {
-      govInput.disabled = !govOn.checked;
-      if (govOn.checked) govInput.focus();
-    });
-    backdrop.querySelector("#rgp-el-govbr-toggle")?.addEventListener("click", () => {
-      const show = govInput.type === "password";
-      govInput.type = show ? "text" : "password";
-      backdrop.querySelector("#rgp-el-govbr-toggle").textContent = show ? "Ocultar" : "Mostrar";
-    });
 
     regs.forEach((r) => {
       const row = document.createElement("div");
@@ -301,6 +280,7 @@
         <input class="el-mun" value="${esc(r.municipio || "")}" placeholder="Município" />
         <input class="el-tel" value="${esc(r.telefone || "")}" placeholder="Número" />
         <input class="el-obs" value="${esc(r.observacao || "")}" placeholder="Observação" />
+        <input class="el-govbr" type="password" value="${esc(r.govbr_senha || "")}" placeholder="Senha Gov.br" autocomplete="new-password" />
       `;
       host.appendChild(row);
       bindNomeMask(row.querySelector(".el-nome"));
@@ -308,6 +288,14 @@
     });
 
     statusEl.textContent = `${regs.length} linha(s) prontas para edição.`;
+
+    backdrop.querySelector("#rgp-el-toggle-senhas")?.addEventListener("click", (e) => {
+      const btn = e.currentTarget;
+      const inputs = [...host.querySelectorAll(".el-govbr")];
+      const show = inputs.some((inp) => inp.type === "password");
+      inputs.forEach((inp) => { inp.type = show ? "text" : "password"; });
+      btn.textContent = show ? "Ocultar senhas" : "Mostrar senhas";
+    });
 
     saveBtn.addEventListener("click", async () => {
       const itens = [...host.querySelectorAll(".rgp-edit-lote-row")].map((row) => ({
@@ -317,6 +305,7 @@
         municipio: (row.querySelector(".el-mun").value || "").trim(),
         telefone: (row.querySelector(".el-tel").value || "").trim(),
         observacao: (row.querySelector(".el-obs").value || "").trim(),
+        govbr_senha: (row.querySelector(".el-govbr").value || "").trim(),
       })).filter((r) => r.id && (r.nome || r.cpf));
 
       if (!itens.length) {
@@ -326,12 +315,7 @@
       saveBtn.disabled = true;
       statusEl.textContent = `Salvando ${itens.length} correção(ões)…`;
       try {
-        const payload = {
-          itens,
-          atualizar_govbr: !!govOn.checked,
-          govbr_senha: govOn.checked ? govInput.value : undefined,
-        };
-        const r = await api("editar_lote_consulta_rgp", JSON.stringify(payload));
+        const r = await api("editar_lote_consulta_rgp", JSON.stringify({ itens }));
         if (r && r.ok === false && !r.pending) {
           toast(r.error || "Falha ao salvar.");
           statusEl.textContent = r.error || "Erro.";

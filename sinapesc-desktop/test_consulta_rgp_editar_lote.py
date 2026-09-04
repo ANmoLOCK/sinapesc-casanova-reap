@@ -92,6 +92,7 @@ def test_editar_lote_batch():
                 "telefone": "74988887777",
                 "municipio": "Casa Nova",
                 "observacao": "corrigido",
+                "govbr_senha": "SenhaMaria",
             },
             {
                 "id": "id-b",
@@ -100,6 +101,7 @@ def test_editar_lote_batch():
                 "telefone": "74",
                 "municipio": "Juazeiro",
                 "observacao": "",
+                "govbr_senha": "SenhaJoao",
             },
         ]
     )
@@ -109,6 +111,8 @@ def test_editar_lote_batch():
     assert "Maria Nova" in client._rows[0][2]
     assert "Casa Nova" in client._rows[0][5]
     assert "corrigido" in client._rows[0][8]
+    assert client._rows[0][19] == "SenhaMaria"
+    assert client._rows[1][19] == "SenhaJoao"
     assert "Joao Atualizado" in client._rows[1][2] or "João" in client._rows[1][2]
 
 
