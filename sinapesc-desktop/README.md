@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.49** — Relatório HTML com filtros/seleção/colunas.
+
 **v1.7.48** — Senha Gov.br individual por sócio + editar em lote.
 
 **v1.7.47** — CPF digitação REAP + busca RGP + excluir sócio.
@@ -78,7 +80,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.48.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.48/SinapescREAP-Windows-v1.7.48.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.49.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.49/SinapescREAP-Windows-v1.7.49.zip)
 
 ## Estrutura
 

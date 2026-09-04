@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.49] — 2026-09-04 — Relatório HTML com filtros e seleção
+
+**Tag:** [`v1.7.49`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.49)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.49/SinapescREAP-Windows-v1.7.49.zip
+
+- Modal de relatório HTML com escopo (todos / selecionados / lista filtrada)
+- Filtros: situação(ões), município(s), busca, datas, com/sem senha Gov.br
+- Escolha das **colunas** do HTML + prévia da quantidade
+- Opção de imprimir automaticamente ou não
+- Correções: relatório não gera mais sem filtros; HTML sem double-escape; células vazias com "—"
+
 ## [v1.7.48] — 2026-09-04 — Senha Gov.br individual por sócio
 
 **Tag:** [`v1.7.48`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48)  

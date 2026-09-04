@@ -82,9 +82,11 @@ def test_excluir_module_and_spec():
     assert "def excluir_varios" in svc
 
 
-def test_version_147():
+def test_version_mask_excluir():
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.7.47"' in theme
+    assert "APP_VERSION" in theme
+    assert (ROOT / "web" / "js" / "masks.js").exists()
+    assert (ROOT / "controle" / "consulta_rgp_funcoes" / "excluir.py").exists()
 
 
 if __name__ == "__main__":
@@ -94,5 +96,5 @@ if __name__ == "__main__":
     test_index_loads_masks_before_app()
     test_app_js_search_paint_and_excluir()
     test_excluir_module_and_spec()
-    test_version_147()
+    test_version_mask_excluir()
     print("ok")

@@ -119,81 +119,318 @@
     });
   }
 
-  /** Função 3 — modal Exportar */
+  /** Função 3 — modal Exportar (CSV + HTML) */
   function openExportModal() {
+    openRelatorioHtmlModal({ modo: "export" });
+  }
+
+  function selectedIdsFromState(st) {
+    return Object.keys((st && st.consultaRgpSelectedIds) || {}).filter(
+      (id) => st.consultaRgpSelectedIds[id]
+    );
+  }
+
+  function filteredIdsFromState(st) {
+    const q = String((st && st.consultaRgpSearch) || "").trim().toLowerCase();
+    const digits = q.replace(/\D/g, "");
+    const filtro = (st && st.consultaRgpFiltro) || "";
+    return ((st && st.consultaRgpItens) || [])
+      .filter((r) => {
+        if (filtro) {
+          const a = String(r.situacao_rgp || "").trim().toLowerCase();
+          const b = filtro.toLowerCase();
+          if (a !== b && !(b.startsWith("aguardando atualiza") && a.startsWith("aguardando atualiza"))) {
+            return false;
+          }
+        }
+        if (!q) return true;
+        const blob = [r.nome, r.cpf, r.telefone, r.municipio, r.observacao]
+          .map((x) => String(x || "").toLowerCase()).join(" ");
+        if (blob.includes(q)) return true;
+        if (digits.length >= 3 && String(r.cpf || "").includes(digits)) return true;
+        return false;
+      })
+      .map((r) => r.id)
+      .filter(Boolean);
+  }
+
+  function previewCountLocal(st, opts) {
+    const itens = (st && st.consultaRgpItens) || [];
+    let list = itens.slice();
+    if (opts.escopo === "selecionados") {
+      const idset = new Set(opts.ids || []);
+      list = list.filter((r) => idset.has(r.id));
+    } else if (opts.escopo === "filtrados") {
+      const idset = new Set(opts.ids || filteredIdsFromState(st));
+      list = list.filter((r) => idset.has(r.id));
+    }
+    if (opts.municipios && opts.municipios.length) {
+      const mset = opts.municipios.map((m) => m.toLowerCase());
+      list = list.filter((r) => {
+        const mun = String(r.municipio || "").trim().toLowerCase();
+        return mset.some((m) => mun === m || mun.includes(m));
+      });
+    }
+    if (opts.situacoes && opts.situacoes.length) {
+      const sset = opts.situacoes.map((s) => s.toLowerCase());
+      list = list.filter((r) => {
+        const a = String(r.situacao_rgp || "").trim().toLowerCase();
+        return sset.some((b) => a === b || (b.startsWith("aguardando atualiza") && a.startsWith("aguardando atualiza")));
+      });
+    }
+    if (opts.busca) {
+      const q = opts.busca.toLowerCase();
+      const digits = q.replace(/\D/g, "");
+      list = list.filter((r) => {
+        const blob = [r.nome, r.cpf, r.telefone, r.municipio, r.observacao]
+          .map((x) => String(x || "").toLowerCase()).join(" ");
+        if (blob.includes(q)) return true;
+        if (digits.length >= 3 && String(r.cpf || "").includes(digits)) return true;
+        return false;
+      });
+    }
+    if (opts.com_senha === "com") {
+      list = list.filter((r) => String(r.govbr_senha || "").trim());
+    } else if (opts.com_senha === "sem") {
+      list = list.filter((r) => !String(r.govbr_senha || "").trim());
+    }
+    // datas: preview aproximado (só YYYY-MM-DD no campo)
+    if (opts.ultima_de || opts.ultima_ate) {
+      list = list.filter((r) => {
+        const raw = String(r.ultima_consulta_em || "").trim();
+        if (!raw) return false;
+        const day = raw.slice(0, 10).replace(/\//g, "-");
+        // aceita DD/MM/YYYY ou YYYY-MM-DD
+        let iso = day;
+        const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
+        if (opts.ultima_de && iso < opts.ultima_de) return false;
+        if (opts.ultima_ate && iso > opts.ultima_ate) return false;
+        return true;
+      });
+    }
+    return list.length;
+  }
+
+  /** Relatório HTML com seleção de escopo, filtros e colunas */
+  function openRelatorioHtmlModal(opts) {
+    opts = opts || {};
+    const modoExport = opts.modo === "export";
     const st = getState();
-    const sits = [
-      "", "Ativo", "Aguardando análise", "Finalizada", "Rascunho", "Aguardando atualização",
-    ];
-    const munis = [...new Set(((st && st.consultaRgpItens) || []).map((r) => (r.municipio || "").trim()).filter(Boolean))]
+    const itens = (st && st.consultaRgpItens) || [];
+    const selIds = selectedIdsFromState(st);
+    const filtIds = filteredIdsFromState(st);
+    const munis = [...new Set(itens.map((r) => (r.municipio || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const sits = [
+      "Ativo",
+      "Aguardando análise",
+      "Finalizada",
+      "Rascunho",
+      "Aguardando atualização",
+      "Não consultado",
+      "Suspenso",
+      "Cancelado",
+      "Em análise",
+    ];
+    const colsDefault = modoExport
+      ? ["nome", "cpf", "telefone", "municipio", "situacao", "ultima_consulta", "observacao"]
+      : ["nome", "cpf", "municipio", "telefone", "situacao", "govbr_senha"];
+    const colDefs = [
+      ["nome", "Nome"],
+      ["cpf", "CPF"],
+      ["municipio", "Município"],
+      ["telefone", "Telefone"],
+      ["situacao", "Situação RGP"],
+      ["govbr_senha", "Senha Gov.br"],
+      ["ultima_consulta", "Última consulta"],
+      ["observacao", "Observação"],
+      ["email", "E-mail"],
+      ["uf", "UF"],
+      ["codigo_rgp", "Código RGP"],
+    ];
+    const escopoInicial = selIds.length ? "selecionados" : "todos";
+
     const backdrop = openModal(`
-      <div class="modal-head">Exportar Consulta RGP</div>
-      <div class="modal-body">
-        <p class="page-sub">CSV + HTML com filtros, ou relatório geral (nome, CPF, município, telefone, situação RGP e senha Gov.br).</p>
-        <label>Município
-          <select id="rgp-ex-mun" style="width:100%;margin-top:4px">
-            <option value="">Todos</option>
-            ${munis.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}
-          </select>
-        </label>
-        <label style="display:block;margin-top:10px">Situação
-          <select id="rgp-ex-sit" style="width:100%;margin-top:4px">
-            ${sits.map((s) => `<option value="${esc(s)}">${esc(s || "Todas")}</option>`).join("")}
-          </select>
-        </label>
-        <div class="inline-row" style="margin-top:10px;gap:10px">
+      <div class="modal-head">${modoExport ? "Exportar Consulta RGP" : "Relatório HTML — Consulta RGP"}</div>
+      <div class="modal-body rgp-relatorio-body">
+        <p class="page-sub">Escolha o escopo, filtros e colunas. O contador mostra quantos registros entrarão no arquivo.</p>
+
+        <div class="rgp-rel-section">
+          <div class="rgp-rel-label">Escopo</div>
+          <div class="rgp-rel-radios">
+            <label><input type="radio" name="rgp-rel-escopo" value="todos" ${escopoInicial === "todos" ? "checked" : ""} /> Todos (${itens.length})</label>
+            <label><input type="radio" name="rgp-rel-escopo" value="selecionados" ${escopoInicial === "selecionados" ? "checked" : ""} ${selIds.length ? "" : "disabled"} /> Selecionados na tabela (${selIds.length})</label>
+            <label><input type="radio" name="rgp-rel-escopo" value="filtrados" /> Lista filtrada da tela (${filtIds.length})</label>
+          </div>
+        </div>
+
+        <div class="rgp-rel-grid">
+          <label>Busca (nome / CPF / telefone)
+            <input type="search" id="rgp-rel-busca" placeholder="Opcional" />
+          </label>
+          <label>Senha Gov.br
+            <select id="rgp-rel-senha">
+              <option value="">Todas</option>
+              <option value="com">Somente com senha</option>
+              <option value="sem">Somente sem senha</option>
+            </select>
+          </label>
           <label>Última consulta de
-            <input type="date" id="rgp-ex-de" />
+            <input type="date" id="rgp-rel-de" />
           </label>
           <label>até
-            <input type="date" id="rgp-ex-ate" />
+            <input type="date" id="rgp-rel-ate" />
           </label>
         </div>
-        <p class="page-sub" id="rgp-ex-status"></p>
+
+        <div class="rgp-rel-section">
+          <div class="rgp-rel-label">Situações <button type="button" class="rgp-link" id="rgp-rel-sit-all">todas</button> · <button type="button" class="rgp-link" id="rgp-rel-sit-none">limpar</button></div>
+          <div class="rgp-rel-checks" id="rgp-rel-sits">
+            ${sits.map((s) => `<label><input type="checkbox" class="rgp-rel-sit" value="${esc(s)}" /> ${esc(s)}</label>`).join("")}
+          </div>
+        </div>
+
+        <div class="rgp-rel-section">
+          <div class="rgp-rel-label">Municípios <button type="button" class="rgp-link" id="rgp-rel-mun-all">todos</button> · <button type="button" class="rgp-link" id="rgp-rel-mun-none">limpar</button></div>
+          <div class="rgp-rel-checks rgp-rel-munis" id="rgp-rel-muns">
+            ${munis.length
+              ? munis.map((m) => `<label><input type="checkbox" class="rgp-rel-mun" value="${esc(m)}" /> ${esc(m)}</label>`).join("")
+              : "<span class=\"page-sub\">Nenhum município cadastrado.</span>"}
+          </div>
+        </div>
+
+        <div class="rgp-rel-section">
+          <div class="rgp-rel-label">Colunas do relatório</div>
+          <div class="rgp-rel-checks" id="rgp-rel-cols">
+            ${colDefs.map(([k, lab]) => `
+              <label><input type="checkbox" class="rgp-rel-col" value="${k}" ${colsDefault.includes(k) ? "checked" : ""} /> ${esc(lab)}</label>
+            `).join("")}
+          </div>
+        </div>
+
+        <label class="rgp-rel-print">
+          <input type="checkbox" id="rgp-rel-print" checked />
+          Abrir diálogo de impressão automaticamente
+        </label>
+
+        <p class="rgp-rel-preview" id="rgp-rel-status">Prévia: — registro(s)</p>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
-        <button type="button" class="btn btn-ghost" id="rgp-ex-geral">Relatório HTML geral</button>
-        <button type="button" class="btn btn-primary" id="rgp-ex-go">Exportar CSV+HTML</button>
+        <button type="button" class="btn btn-primary" id="rgp-rel-go">${modoExport ? "Exportar CSV+HTML" : "Gerar relatório HTML"}</button>
       </div>
-    `);
-    function payloadBase(modoGeral) {
+    `, "modal-wide modal-rgp-relatorio");
+
+    function readOpts() {
+      const escopo = (backdrop.querySelector('input[name="rgp-rel-escopo"]:checked') || {}).value || "todos";
+      let ids = [];
+      if (escopo === "selecionados") ids = selIds.slice();
+      if (escopo === "filtrados") ids = filtIds.slice();
+      const situacoes = [...backdrop.querySelectorAll(".rgp-rel-sit:checked")].map((el) => el.value);
+      const municipios = [...backdrop.querySelectorAll(".rgp-rel-mun:checked")].map((el) => el.value);
+      const colunas = [...backdrop.querySelectorAll(".rgp-rel-col:checked")].map((el) => el.value);
       return {
-        municipio: backdrop.querySelector("#rgp-ex-mun").value || "",
-        situacao: backdrop.querySelector("#rgp-ex-sit").value || "",
-        ultima_de: backdrop.querySelector("#rgp-ex-de").value || "",
-        ultima_ate: backdrop.querySelector("#rgp-ex-ate").value || "",
-        abrir_html: true,
-        modo_geral: !!modoGeral,
+        escopo,
+        ids,
+        busca: (backdrop.querySelector("#rgp-rel-busca").value || "").trim(),
+        com_senha: backdrop.querySelector("#rgp-rel-senha").value || "",
+        ultima_de: backdrop.querySelector("#rgp-rel-de").value || "",
+        ultima_ate: backdrop.querySelector("#rgp-rel-ate").value || "",
+        situacoes,
+        municipios,
+        colunas,
+        auto_print: !!backdrop.querySelector("#rgp-rel-print").checked,
       };
     }
-    async function runExport(modoGeral) {
-      backdrop.querySelector("#rgp-ex-status").textContent = modoGeral
-        ? "Gerando relatório HTML geral…"
-        : "Exportando…";
+
+    function refreshPreview() {
+      const o = readOpts();
+      const n = previewCountLocal(st, o);
+      const status = backdrop.querySelector("#rgp-rel-status");
+      if (status) {
+        status.textContent = `Prévia: ${n} registro(s) com os filtros atuais`;
+      }
+      const go = backdrop.querySelector("#rgp-rel-go");
+      if (go) go.disabled = n === 0 || !(o.colunas && o.colunas.length);
+    }
+
+    backdrop.querySelectorAll("input, select").forEach((el) => {
+      el.addEventListener("change", refreshPreview);
+      el.addEventListener("input", refreshPreview);
+    });
+    backdrop.querySelector("#rgp-rel-sit-all")?.addEventListener("click", () => {
+      backdrop.querySelectorAll(".rgp-rel-sit").forEach((c) => { c.checked = true; });
+      refreshPreview();
+    });
+    backdrop.querySelector("#rgp-rel-sit-none")?.addEventListener("click", () => {
+      backdrop.querySelectorAll(".rgp-rel-sit").forEach((c) => { c.checked = false; });
+      refreshPreview();
+    });
+    backdrop.querySelector("#rgp-rel-mun-all")?.addEventListener("click", () => {
+      backdrop.querySelectorAll(".rgp-rel-mun").forEach((c) => { c.checked = true; });
+      refreshPreview();
+    });
+    backdrop.querySelector("#rgp-rel-mun-none")?.addEventListener("click", () => {
+      backdrop.querySelectorAll(".rgp-rel-mun").forEach((c) => { c.checked = false; });
+      refreshPreview();
+    });
+
+    refreshPreview();
+
+    backdrop.querySelector("#rgp-rel-go")?.addEventListener("click", async () => {
+      const o = readOpts();
+      if (!o.colunas.length) {
+        toast("Selecione ao menos uma coluna.");
+        return;
+      }
+      if (o.escopo === "selecionados" && !o.ids.length) {
+        toast("Nenhum sócio selecionado na tabela.");
+        return;
+      }
+      const de = o.ultima_de;
+      const ate = o.ultima_ate;
+      if (de && ate && de > ate) {
+        toast("Data «de» não pode ser maior que «até».");
+        return;
+      }
+      const status = backdrop.querySelector("#rgp-rel-status");
+      const go = backdrop.querySelector("#rgp-rel-go");
+      if (status) status.textContent = modoExport ? "Exportando…" : "Gerando relatório HTML…";
+      if (go) go.disabled = true;
+      const payload = {
+        escopo: o.escopo,
+        ids: o.ids.length ? o.ids : undefined,
+        busca: o.busca || undefined,
+        municipios: o.municipios.length ? o.municipios : undefined,
+        situacoes: o.situacoes.length ? o.situacoes : undefined,
+        ultima_de: o.ultima_de || undefined,
+        ultima_ate: o.ultima_ate || undefined,
+        com_senha: o.com_senha || undefined,
+        colunas: o.colunas,
+        auto_print: o.auto_print,
+        abrir_html: true,
+        modo_geral: !modoExport,
+      };
       try {
-        const method = modoGeral ? "relatorio_geral_consulta_rgp" : "exportar_consulta_rgp";
-        const r = await api(method, JSON.stringify(payloadBase(modoGeral)));
+        const method = modoExport ? "exportar_consulta_rgp" : "relatorio_geral_consulta_rgp";
+        const r = await api(method, JSON.stringify(payload));
         if (r && r.ok === false && !r.pending) {
-          toast(r.error || "Falha ao exportar.");
-          backdrop.querySelector("#rgp-ex-status").textContent = r.error || "Erro.";
+          toast(r.error || "Falha ao gerar.");
+          if (status) status.textContent = r.error || "Erro.";
+          if (go) go.disabled = false;
+        } else {
+          backdrop.remove();
         }
       } catch (_e) {
-        toast("Erro ao exportar.");
+        toast("Erro ao gerar relatório.");
+        if (go) go.disabled = false;
       }
-    }
-    backdrop.querySelector("#rgp-ex-go").addEventListener("click", () => runExport(false));
-    backdrop.querySelector("#rgp-ex-geral").addEventListener("click", () => runExport(true));
+    });
   }
 
   function openRelatorioGeral() {
-    openExportModal();
-    // auto-foco no botão geral — usuário confirma filtros
-    setTimeout(() => {
-      const btn = document.getElementById("rgp-ex-geral");
-      if (btn) btn.focus();
-    }, 50);
+    openRelatorioHtmlModal({ modo: "html" });
   }
 
   /** Correção em lote — nome, CPF, telefone, município, observação + senha Gov.br por sócio */
@@ -347,7 +584,7 @@
   function toolbarButtonsHtml() {
     return `
       <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-vencidos" title="Não consultado ou consulta antiga">↻ Vencidos</button>
-      <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-relatorio-geral" title="Nome, CPF, município, telefone, situação e senha Gov.br">☰ Relatório HTML</button>
+      <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-relatorio-geral" title="Relatório HTML com filtros, seleção e colunas">☰ Relatório HTML</button>
       <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-exportar">⇩ Exportar</button>
     `;
   }
@@ -355,17 +592,7 @@
   function bindToolbar() {
     document.getElementById("rgp-vencidos")?.addEventListener("click", openVencidosModal);
     document.getElementById("rgp-exportar")?.addEventListener("click", openExportModal);
-    document.getElementById("rgp-relatorio-geral")?.addEventListener("click", () => {
-      // gera direto o relatório geral (sem filtros extras)
-      (async () => {
-        try {
-          const r = await api("relatorio_geral_consulta_rgp", JSON.stringify({ abrir_html: true }));
-          if (r && r.ok === false && !r.pending) toast(r.error || "Falha no relatório.");
-        } catch (_e) {
-          toast("Erro ao gerar relatório.");
-        }
-      })();
-    });
+    document.getElementById("rgp-relatorio-geral")?.addEventListener("click", openRelatorioGeral);
   }
 
   function wireFuncoesEvents() {
@@ -432,6 +659,7 @@
     openVencidosModal,
     openExportModal,
     openRelatorioGeral,
+    openRelatorioHtmlModal,
     openEditarLoteModal,
     toolbarButtonsHtml,
     bindToolbar,

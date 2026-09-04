@@ -1939,6 +1939,14 @@ class SinapescApi:
                 situacao=str(local.get("situacao") or ""),
                 ultima_de=str(local.get("ultima_de") or ""),
                 ultima_ate=str(local.get("ultima_ate") or ""),
+                ids=local.get("ids") if isinstance(local.get("ids"), list) else None,
+                busca=str(local.get("busca") or local.get("q") or ""),
+                municipios=local.get("municipios") if isinstance(local.get("municipios"), list) else None,
+                situacoes=local.get("situacoes") if isinstance(local.get("situacoes"), list) else None,
+                com_senha=str(local.get("com_senha") or ""),
+                colunas=local.get("colunas") if isinstance(local.get("colunas"), list) else None,
+                auto_print=bool(local.get("auto_print", True)),
+                escopo=str(local.get("escopo") or ""),
                 abrir_html=bool(local.get("abrir_html", True)),
                 modo_geral=bool(local.get("modo_geral") or local.get("relatorio_geral")),
             )
@@ -1946,7 +1954,7 @@ class SinapescApi:
         return self._run_async("consulta_rgp_export", work, "Exportando Consulta RGP…")
 
     def relatorio_geral_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
-        """Relatório HTML geral: nome, CPF, município, telefone, situação RGP, senha Gov.br."""
+        """Relatório HTML com filtros/seleção e colunas configuráveis."""
         from webapp.consulta_rgp_ext import exportar_payload
 
         local = _js_payload_to_dict(payload)
@@ -1958,12 +1966,20 @@ class SinapescApi:
                 situacao=str(local.get("situacao") or ""),
                 ultima_de=str(local.get("ultima_de") or ""),
                 ultima_ate=str(local.get("ultima_ate") or ""),
+                ids=local.get("ids") if isinstance(local.get("ids"), list) else None,
+                busca=str(local.get("busca") or local.get("q") or ""),
+                municipios=local.get("municipios") if isinstance(local.get("municipios"), list) else None,
+                situacoes=local.get("situacoes") if isinstance(local.get("situacoes"), list) else None,
+                com_senha=str(local.get("com_senha") or ""),
+                colunas=local.get("colunas") if isinstance(local.get("colunas"), list) else None,
+                auto_print=bool(local.get("auto_print", True)),
+                escopo=str(local.get("escopo") or ""),
                 abrir_html=bool(local.get("abrir_html", True)),
                 modo_geral=True,
             )
 
         return self._run_async(
-            "consulta_rgp_export", work, "Gerando relatório HTML geral…"
+            "consulta_rgp_export", work, "Gerando relatório HTML…"
         )
 
     def editar_lote_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:

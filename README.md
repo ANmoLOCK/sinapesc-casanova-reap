@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.48**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48) |
+| Versão atual | [**v1.7.49**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.49) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.48)
+## Download do EXE (v1.7.49)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.48/SinapescREAP-Windows-v1.7.48.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.49/SinapescREAP-Windows-v1.7.49.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.49
 
-Versão anterior: [v1.7.47](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.47)
+Versão anterior: [v1.7.48](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
