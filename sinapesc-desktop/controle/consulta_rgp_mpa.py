@@ -1,10 +1,11 @@
 """
 Consulta pública MPA em processo/janela isolada (não derruba o EXE principal).
 
-Fluxo:
-1. Abre o site oficial em janela pywebview dedicada (ou subprocesso do próprio EXE).
-2. No domínio do MPA, aguarda reCAPTCHA v3 + fetch da API pública.
-3. Grava JSON de resultado em arquivo temporário e encerra.
+Fluxo confiável:
+1. Abre o site oficial em janela pywebview (subprocesso do EXE).
+2. Injeta script SÍNCRONO que inicia a consulta async e grava em window.__sinapescRgp.
+3. Python faz POLLING até done=true (evaluate_js NÃO espera Promise async).
+4. Grava JSON de resultado e encerra.
 
 URL oficial:
 https://pesqbrasil-pescadorprofissional.mpa.gov.br/acesso-externo
@@ -21,9 +22,9 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol
 
-from controle.consulta_rgp import extract_situacao_from_mpa, normalize_situacao
+from controle.consulta_rgp import extract_situacao_from_mpa, flatten_mpa_payload, normalize_situacao
 from ui.formatters import only_digits
 
 MPA_CONSULTA_URL = "https://pesqbrasil-pescadorprofissional.mpa.gov.br/acesso-externo"
@@ -31,134 +32,235 @@ MPA_RECAPTCHA_SITE_KEY = "6LeJP-srAAAAAFdZMYINP6CJ4COI_MAzFvk_0gs1"
 WORKER_FLAG = "--consulta-rgp-worker"
 
 
-def _js_consultar(cpf: str) -> str:
-    """Script injetado na página MPA (domínio válido para o reCAPTCHA)."""
+class _EvalWindow(Protocol):
+    def evaluate_js(self, script: str) -> Any: ...
+
+
+def _js_start_consulta(cpf: str) -> str:
+    """
+    Dispara a consulta em background e devolve true imediatamente.
+
+    Resultado fica em window.__sinapescRgp = {done, ok, data|error}.
+    Isso evita depender do pywebview aguardar Promise de async IIFE.
+    """
     cpf_js = json.dumps(only_digits(cpf))
     key_js = json.dumps(MPA_RECAPTCHA_SITE_KEY)
     return f"""
-(async function() {{
-  try {{
-    const cpf = {cpf_js};
-    const siteKey = {key_js};
+(function() {{
+  window.__sinapescRgp = {{ done: false, ok: false, error: "Consultando…" }};
+  (async function() {{
+    try {{
+      const cpf = {cpf_js};
+      const siteKey = {key_js};
 
-    async function waitGrecaptcha(maxMs) {{
-      const start = Date.now();
-      while (Date.now() - start < maxMs) {{
-        if (window.grecaptcha && typeof window.grecaptcha.execute === "function") {{
-          await new Promise((resolve, reject) => {{
-            try {{
-              grecaptcha.ready(() => resolve(true));
-            }} catch (e) {{
-              reject(e);
-            }}
-          }});
-          return true;
+      async function waitGrecaptcha(maxMs) {{
+        const start = Date.now();
+        while (Date.now() - start < maxMs) {{
+          if (window.grecaptcha && typeof window.grecaptcha.execute === "function") {{
+            await new Promise((resolve, reject) => {{
+              try {{ grecaptcha.ready(() => resolve(true)); }}
+              catch (e) {{ reject(e); }}
+            }});
+            return true;
+          }}
+          await new Promise((r) => setTimeout(r, 350));
         }}
-        await new Promise((r) => setTimeout(r, 400));
+        return false;
       }}
-      return false;
-    }}
 
-    if (!(await waitGrecaptcha(8000))) {{
-      // tenta carregar o script oficial se a página ainda não injetou
-      await new Promise((resolve, reject) => {{
-        const existing = document.querySelector('script[src*="recaptcha/api.js"]');
-        if (existing && window.grecaptcha) {{ resolve(true); return; }}
-        const s = document.createElement("script");
-        s.src = "https://www.google.com/recaptcha/api.js?render=" + siteKey;
-        s.async = true;
-        s.onload = () => resolve(true);
-        s.onerror = () => reject(new Error("Falha ao carregar reCAPTCHA"));
-        document.head.appendChild(s);
-      }});
-      if (!(await waitGrecaptcha(20000))) {{
-        return JSON.stringify({{ ok: false, error: "reCAPTCHA não carregou a tempo. Tente de novo." }});
-      }}
-    }}
-
-    const token = await new Promise((resolve, reject) => {{
-      try {{
-        grecaptcha.ready(() => {{
-          grecaptcha.execute(siteKey, {{ action: "submit" }})
-            .then(resolve)
-            .catch(reject);
+      if (!(await waitGrecaptcha(10000))) {{
+        await new Promise((resolve, reject) => {{
+          const s = document.createElement("script");
+          s.src = "https://www.google.com/recaptcha/api.js?render=" + siteKey;
+          s.async = true;
+          s.onload = () => resolve(true);
+          s.onerror = () => reject(new Error("Falha ao carregar reCAPTCHA"));
+          document.head.appendChild(s);
         }});
-      }} catch (e) {{
-        reject(e);
-      }}
-    }});
-
-    const params = new URLSearchParams();
-    params.append("cpf", cpf);
-    params.append("recaptchaToken", token);
-
-    // O front oficial do MPA usa path + URLSearchParams (sem '?').
-    // Mantemos fallback com query clássica.
-    const urls = [
-      "api/consulta-publica/pesquisa/" + params.toString(),
-      "api/consulta-publica/pesquisa/?" + params.toString(),
-      "/api/consulta-publica/pesquisa/" + params.toString(),
-    ];
-
-    let lastErr = "Consulta MPA sem resposta.";
-    let raw = null;
-    for (const url of urls) {{
-      try {{
-        const res = await fetch(url, {{ cache: "no-store", credentials: "same-origin" }});
-        let data = null;
-        try {{ data = await res.json(); }} catch (_) {{ data = null; }}
-        if (!res.ok) {{
-          lastErr = (data && (data.error || data.message || data.titulo)) || ("HTTP " + res.status);
-          raw = data;
-          continue;
+        if (!(await waitGrecaptcha(25000))) {{
+          window.__sinapescRgp = {{
+            done: true, ok: false,
+            error: "reCAPTCHA não carregou. Verifique a internet e tente de novo."
+          }};
+          return;
         }}
-        if (!data || typeof data !== "object") {{
-          lastErr = "JSON inválido da API MPA.";
-          continue;
-        }}
-        return JSON.stringify({{ ok: true, data: data, url: url }});
-      }} catch (e) {{
-        lastErr = String(e && e.message ? e.message : e);
       }}
+
+      const token = await new Promise((resolve, reject) => {{
+        try {{
+          grecaptcha.ready(() => {{
+            grecaptcha.execute(siteKey, {{ action: "submit" }})
+              .then(resolve).catch(reject);
+          }});
+        }} catch (e) {{ reject(e); }}
+      }});
+
+      const params = new URLSearchParams();
+      params.append("cpf", cpf);
+      params.append("recaptchaToken", token);
+
+      // Front oficial: path + URLSearchParams (sem '?')
+      const urls = [
+        "api/consulta-publica/pesquisa/" + params.toString(),
+        "/api/consulta-publica/pesquisa/" + params.toString(),
+        "api/consulta-publica/pesquisa/?" + params.toString()
+      ];
+
+      let lastErr = "Consulta MPA sem resposta.";
+      for (const url of urls) {{
+        try {{
+          const res = await fetch(url, {{ cache: "no-store", credentials: "same-origin" }});
+          let data = null;
+          try {{ data = await res.json(); }} catch (_) {{ data = null; }}
+          if (!res.ok) {{
+            const msg = (data && (data.error || data.message || data.titulo)) || ("HTTP " + res.status);
+            const low = String(msg).toLowerCase();
+            if (low.includes("não foi encontrado") || low.includes("nao foi encontrado") || low.includes("inválido") || low.includes("invalido")) {{
+              window.__sinapescRgp = {{
+                done: true, ok: true,
+                data: {{ sem_registros: true, situacao: "Não encontrado", cpf: cpf, error: msg }}
+              }};
+              return;
+            }}
+            lastErr = msg;
+            continue;
+          }}
+          if (!data || typeof data !== "object") {{
+            lastErr = "JSON inválido da API MPA.";
+            continue;
+          }}
+          if (Array.isArray(data.content) && data.content.length === 0) {{
+            window.__sinapescRgp = {{
+              done: true, ok: true,
+              data: {{ sem_registros: true, situacao: "Não encontrado", cpf: cpf }}
+            }};
+            return;
+          }}
+          window.__sinapescRgp = {{ done: true, ok: true, data: data, url: url }};
+          return;
+        }} catch (e) {{
+          lastErr = String(e && e.message ? e.message : e);
+        }}
+      }}
+      window.__sinapescRgp = {{ done: true, ok: false, error: lastErr }};
+    }} catch (e) {{
+      window.__sinapescRgp = {{
+        done: true, ok: false,
+        error: String(e && e.message ? e.message : e)
+      }};
     }}
-    return JSON.stringify({{ ok: false, error: lastErr, raw: raw }});
-  }} catch (e) {{
-    return JSON.stringify({{ ok: false, error: String(e && e.message ? e.message : e) }});
-  }}
+  }})();
+  return true;
 }})()
 """
 
 
+def _js_poll_resultado() -> str:
+    return """
+(function() {
+  try {
+    return JSON.stringify(window.__sinapescRgp || { done: false, ok: false, error: "aguardando" });
+  } catch (e) {
+    return JSON.stringify({ done: false, ok: false, error: String(e) });
+  }
+})()
+"""
+
+
+# Compat: testes antigos ainda importam _js_consultar
+def _js_consultar(cpf: str) -> str:
+    return _js_start_consulta(cpf)
+
+
 def _parse_worker_result(raw: Any) -> Dict[str, Any]:
     if raw is None:
-        return {"ok": False, "error": "Sem resposta da janela MPA."}
+        return {"ok": False, "error": "Sem resposta da janela MPA.", "done": True}
     if isinstance(raw, dict):
         return raw
     text = str(raw).strip()
     if not text:
-        return {"ok": False, "error": "Resposta vazia da janela MPA."}
-    # pywebview às vezes devolve string JSON com aspas extras
+        return {"ok": False, "error": "Resposta vazia da janela MPA.", "done": True}
+    if text in ("true", "True"):
+        return {"done": False, "ok": False, "error": "aguardando"}
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
         try:
             data = json.loads(json.loads(text))
         except Exception:  # noqa: BLE001
-            return {"ok": False, "error": f"Resposta inválida: {text[:200]}"}
+            return {"ok": False, "error": f"Resposta inválida: {text[:200]}", "done": True}
     if isinstance(data, dict):
         return data
-    return {"ok": False, "error": "Formato inesperado da consulta."}
+    return {"ok": False, "error": "Formato inesperado da consulta.", "done": True}
 
 
-def _enrich_ok_result(parsed: Dict[str, Any], digits: str) -> Dict[str, Any]:
-    data = parsed.get("data") if isinstance(parsed.get("data"), dict) else {}
-    situacao = extract_situacao_from_mpa(data)
+def _enrich_ok_result(data: Dict[str, Any], digits: str) -> Dict[str, Any]:
+    flat = flatten_mpa_payload(data)
+    situacao = extract_situacao_from_mpa(flat)
     return {
         "ok": True,
-        "data": data,
+        "data": flat,
         "situacao": situacao,
         "cpf": digits,
     }
+
+
+def drive_consulta_on_window(
+    window: _EvalWindow,
+    cpf: str,
+    *,
+    timeout_s: float = 100.0,
+    poll_s: float = 0.45,
+    settle_s: float = 3.0,
+) -> Dict[str, Any]:
+    """
+    Protocolo estável: start sync + poll JSON em window.__sinapescRgp.
+
+    Usado pelo worker real e pelos testes com FakeWindow.
+    """
+    digits = only_digits(cpf)
+    if len(digits) != 11:
+        return {"ok": False, "error": "CPF inválido (11 dígitos)."}
+
+    if settle_s > 0:
+        time.sleep(settle_s)
+
+    last_err = "Falha ao iniciar consulta."
+    started = False
+    for attempt in range(4):
+        try:
+            window.evaluate_js(_js_start_consulta(digits))
+            started = True
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_err = str(exc)
+            time.sleep(1.2 + attempt * 0.4)
+    if not started:
+        return {"ok": False, "error": f"Não iniciou script MPA: {last_err}", "cpf": digits}
+
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            raw = window.evaluate_js(_js_poll_resultado())
+            parsed = _parse_worker_result(raw)
+        except Exception as exc:  # noqa: BLE001
+            last_err = str(exc)
+            time.sleep(poll_s)
+            continue
+
+        if parsed.get("done"):
+            if parsed.get("ok") and isinstance(parsed.get("data"), dict):
+                return _enrich_ok_result(parsed["data"], digits)
+            return {
+                "ok": False,
+                "error": str(parsed.get("error") or "Consulta MPA sem resultado."),
+                "cpf": digits,
+                "raw": parsed.get("raw"),
+            }
+        last_err = str(parsed.get("error") or "Aguardando resposta MPA…")
+        time.sleep(poll_s)
+
+    return {"ok": False, "error": f"Tempo esgotado na consulta MPA. ({last_err})", "cpf": digits}
 
 
 def run_consulta_in_webview(cpf: str, *, timeout_s: float = 120.0) -> Dict[str, Any]:
@@ -189,33 +291,23 @@ def run_consulta_in_webview(cpf: str, *, timeout_s: float = 120.0) -> Dict[str, 
 
     def on_loaded() -> None:
         def work() -> None:
-            # Espera Next.js + reCAPTCHA
-            time.sleep(3.5)
             w = window_ref.get("w")
             if w is None:
                 finish({"ok": False, "error": "Janela MPA não disponível."})
                 return
-            last_err = "Falha ao consultar."
-            for attempt in range(6):
-                try:
-                    raw = w.evaluate_js(_js_consultar(digits))
-                    parsed = _parse_worker_result(raw)
-                    if parsed.get("ok") and isinstance(parsed.get("data"), dict):
-                        finish(_enrich_ok_result(parsed, digits))
-                        return
-                    last_err = str(parsed.get("error") or last_err)
-                except Exception as exc:  # noqa: BLE001
-                    last_err = str(exc)
-                time.sleep(2.0 + attempt * 0.5)
-            finish({"ok": False, "error": last_err, "cpf": digits})
+            try:
+                finish(drive_consulta_on_window(w, digits, timeout_s=timeout_s - 5))
+            except Exception as exc:  # noqa: BLE001
+                finish({"ok": False, "error": str(exc), "cpf": digits})
 
         threading.Thread(target=work, daemon=True).start()
 
-    already = False
+    windows = []
     try:
-        already = bool(getattr(webview, "windows", None))
+        windows = list(getattr(webview, "windows", []) or [])
     except Exception:  # noqa: BLE001
-        already = False
+        windows = []
+    already = len(windows) > 0
 
     try:
         w = webview.create_window(
@@ -245,7 +337,12 @@ def run_consulta_in_webview(cpf: str, *, timeout_s: float = 120.0) -> Dict[str, 
 
     threading.Thread(target=watchdog, daemon=True).start()
     try:
-        webview.start()
+        # Edge no Windows (mesmo motor do EXE principal)
+        gui = "edgechromium" if sys.platform == "win32" else None
+        if gui:
+            webview.start(gui=gui)
+        else:
+            webview.start()
     except Exception as exc:  # noqa: BLE001
         if not holder["done"]:
             return {"ok": False, "error": f"Falha no motor da janela: {exc}"}
@@ -274,8 +371,7 @@ def run_worker_cli(argv: Optional[list[str]] = None) -> int:
 
 def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, Any]:
     """
-    Dispara consulta em subprocesso separado (estilo .bat / PowerShell),
-    para não travar nem derrubar o app principal.
+    Dispara consulta em subprocesso separado para não derrubar o app principal.
     """
     digits = only_digits(cpf)
     if len(digits) != 11:
@@ -301,9 +397,8 @@ def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, An
         cwd = str(main_py.parent)
 
     flags = 0
-    if os.name == "nt":
-        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
-            flags |= subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+    if os.name == "nt" and hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+        flags |= subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
 
     try:
         err_f = open(err_path, "w", encoding="utf-8")  # noqa: SIM115
@@ -323,8 +418,7 @@ def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, An
             err_path.unlink(missing_ok=True)
         except OSError:
             pass
-        # Fallback: mesma máquina / processo (ainda isolado por try no caller)
-        return run_consulta_in_webview(digits, timeout_s=timeout_s)
+        return {"ok": False, "error": f"Não iniciou worker MPA: {exc}"}
 
     try:
         proc.wait(timeout=timeout_s)
@@ -337,14 +431,11 @@ def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, An
             err_f.close()
         except Exception:  # noqa: BLE001
             pass
-        try:
-            out_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        try:
-            err_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        for p in (out_path, err_path):
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
         return {"ok": False, "error": "Consulta MPA excedeu o tempo (subprocesso)."}
 
     try:
@@ -354,59 +445,63 @@ def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, An
 
     log_tail = ""
     try:
-        log_tail = err_path.read_text(encoding="utf-8", errors="ignore")[-500:]
+        log_tail = err_path.read_text(encoding="utf-8", errors="ignore")[-600:]
     except OSError:
         log_tail = ""
 
     try:
         text = out_path.read_text(encoding="utf-8")
-        data = json.loads(text) if text.strip() else {"ok": False, "error": "Arquivo vazio."}
+        data = json.loads(text) if text.strip() else {"ok": False, "error": "Arquivo vazio do worker."}
     except (OSError, json.JSONDecodeError) as exc:
         data = {
             "ok": False,
-            "error": f"Não foi possível ler resultado: {exc}"
+            "error": f"Não foi possível ler resultado do worker: {exc}"
             + (f" | log: {log_tail}" if log_tail else ""),
         }
     finally:
-        try:
-            out_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        try:
-            err_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        for p in (out_path, err_path):
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     if not isinstance(data, dict):
-        return {"ok": False, "error": "Resultado inválido."}
+        return {"ok": False, "error": "Resultado inválido do worker."}
 
     if data.get("ok"):
         raw = data.get("data") if isinstance(data.get("data"), dict) else {}
-        data["situacao"] = extract_situacao_from_mpa(raw) or normalize_situacao(
-            str(data.get("situacao") or "")
-        )
+        flat = flatten_mpa_payload(raw)
+        sit = extract_situacao_from_mpa(flat)
+        if not sit or sit == "Não consultado":
+            sit = normalize_situacao(str(data.get("situacao") or ""))
+        data["data"] = flat
+        data["situacao"] = sit
         data["cpf"] = digits
+        data["ok"] = True
         return data
 
-    # Worker falhou: tenta uma vez no processo atual (quando possível)
-    if "Janela MPA" in str(data.get("error") or "") or "pywebview" in str(data.get("error") or ""):
-        fallback = run_consulta_in_webview(digits, timeout_s=min(timeout_s, 90))
-        if fallback.get("ok"):
-            return fallback
-
-    if log_tail and "log:" not in str(data.get("error") or ""):
-        data["error"] = str(data.get("error") or "Falha na consulta") + f" | log: {log_tail}"
-    return data
+    err = str(data.get("error") or "Falha na consulta MPA.")
+    low = err.lower()
+    # Trata "não encontrado" do MPA como consulta concluída (grava na planilha).
+    if "não foi encontrado" in low or "nao foi encontrado" in low:
+        return {
+            "ok": True,
+            "data": {"sem_registros": True, "situacao": "Não encontrado", "cpf": digits},
+            "situacao": "Não encontrado",
+            "cpf": digits,
+        }
+    if log_tail and "log:" not in err:
+        err = f"{err} | log: {log_tail}"
+    return {"ok": False, "error": err, "cpf": digits}
 
 
 def abrir_site_mpa_no_navegador(cpf: str = "") -> None:
     """Abre o site oficial no Edge/Chrome (fallback manual)."""
     import webbrowser
 
-    url = MPA_CONSULTA_URL
     digits = only_digits(cpf)
     try:
-        webbrowser.open(url)
+        webbrowser.open(MPA_CONSULTA_URL)
     except Exception:  # noqa: BLE001
         pass
     if digits and len(digits) == 11:

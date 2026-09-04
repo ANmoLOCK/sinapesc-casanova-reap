@@ -45,6 +45,7 @@ SITUACAO_CANCELADO = "Cancelado"
 SITUACAO_INATIVO = "Inativo"
 SITUACAO_PEND_REG = "Pend. regularização"
 SITUACAO_NAO_CONSULTADO = "Não consultado"
+SITUACAO_NAO_ENCONTRADO = "Não encontrado"
 
 # Só Ativo entra nas planilhas REAP e Defeso
 SITUACOES_APTAS_IMPORT = frozenset(
@@ -87,6 +88,10 @@ _SITUACAO_ALIASES = {
     "em correcao": SITUACAO_PEND_REG,
     "nao consultado": SITUACAO_NAO_CONSULTADO,
     "não consultado": SITUACAO_NAO_CONSULTADO,
+    "nao encontrado": SITUACAO_NAO_ENCONTRADO,
+    "não encontrado": SITUACAO_NAO_ENCONTRADO,
+    "nao encontrado no mpa": SITUACAO_NAO_ENCONTRADO,
+    "não encontrado no mpa": SITUACAO_NAO_ENCONTRADO,
     "": SITUACAO_NAO_CONSULTADO,
 }
 
@@ -135,26 +140,51 @@ def normalize_situacao(raw: Any) -> str:
     return text
 
 
+def flatten_mpa_payload(data: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Normaliza envelope da API MPA (objeto plano, content[], data{}, etc.)."""
+    if not isinstance(data, dict):
+        return {}
+    out = dict(data)
+    if out.get("sem_registros") or out.get("not_found"):
+        out.setdefault("situacao", SITUACAO_NAO_ENCONTRADO)
+        return out
+    for key in ("resultado", "content", "data", "items", "registros", "resultados"):
+        val = out.get(key)
+        if isinstance(val, list):
+            if len(val) == 0:
+                out["sem_registros"] = True
+                out["situacao"] = SITUACAO_NAO_ENCONTRADO
+                return out
+            if isinstance(val[0], dict):
+                merged = {**out, **val[0]}
+                return merged
+        if isinstance(val, dict):
+            return {**out, **val}
+    return out
+
+
 def extract_situacao_from_mpa(data: Dict[str, Any] | None) -> str:
     """Extrai situação RGP de formatos variados da API pública MPA."""
     if not isinstance(data, dict):
         return SITUACAO_NAO_CONSULTADO
+    flat = flatten_mpa_payload(data)
+    if flat.get("sem_registros") or flat.get("not_found"):
+        return SITUACAO_NAO_ENCONTRADO
     candidates = [
-        data.get("situacao"),
-        data.get("situacaoRgp"),
-        data.get("situacao_rgp"),
-        data.get("situacaoRGP"),
-        data.get("status"),
-        data.get("label"),
+        flat.get("situacao"),
+        flat.get("situacaoRgp"),
+        flat.get("situacao_rgp"),
+        flat.get("situacaoRGP"),
+        flat.get("status"),
+        flat.get("label"),
     ]
-    nested = data.get("resultado") or data.get("content") or data.get("data")
-    if isinstance(nested, dict):
+    pescador = flat.get("pescador")
+    if isinstance(pescador, dict):
         candidates.extend(
             [
-                nested.get("situacao"),
-                nested.get("situacaoRgp"),
-                nested.get("situacao_rgp"),
-                nested.get("status"),
+                pescador.get("situacao"),
+                pescador.get("situacaoRgp"),
+                pescador.get("status"),
             ]
         )
     for raw in candidates:
@@ -379,12 +409,13 @@ def aplicar_resultado_mpa(
     ator: str = "Sistema",
 ) -> RegistroConsultaRgp:
     """Atualiza registro com payload JSON da API pública MPA."""
-    situacao = extract_situacao_from_mpa(data)
+    flat = flatten_mpa_payload(data if isinstance(data, dict) else {})
+    situacao = extract_situacao_from_mpa(flat)
     nome_api = " ".join(
         p
         for p in (
-            str(data.get("nome") or "").strip(),
-            str(data.get("sobrenome") or "").strip(),
+            str(flat.get("nome") or "").strip(),
+            str(flat.get("sobrenome") or "").strip(),
         )
         if p
     )
@@ -393,25 +424,25 @@ def aplicar_resultado_mpa(
     elif nome_api and len(nome_api) > len(reg.nome or ""):
         reg.nome = format_nome(nome_api)
 
-    if data.get("cpf"):
-        reg.cpf = only_digits(str(data.get("cpf")))
-    tel = data.get("telefone") or data.get("celular") or data.get("fone")
+    if flat.get("cpf"):
+        reg.cpf = only_digits(str(flat.get("cpf")))
+    tel = flat.get("telefone") or flat.get("celular") or flat.get("fone")
     if tel:
         reg.telefone = str(tel).strip() or reg.telefone
-    mun = data.get("municipio") or data.get("municipioPescador")
+    mun = flat.get("municipio") or flat.get("municipioPescador")
     if mun:
         reg.municipio = str(mun).strip() or reg.municipio
-    uf = data.get("uf") or data.get("ufPescador")
+    uf = flat.get("uf") or flat.get("ufPescador")
     if uf:
         reg.uf = str(uf).strip().upper()[:2] or reg.uf
-    if data.get("codigoRGP") or data.get("codigo_rgp") or data.get("rgp"):
+    if flat.get("codigoRGP") or flat.get("codigo_rgp") or flat.get("rgp"):
         reg.codigo_rgp = str(
-            data.get("codigoRGP") or data.get("codigo_rgp") or data.get("rgp") or ""
+            flat.get("codigoRGP") or flat.get("codigo_rgp") or flat.get("rgp") or ""
         ).strip()
-    if data.get("categoria"):
-        reg.categoria = str(data.get("categoria") or "").strip()
-    if data.get("email"):
-        reg.email = str(data.get("email") or "").strip() or reg.email
+    if flat.get("categoria"):
+        reg.categoria = str(flat.get("categoria") or "").strip()
+    if flat.get("email"):
+        reg.email = str(flat.get("email") or "").strip() or reg.email
 
     old = normalize_situacao(reg.situacao_rgp)
     if situacao and situacao != SITUACAO_NAO_CONSULTADO:

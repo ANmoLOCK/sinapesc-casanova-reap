@@ -2525,9 +2525,21 @@
     document.querySelectorAll("[data-act=consultar]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        state.consultaRgpSelectedId = btn.dataset.id || "";
+        const id = btn.dataset.id || "";
+        state.consultaRgpSelectedId = id;
         state.consultaRgpEditMode = false;
         renderConsultaRgp();
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg?.id) {
+          toast("Selecione um registro válido.");
+          return;
+        }
+        if ((String(reg.cpf || "").replace(/\D/g, "")).length !== 11) {
+          toast("CPF inválido para consulta.");
+          return;
+        }
+        toast("Consultando situação RGP no MPA…", 3500);
+        api("consultar_rgp_pessoa", reg.id, reg.cpf || "");
       });
     });
     document.querySelectorAll("[data-act=editar]").forEach((btn) => {

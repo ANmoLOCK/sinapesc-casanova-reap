@@ -1665,20 +1665,15 @@ class SinapescApi:
             try:
                 result = consultar_cpf_isolado(alvo)
             except Exception as exc:  # noqa: BLE001
-                abrir_site_mpa_no_navegador(alvo)
                 raise ValueError(
                     f"Consulta automática falhou ({exc}). "
-                    "Site MPA aberto no navegador; CPF na área de transferência."
+                    "Use «Abrir site MPA» se precisar consultar manualmente."
                 ) from exc
 
             if not result.get("ok"):
-                try:
-                    abrir_site_mpa_no_navegador(alvo)
-                except Exception:  # noqa: BLE001
-                    pass
                 raise ValueError(
                     str(result.get("error") or "Consulta MPA sem resultado.")
-                    + " Site aberto no navegador (CPF copiado)."
+                    + " Use «Abrir site MPA» se precisar consultar manualmente."
                 )
 
             data = result.get("data") if isinstance(result.get("data"), dict) else {}

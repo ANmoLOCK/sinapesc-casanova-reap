@@ -6,6 +6,7 @@ on:
       - cursor/sinapesc-desktop-exe-46d6
       - cursor/consulta-rgp-46d6
       - cursor/consulta-rgp-ui-opcoes-46d6
+      - cursor/consulta-rgp-fix-mpa-46d6
       - main
     tags:
       - "v*"
@@ -51,7 +52,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.30)
+          SINAPESC REAP — COMO USAR (v1.7.31)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -75,8 +76,9 @@ jobs:
           10. Municipio REAP (planilha Pessoas) e municipio Defeso (declaracao)
              sao campos separados — salvar um nao altera o outro.
           11. Modulo Consulta RGP: Cadastrar socio (nome/CPF/municipio/telefone/
-             observacao). Consultar abre o painel; consulta MPA no painel.
-             Cadastrar dispara consulta MPA automatica. Chips de situacao
+             observacao). Consultar dispara a consulta MPA automatica e grava
+             a situacao na planilha. «Abrir site MPA» e so o fallback manual.
+             Cadastrar tambem dispara consulta automatica. Chips de situacao
              filtram a tabela. Nesta etapa sync Consulta <-> REAP fica
              disponivel na UI (preferencias), mas o envio ainda pode estar
              restrito no servidor.

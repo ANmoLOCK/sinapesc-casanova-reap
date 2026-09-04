@@ -8,6 +8,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.31] — 2026-09-04 — Corrige consulta MPA (polling + gravação)
+
+**Tag:** [`v1.7.31`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.31)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.31/SinapescREAP-Windows-v1.7.31.zip
+
+- Consulta MPA: script síncrono + polling (pywebview não espera Promise async)
+- Botão Consultar da tabela dispara a consulta de verdade e grava a situação
+- Falha não abre mais o navegador sozinha — use «Abrir site MPA» só se precisar
+- Trata «não encontrado» e envelopes `content[]` da API pública
+- Testes FakeWindow de polling antes do build
+
 ## [v1.7.30] — 2026-09-04 — Consulta MPA grava situação + UI folgada
 
 **Tag:** [`v1.7.30`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.30)  
