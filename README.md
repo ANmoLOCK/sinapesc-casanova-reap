@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.44**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44) |
+| Versão atual | [**v1.7.45**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.45) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.44)
+## Download do EXE (v1.7.45)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.44/SinapescREAP-Windows-v1.7.44.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.45/SinapescREAP-Windows-v1.7.45.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.45
 
-Versão anterior: [v1.7.43](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.43)
+Versão anterior: [v1.7.44](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -48,6 +48,11 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.7.45
+
+- **Scroll** da lista de sócios na Consulta RGP restaurado
+- Import TXT/XLSX/PDF captura **nome + CPF** na mesma linha (e CPF↔nome invertido)
 
 ## O que há na v1.7.44
 

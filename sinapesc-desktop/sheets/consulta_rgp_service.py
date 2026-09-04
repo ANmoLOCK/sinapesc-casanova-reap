@@ -409,7 +409,11 @@ class ConsultaRgpService:
 
             existing = by_cpf.get(cpf)
             if existing:
-                existing.nome = nome or existing.nome
+                # não sobrescrever nome bom com placeholder «CPF 000…»
+                if nome and not nome.lower().startswith("cpf "):
+                    existing.nome = nome
+                elif not (existing.nome or "").strip():
+                    existing.nome = nome or existing.nome
                 if mun:
                     existing.municipio = mun
                 if tel:

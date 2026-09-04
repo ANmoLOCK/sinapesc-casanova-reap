@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.45] — 2026-09-04 — Scroll da lista + import nome+CPF (TXT/XLSX/PDF)
+
+**Tag:** [`v1.7.45`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.45)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.45/SinapescREAP-Windows-v1.7.45.zip
+
+- Restaura scroll da Consulta RGP (`.rgp-shell` em flex + altura) para rolar a lista de sócios
+- Import TXT/XLSX/PDF captura **nome e CPF juntos** (CPF no início ou no fim; linhas alternadas; evita telefone como CPF)
+- Não grava mais sócio só com «CPF 000…» no lugar do nome
+
 ## [v1.7.44] — 2026-09-04 — Filtros RGP oficiais + anti-cota na consulta em lote
 
 **Tag:** [`v1.7.44`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44)  
