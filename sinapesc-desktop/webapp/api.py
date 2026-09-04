@@ -1688,6 +1688,14 @@ class SinapescApi:
 
         def work():
             svc = self._ensure_consulta_rgp()
+            # Senha Gov.br (módulo) — aba Config da planilha
+            if "govbr_senha" in local:
+                senha = str(local.get("govbr_senha") or "")
+                svc.set_govbr_senha(senha)
+                cfg = load_config()
+                cfg["consulta_rgp_govbr_senha"] = senha
+                cfg["consulta_rgp_govbr_opcional"] = bool(senha)
+                save_config(cfg)
             if not str(local.get("id") or "").strip():
                 reg = svc.upsert_manual(
                     nome=str(local.get("nome") or "").strip(),
@@ -1711,6 +1719,8 @@ class SinapescApi:
                     local.setdefault("importado_defeso_em", existing.importado_defeso_em)
                     local.setdefault("cadastro_reap_em", existing.cadastro_reap_em)
                     local.setdefault("person_id", existing.person_id)
+                # govbr_senha não é coluna do registro
+                local.pop("govbr_senha", None)
                 reg = svc.salvar(local)
             svc.registrar_auditoria(
                 "consulta_rgp_salvar",
@@ -1723,6 +1733,7 @@ class SinapescApi:
                 "registro": reg.to_dict(),
                 "itens": [r.to_dict() for r in regs],
                 "kpis": resumo_kpis(regs),
+                "govbr_senha": svc.get_govbr_senha(),
             }
 
         return self._run_async("consulta_rgp_saved", work, "Salvando registro…")

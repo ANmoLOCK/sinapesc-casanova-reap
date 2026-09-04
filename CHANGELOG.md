@@ -10,6 +10,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.41] — 2026-09-04 — Senha Gov.br no Editar + formulário organizado
+
+**Tag:** [`v1.7.41`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.41)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.41/SinapescREAP-Windows-v1.7.41.zip
+
+- Editar sócio mostra a senha Gov.br (antes só no cadastro novo)
+- Formulário em seções: dados do sócio · acesso Gov.br · observação
+- Salvar no Editar grava a senha na aba Config da planilha
+- Botão «Editar» abre o modal completo (não só o painel lateral)
+
 ## [v1.7.40] — 2026-09-04 — Lote, consulta automática e auditoria RGP
 
 **Tag:** [`v1.7.40`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.40)  

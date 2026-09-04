@@ -2373,22 +2373,22 @@
 
   function openConsultaSocioModal(reg) {
     const edit = !!reg;
+    const senhaAtual = state.consultaRgpGovbrSenha || "";
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop rgp-modal-backdrop";
     backdrop.innerHTML = `
       <div class="modal rgp-cadastro-modal" role="dialog" aria-modal="true" aria-labelledby="rgp-ed-title">
         <div class="rgp-cadastro-head">
           <div>
-            <div class="rgp-cadastro-kicker">Consulta RGP <span class="rgp-tag">CADASTRO</span></div>
+            <div class="rgp-cadastro-kicker">Consulta RGP <span class="rgp-tag">${edit ? "EDITAR" : "CADASTRO"}</span></div>
             <h2 id="rgp-ed-title" class="rgp-cadastro-title">${edit ? "Editar sócio" : "Cadastrar sócio"}</h2>
-            <p class="rgp-cadastro-sub">${edit
-              ? "Atualize os dados na planilha Consulta (nome, CPF, município, telefone e observação)."
-              : "Preencha os dados do sócio. A senha Gov.br (opcional) também é salva na planilha."}</p>
+            <p class="rgp-cadastro-sub">Dados do sócio e senha Gov.br são gravados na planilha Consulta RGP (aba Config).</p>
           </div>
           <button type="button" class="rgp-cadastro-close" id="rgp-ed-x" aria-label="Fechar">✕</button>
         </div>
         <div class="rgp-cadastro-body">
           <div class="rgp-cadastro-grid">
+            <div class="rgp-form-section rgp-span-2">Dados do sócio</div>
             <label class="rgp-field-block rgp-span-2">
               <span>Nome completo <em>*</em></span>
               <input id="rgp-ed-nome" type="text" autocomplete="name" value="${esc(reg?.nome || "")}" placeholder="Ex.: Maria Aparecida da Silva" />
@@ -2403,16 +2403,23 @@
             </label>
             <label class="rgp-field-block rgp-span-2">
               <span>Município</span>
-              <input id="rgp-ed-mun" type="text" value="${esc(reg?.municipio || "")}" placeholder="Ex.: Itajaí" />
+              <input id="rgp-ed-mun" type="text" value="${esc(reg?.municipio || "")}" placeholder="Ex.: Casa Nova" />
             </label>
-            ${!edit ? `
+
+            <div class="rgp-form-section rgp-span-2">Acesso Gov.br <span class="rgp-form-hint">salva na planilha · opcional</span></div>
             <label class="rgp-field-block rgp-span-2">
-              <span>Senha Gov.br <em>(opcional)</em></span>
-              <input id="rgp-ed-govbr" type="password" autocomplete="new-password" placeholder="Digite a senha Gov.br" value="${esc(state.consultaRgpGovbrSenha || "")}" />
-            </label>` : ""}
+              <span>Senha Gov.br</span>
+              <div class="rgp-senha-row">
+                <input id="rgp-ed-govbr" type="password" autocomplete="new-password" placeholder="${senhaAtual ? "Senha já salva — altere se quiser" : "Digite a senha Gov.br"}" value="${esc(senhaAtual)}" />
+                <button type="button" class="rgp-btn rgp-btn-ghost rgp-senha-toggle" id="rgp-ed-govbr-toggle" aria-label="Mostrar senha">Mostrar</button>
+              </div>
+              <span class="rgp-field-hint">Usada nas consultas MPA. Uma senha para o módulo (não por sócio).</span>
+            </label>
+
+            <div class="rgp-form-section rgp-span-2">Observação</div>
             <label class="rgp-field-block rgp-span-2">
-              <span>Observação</span>
-              <textarea id="rgp-ed-obs" rows="3" placeholder="Anotações internas (opcional)">${esc(reg?.observacao || "")}</textarea>
+              <span>Anotações internas</span>
+              <textarea id="rgp-ed-obs" rows="3" placeholder="Opcional">${esc(reg?.observacao || "")}</textarea>
             </label>
           </div>
         </div>
@@ -2428,6 +2435,13 @@
     $("#rgp-ed-x").addEventListener("click", close);
     const cpfInput = $("#rgp-ed-cpf");
     if (cpfInput && typeof bindCpfMask === "function") bindCpfMask(cpfInput);
+    const govbrInput = $("#rgp-ed-govbr");
+    $("#rgp-ed-govbr-toggle")?.addEventListener("click", () => {
+      if (!govbrInput) return;
+      const show = govbrInput.type === "password";
+      govbrInput.type = show ? "text" : "password";
+      $("#rgp-ed-govbr-toggle").textContent = show ? "Ocultar" : "Mostrar";
+    });
     $("#rgp-ed-nome")?.focus();
     $("#rgp-ed-ok").addEventListener("click", () => {
       const nome = ($("#rgp-ed-nome")?.value || "").trim();
@@ -2435,7 +2449,7 @@
       const municipio = ($("#rgp-ed-mun")?.value || "").trim();
       const telefone = ($("#rgp-ed-tel")?.value || "").trim();
       const observacao = ($("#rgp-ed-obs")?.value || "").trim();
-      const govbrSenha = $("#rgp-ed-govbr") ? String($("#rgp-ed-govbr").value || "") : null;
+      const govbrSenha = String($("#rgp-ed-govbr")?.value || "");
       if (!nome) { toast("Informe o nome."); return; }
       const cpfN = normalizeCpf(cpf);
       if (cpfN.length !== 11) { toast("CPF inválido."); return; }
@@ -2457,11 +2471,9 @@
         importado_reap_em: reg?.importado_reap_em || "",
         importado_defeso_em: reg?.importado_defeso_em || "",
         cadastro_reap_em: reg?.cadastro_reap_em || "",
+        govbr_senha: govbrSenha,
       };
-      if (govbrSenha !== null) {
-        payload.govbr_senha = govbrSenha;
-        state.consultaRgpGovbrSenha = govbrSenha;
-      }
+      state.consultaRgpGovbrSenha = govbrSenha;
       close();
       if (edit && reg?.id) {
         state.consultaRgpPendingConsulta = false;
@@ -2492,6 +2504,9 @@
       importado_defeso_em: selected.importado_defeso_em,
       cadastro_reap_em: selected.cadastro_reap_em,
       timeline: selected.timeline,
+      govbr_senha: $("#rgp-det-govbr")
+        ? String($("#rgp-det-govbr").value || "")
+        : (state.consultaRgpGovbrSenha || ""),
     };
   }
 
@@ -2545,6 +2560,7 @@
         <div class="rgp-detalhe-body">
           ${sideTab === "dados" ? `
             <div class="rgp-cadastro-grid rgp-side-edit">
+              <div class="rgp-form-section rgp-span-2">Dados do sócio</div>
               <label class="rgp-field-block rgp-span-2">
                 <span>Nome completo <em>*</em></span>
                 <input id="rgp-det-nome" type="text" value="${esc(reg.nome || "")}" placeholder="Nome completo" />
@@ -2561,8 +2577,18 @@
                 <span>Município</span>
                 <input id="rgp-det-mun" type="text" value="${esc(reg.municipio || "")}" placeholder="Município" />
               </label>
+              <div class="rgp-form-section rgp-span-2">Acesso Gov.br <span class="rgp-form-hint">planilha Config · opcional</span></div>
               <label class="rgp-field-block rgp-span-2">
-                <span>Observação</span>
+                <span>Senha Gov.br</span>
+                <div class="rgp-senha-row">
+                  <input id="rgp-det-govbr" type="password" autocomplete="new-password" placeholder="${state.consultaRgpGovbrSenha ? "Senha já salva — altere se quiser" : "Digite a senha Gov.br"}" value="${esc(state.consultaRgpGovbrSenha || "")}" />
+                  <button type="button" class="rgp-btn rgp-btn-ghost rgp-senha-toggle" id="rgp-det-govbr-toggle">Mostrar</button>
+                </div>
+                <span class="rgp-field-hint">Uma senha para o módulo (não por sócio). Gravada na aba Config.</span>
+              </label>
+              <div class="rgp-form-section rgp-span-2">Observação</div>
+              <label class="rgp-field-block rgp-span-2">
+                <span>Anotações internas</span>
                 <textarea id="rgp-det-obs" rows="4" placeholder="Anotações internas">${esc(reg.observacao || "")}</textarea>
               </label>
             </div>
@@ -2614,7 +2640,8 @@
     });
     $("#rgp-edit-cadastro")?.addEventListener("click", () => {
       const fresh = (state.consultaRgpItens || []).find((x) => x.id === reg.id) || reg;
-      openConsultaDetalheModal(fresh, { tab: "dados" });
+      closeConsultaDetalheModal();
+      openConsultaSocioModal(fresh);
     });
     $("#rgp-cancel-edit")?.addEventListener("click", () => {
       const fresh = (state.consultaRgpItens || []).find((x) => x.id === reg.id) || reg;
@@ -2628,6 +2655,7 @@
         toast("CPF inválido.");
         return;
       }
+      state.consultaRgpGovbrSenha = String(payload.govbr_senha || "");
       state.consultaRgpEditMode = false;
       state.consultaRgpSideTab = "resumo";
       state.consultaRgpPendingConsulta = false;
@@ -2635,6 +2663,13 @@
     });
     const cpfDet = $("#rgp-det-cpf");
     if (cpfDet && typeof bindCpfMask === "function") bindCpfMask(cpfDet);
+    const detGov = $("#rgp-det-govbr");
+    $("#rgp-det-govbr-toggle")?.addEventListener("click", () => {
+      if (!detGov) return;
+      const show = detGov.type === "password";
+      detGov.type = show ? "text" : "password";
+      $("#rgp-det-govbr-toggle").textContent = show ? "Ocultar" : "Mostrar";
+    });
     $("#rgp-save-obs")?.addEventListener("click", () => {
       api("save_consulta_rgp_registro", JSON.stringify({
         id: reg.id,
@@ -2962,7 +2997,7 @@
         const id = btn.dataset.id || "";
         const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         if (!reg) return;
-        openConsultaDetalheModal(reg, { tab: "dados" });
+        openConsultaSocioModal(reg);
       });
     });
   }
@@ -3332,6 +3367,9 @@
     AppEvents.on("consulta_rgp_saved", (r) => {
       if (r.ok) {
         if (r.data?.itens) applyConsultaRgpPayload(r.data);
+        if (typeof r.data?.govbr_senha === "string") {
+          state.consultaRgpGovbrSenha = r.data.govbr_senha;
+        }
         const item = r.data?.registro || r.data;
         if (item?.id) {
           const idx = state.consultaRgpItens.findIndex((x) => x.id === item.id);

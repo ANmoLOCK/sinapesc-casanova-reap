@@ -494,6 +494,11 @@ def test_defeso_relatorio_html() -> None:
     assert "consultar_rgp_lote" in js
     assert "load_consulta_rgp_auditoria" in js
     assert "rgp-mod-tab" in js
+    assert "rgp-ed-govbr" in js
+    assert "Acesso Gov.br" in js
+    # Editar também mostra senha (não só !edit)
+    assert js.count("rgp-ed-govbr") >= 2
+    assert 'govbr_senha' in (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
 
 
 def test_defeso_ficha_e_html() -> None:

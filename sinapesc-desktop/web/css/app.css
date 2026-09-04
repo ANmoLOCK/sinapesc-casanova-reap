@@ -1090,13 +1090,49 @@ body.screen-rgp .footer-legal {
   max-width: none;
 }
 
-.rgp-mod-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 10px 20px 0;
-  background: #EEF2F6;
-  flex: 0 0 auto;
+.rgp-form-section {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5A7388;
+  margin: 8px 0 2px;
+  padding-top: 6px;
+  border-top: 1px solid #E8EEF3;
 }
+.rgp-form-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+.rgp-form-hint {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #8AA0B2;
+  margin-left: 6px;
+}
+.rgp-field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8AA0B2;
+  font-weight: 400;
+}
+.rgp-senha-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.rgp-senha-row input {
+  flex: 1;
+  min-width: 0;
+}
+.rgp-senha-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .rgp-mod-tab {
   border: 0;
   background: transparent;
