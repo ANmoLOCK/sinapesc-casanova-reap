@@ -240,6 +240,7 @@
       state.navHistory.push(state.screen);
     }
     state.screen = screen;
+    document.body.classList.toggle("screen-rgp", screen === "consulta_rgp");
     renderTabs(tab);
     renderHeader();
     renderScreen();
@@ -2131,8 +2132,8 @@
           </div>
         </div>
         <div class="rgp-cadastro-foot">
-          <button type="button" class="btn btn-outline-dark" id="rgp-ed-cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="rgp-ed-ok">${edit ? "Salvar alterações" : "Cadastrar e consultar"}</button>
+          <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-ed-cancel">Cancelar</button>
+          <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-ed-ok">${edit ? "Salvar alterações" : "Cadastrar e consultar"}</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
@@ -2241,7 +2242,9 @@
       <div class="rgp-shell">
         <header class="rgp-topbar">
           <div class="rgp-topbar-left">
+            <button type="button" class="rgp-back" id="rgp-voltar" title="Voltar">←</button>
             <div class="rgp-logo">${esc(state.bootstrap?.org_short || "SINAPESC")}</div>
+            <div class="rgp-topbar-divider" aria-hidden="true"></div>
             <div class="rgp-topbar-titles">
               <div class="rgp-topbar-title">Consulta RGP</div>
               <div class="rgp-topbar-sub">Registro Geral da Atividade Pesqueira</div>
@@ -2250,7 +2253,7 @@
           ${userName ? `
           <div class="rgp-topbar-user" title="${esc(rawUser)}">
             <span class="rgp-user-avatar">${esc(userInitials)}</span>
-            <span>${esc(userName)}</span>
+            <span class="rgp-user-name">${esc(userName)}</span>
             <span class="rgp-user-chev" aria-hidden="true">▾</span>
           </div>` : `<div class="rgp-topbar-user rgp-topbar-user-empty">Sem usuário</div>`}
         </header>
@@ -2260,51 +2263,51 @@
           <label class="rgp-switch">
             <input type="checkbox" id="rgp-govbr" ${state.consultaRgpGovbr ? "checked" : ""} />
             <span class="rgp-switch-ui"></span>
-            <span>Senha Gov.br (opcional)</span>
+            <span class="rgp-switch-text">Senha Gov.br (opcional)</span>
           </label>
           <label class="rgp-switch">
             <input type="checkbox" id="rgp-auto" ${state.consultaRgpImportAuto ? "checked" : ""} />
             <span class="rgp-switch-ui"></span>
-            <span>Importar automático REAP</span>
+            <span class="rgp-switch-text">Importar automático REAP</span>
           </label>
           <div class="rgp-config-actions">
-            <button type="button" class="btn btn-primary btn-sm" id="rgp-cadastrar">＋ Cadastrar sócio</button>
-            <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-sync">↻ Sincronizar REAP</button>
+            <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
+            <button type="button" class="rgp-btn rgp-btn-sync" id="rgp-sync">↻ Sincronizar REAP</button>
           </div>
         </div>
 
         <div class="rgp-kpis">
           <div class="rgp-kpi">
-            <div class="rgp-kpi-top">
+            <div class="rgp-kpi-ico rgp-ico-blue" aria-hidden="true">👥</div>
+            <div class="rgp-kpi-copy">
               <div class="rgp-kpi-label">Total de registros</div>
-              <div class="rgp-kpi-ico rgp-ico-blue">👥</div>
+              <div class="rgp-kpi-value">${esc(fmtBrNum(kpis.total))}</div>
+              <div class="rgp-kpi-meta">planilha Consulta RGP</div>
             </div>
-            <div class="rgp-kpi-value">${esc(fmtBrNum(kpis.total))}</div>
-            <div class="rgp-kpi-meta">planilha Consulta RGP</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-top">
+            <div class="rgp-kpi-ico rgp-ico-green" aria-hidden="true">✓</div>
+            <div class="rgp-kpi-copy">
               <div class="rgp-kpi-label">Ativos</div>
-              <div class="rgp-kpi-ico rgp-ico-green">✓</div>
+              <div class="rgp-kpi-value rgp-kpi-ok">${esc(fmtBrNum(kpis.ativos))}</div>
+              <div class="rgp-kpi-meta rgp-meta-ok">${esc(String(kpis.ativos_pct || 0).replace(".", ","))}% do total</div>
             </div>
-            <div class="rgp-kpi-value rgp-kpi-ok">${esc(fmtBrNum(kpis.ativos))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.ativos_pct || 0).replace(".", ","))}% do total</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-top">
+            <div class="rgp-kpi-ico rgp-ico-yellow" aria-hidden="true">⏱</div>
+            <div class="rgp-kpi-copy">
               <div class="rgp-kpi-label">Aguardando análise</div>
-              <div class="rgp-kpi-ico rgp-ico-yellow">⏱</div>
+              <div class="rgp-kpi-value rgp-kpi-warn">${esc(fmtBrNum(kpis.aguardando_analise))}</div>
+              <div class="rgp-kpi-meta rgp-meta-warn">${esc(String(kpis.aguardando_analise_pct || 0).replace(".", ","))}% do total</div>
             </div>
-            <div class="rgp-kpi-value rgp-kpi-warn">${esc(fmtBrNum(kpis.aguardando_analise))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.aguardando_analise_pct || 0).replace(".", ","))}% do total</div>
           </div>
           <div class="rgp-kpi">
-            <div class="rgp-kpi-top">
+            <div class="rgp-kpi-ico rgp-ico-red" aria-hidden="true">✕</div>
+            <div class="rgp-kpi-copy">
               <div class="rgp-kpi-label">Pendentes / Irregulares</div>
-              <div class="rgp-kpi-ico rgp-ico-red">✕</div>
+              <div class="rgp-kpi-value rgp-kpi-bad">${esc(fmtBrNum(kpis.pendentes))}</div>
+              <div class="rgp-kpi-meta rgp-meta-bad">${esc(String(kpis.pendentes_pct || 0).replace(".", ","))}% do total</div>
             </div>
-            <div class="rgp-kpi-value rgp-kpi-bad">${esc(fmtBrNum(kpis.pendentes))}</div>
-            <div class="rgp-kpi-meta">${esc(String(kpis.pendentes_pct || 0).replace(".", ","))}% do total</div>
           </div>
         </div>
 
@@ -2315,11 +2318,13 @@
                 <span class="rgp-search-ico">⌕</span>
                 <input type="search" id="rgp-search" placeholder="Buscar por nome, CPF ou telefone…" value="${esc(state.consultaRgpSearch)}" />
               </div>
-              <select id="rgp-filtro">
-                <option value="">Filtros</option>
-                ${situacoesFiltro.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
-              </select>
-              <button type="button" class="btn-link" id="rgp-clear">Limpar filtros</button>
+              <div class="rgp-filtro-wrap">
+                <select id="rgp-filtro" class="rgp-filtro-select" aria-label="Filtros">
+                  <option value="">▾ Filtros</option>
+                  ${situacoesFiltro.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
+                </select>
+              </div>
+              <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
             </div>
             <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
               <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
@@ -2338,7 +2343,7 @@
                 <tbody>
                   ${slice.length ? slice.map((r, i) => `
                     <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
-                      <td>${esc(r.nome_display || r.nome || "")}</td>
+                      <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
                       <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
                       <td>${esc([r.municipio, r.uf].filter(Boolean).join(" - ") || "—")}</td>
                       <td>${esc(r.telefone || "—")}</td>
@@ -2346,8 +2351,8 @@
                       <td>${esc(r.ultima_consulta_em || "—")}</td>
                       <td class="rgp-obs">${esc(r.observacao || "—")}</td>
                       <td class="rgp-actions">
-                        <button type="button" class="btn-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
-                        <button type="button" class="btn-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
+                        <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
+                        <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
                       </td>
                     </tr>
                   `).join("") : loadingHint}
@@ -2356,15 +2361,15 @@
             </div>
             <div class="rgp-footer">
               <span>Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${fmtBrNum(filtered.length)} registros</span>
-              <label>Registros por página
+              <label class="rgp-pagesize-label">Registros por página
                 <select id="rgp-pagesize">
                   ${[10, 20, 50, 100].map((n) => `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n}</option>`).join("")}
                 </select>
               </label>
-              <div class="btn-row">
-                <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-prev" ${page <= 1 ? "disabled" : ""}>←</button>
+              <div class="rgp-pager">
+                <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-prev" ${page <= 1 ? "disabled" : ""}>←</button>
                 <span>${page}/${pages}</span>
-                <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-next" ${page >= pages ? "disabled" : ""}>→</button>
+                <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-next" ${page >= pages ? "disabled" : ""}>→</button>
               </div>
             </div>
           </div>
@@ -2372,10 +2377,8 @@
           ${selected ? `
           <aside class="rgp-side">
             <div class="rgp-side-head">
-              <div>
-                <div class="rgp-side-kicker">Detalhes do registro <span class="rgp-tag">RGP</span></div>
-              </div>
-              <button type="button" class="btn btn-ghost btn-sm" id="rgp-side-close">✕</button>
+              <div class="rgp-side-kicker">Detalhes do registro <span class="rgp-tag">RGP</span></div>
+              <button type="button" class="rgp-side-x" id="rgp-side-close" aria-label="Fechar">✕</button>
             </div>
             <div class="rgp-side-profile">
               <div class="rgp-avatar">${esc(selected.iniciais || "?")}</div>
@@ -2387,10 +2390,10 @@
             </div>
             <div class="rgp-side-toolbar">
               ${editMode
-                ? `<button type="button" class="btn btn-outline-dark btn-sm" id="rgp-cancel-edit">Cancelar edição</button>
-                   <button type="button" class="btn btn-primary btn-sm" id="rgp-save-cadastro">Salvar cadastro</button>`
-                : `<button type="button" class="btn btn-outline-dark btn-sm" id="rgp-edit-cadastro">✎ Editar cadastro</button>
-                   <button type="button" class="btn btn-primary btn-sm" id="rgp-consultar-sel">Consultar no MPA</button>`}
+                ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar edição</button>
+                   <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-save-cadastro">Salvar cadastro</button>`
+                : `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-edit-cadastro">✎ Editar cadastro</button>
+                   <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-consultar-sel">Consultar no MPA</button>`}
             </div>
             <div class="rgp-side-body">
               ${editMode ? `
@@ -2435,13 +2438,13 @@
                           <div class="rgp-tl-meta">${esc(t.em || "")} · ${esc(t.ator || "")}</div>
                         </div>
                       </div>`).join("")
-                    : `<p class="page-sub">Sem eventos ainda.</p>`}
+                    : `<p class="rgp-empty-note">Sem eventos ainda.</p>`}
                 </div>
-                <label>Observações</label>
-                <textarea id="rgp-obs-edit" rows="3">${esc(selected.observacao || "")}</textarea>
-                <div class="btn-row" style="margin-top:8px;flex-wrap:wrap">
-                  <button type="button" class="btn btn-outline-dark btn-sm" id="rgp-save-obs">Salvar observação</button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="rgp-open-mpa">Abrir site MPA</button>
+                <label class="rgp-obs-label">Observações</label>
+                <textarea id="rgp-obs-edit" class="rgp-obs-box" rows="3">${esc(selected.observacao || "")}</textarea>
+                <div class="rgp-side-actions">
+                  <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-save-obs">Salvar observação</button>
+                  <button type="button" class="rgp-link" id="rgp-open-mpa">Abrir site MPA</button>
                 </div>
               `}
             </div>
@@ -2452,6 +2455,7 @@
 
     // NÃO recarregar a planilha aqui — evita loop/quota 60
 
+    $("#rgp-voltar")?.addEventListener("click", () => navigate("home", { push: false }));
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
       state.consultaRgpPage = 1;

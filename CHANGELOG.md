@@ -8,6 +8,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.29] — 2026-09-04 — Consulta RGP UI fiel ao mockup
+
+**Tag:** [`v1.7.29`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.29)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.29/SinapescREAP-Windows-v1.7.29.zip
+
+- Layout full-bleed (sem limite 1100px / sem header duplo achatado)
+- Espaçamentos e tipografia alinhados ao mockup
+- KPIs, tabela, sidebar e modal com altura/respiro corretos
+
 ## [v1.7.28] — 2026-09-04 — Cadastro sócio sólido
 
 **Tag:** [`v1.7.28`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.28)  
