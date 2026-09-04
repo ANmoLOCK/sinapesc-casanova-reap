@@ -1090,6 +1090,12 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "govbr_senha" in js
     assert "consultaRgpSideTab" in js
     assert 'data-tab="dados"' in js
+    assert "openConsultaDetalheModal" in js
+    assert "rgp-detalhe-modal" in js
+    assert "rgp-body-scroll" in js
+    assert '<aside class="rgp-side">' not in js
+    assert "rgp-body-scroll" in css
+    assert "rgp-detalhe-modal" in css
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "govbr_senha" in api_src
     assert "set_govbr_senha" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")

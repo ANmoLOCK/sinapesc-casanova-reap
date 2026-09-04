@@ -2194,17 +2194,17 @@
     });
   }
 
-  function payloadFromConsultaSide(selected) {
+  function payloadFromConsultaDetalhe(selected) {
     return {
       id: selected.id,
       person_id: selected.person_id,
-      nome: ($("#rgp-side-nome")?.value || selected.nome || "").trim(),
-      cpf: ($("#rgp-side-cpf")?.value || selected.cpf || "").trim(),
-      telefone: ($("#rgp-side-tel")?.value || selected.telefone || "").trim(),
-      municipio: ($("#rgp-side-mun")?.value || selected.municipio || "").trim(),
+      nome: ($("#rgp-det-nome")?.value || selected.nome || "").trim(),
+      cpf: ($("#rgp-det-cpf")?.value || selected.cpf || "").trim(),
+      telefone: ($("#rgp-det-tel")?.value || selected.telefone || "").trim(),
+      municipio: ($("#rgp-det-mun")?.value || selected.municipio || "").trim(),
       uf: selected.uf || "",
       situacao_rgp: selected.situacao_rgp,
-      observacao: ($("#rgp-side-obs")?.value || selected.observacao || "").trim(),
+      observacao: ($("#rgp-det-obs")?.value || selected.observacao || "").trim(),
       ultima_consulta_em: selected.ultima_consulta_em,
       codigo_rgp: selected.codigo_rgp,
       categoria: selected.categoria,
@@ -2214,6 +2214,190 @@
       cadastro_reap_em: selected.cadastro_reap_em,
       timeline: selected.timeline,
     };
+  }
+
+  function closeConsultaDetalheModal() {
+    document.querySelectorAll(".rgp-detalhe-backdrop").forEach((el) => el.remove());
+  }
+
+  function openConsultaDetalheModal(reg, opts) {
+    if (!reg?.id) return;
+    const tabWanted = (opts && opts.tab) || state.consultaRgpSideTab || "resumo";
+    const sideTab = tabWanted === "dados" ? "dados" : "resumo";
+    state.consultaRgpSelectedId = reg.id;
+    state.consultaRgpSideTab = sideTab;
+    state.consultaRgpEditMode = sideTab === "dados";
+    closeConsultaDetalheModal();
+
+    const reapStamp = reg.importado_reap_em || reg.cadastro_reap_em || "";
+    const reapPill = reapStamp
+      ? `<div class="rgp-sync-pill rgp-sync-ok">REAP · Sincronizado em ${esc(reapStamp)}</div>`
+      : `<div class="rgp-sync-pill rgp-sync-off">REAP · Ainda não sincronizado</div>`;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop rgp-modal-backdrop rgp-detalhe-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal rgp-detalhe-modal" role="dialog" aria-modal="true" aria-labelledby="rgp-det-title">
+        <div class="rgp-detalhe-head">
+          <div class="rgp-detalhe-head-top">
+            <div class="rgp-side-kicker">Detalhes do registro <span class="rgp-tag">RGP</span></div>
+            <button type="button" class="rgp-cadastro-close" id="rgp-det-x" aria-label="Fechar">✕</button>
+          </div>
+          <div class="rgp-side-profile rgp-detalhe-profile">
+            <div class="rgp-avatar">${esc(reg.iniciais || "?")}</div>
+            <div>
+              <h2 id="rgp-det-title" class="rgp-side-name">${esc(reg.nome_display || reg.nome || "")}</h2>
+              <div class="rgp-side-cpf">${esc(reg.cpf_formatado || reg.cpf || "")}</div>
+              ${reapPill}
+            </div>
+          </div>
+          <div class="rgp-tabs" role="tablist">
+            <button type="button" class="rgp-tab ${sideTab === "resumo" ? "active" : ""}" data-tab="resumo">Resumo</button>
+            <button type="button" class="rgp-tab ${sideTab === "dados" ? "active" : ""}" data-tab="dados">Dados cadastrais</button>
+          </div>
+        </div>
+        <div class="rgp-detalhe-toolbar">
+          ${sideTab === "dados"
+            ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar</button>
+               <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-save-cadastro">Salvar cadastro</button>`
+            : `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-edit-cadastro">✎ Editar cadastro</button>
+               <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-consultar-sel">Consultar no MPA</button>`}
+        </div>
+        <div class="rgp-detalhe-body">
+          ${sideTab === "dados" ? `
+            <div class="rgp-cadastro-grid rgp-side-edit">
+              <label class="rgp-field-block rgp-span-2">
+                <span>Nome completo <em>*</em></span>
+                <input id="rgp-det-nome" type="text" value="${esc(reg.nome || "")}" placeholder="Nome completo" />
+              </label>
+              <label class="rgp-field-block">
+                <span>CPF <em>*</em></span>
+                <input id="rgp-det-cpf" type="text" inputmode="numeric" value="${esc(reg.cpf_formatado || reg.cpf || "")}" placeholder="000.000.000-00" />
+              </label>
+              <label class="rgp-field-block">
+                <span>Telefone</span>
+                <input id="rgp-det-tel" type="text" inputmode="tel" value="${esc(reg.telefone || "")}" placeholder="(00) 00000-0000" />
+              </label>
+              <label class="rgp-field-block rgp-span-2">
+                <span>Município</span>
+                <input id="rgp-det-mun" type="text" value="${esc(reg.municipio || "")}" placeholder="Município" />
+              </label>
+              <label class="rgp-field-block rgp-span-2">
+                <span>Observação</span>
+                <textarea id="rgp-det-obs" rows="4" placeholder="Anotações internas">${esc(reg.observacao || "")}</textarea>
+              </label>
+            </div>
+          ` : `
+            <h4>Informações principais</h4>
+            <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(reg.badge_class || "")}">${esc(reg.situacao_rgp || "Não consultado")}</span></strong></div>
+            <div class="rgp-field"><span>Última consulta</span><strong>${esc(reg.ultima_consulta_em || "—")}</strong></div>
+            <div class="rgp-field"><span>Telefone</span><strong>${esc(reg.telefone || "—")}</strong></div>
+            <div class="rgp-field"><span>E-mail</span><strong>${esc(reg.email || "—")}</strong></div>
+            <div class="rgp-field"><span>Município</span><strong>${esc([reg.municipio, reg.uf].filter(Boolean).join(" - ") || "—")}</strong></div>
+            <div class="rgp-field"><span>Observação</span><strong>${esc(reg.observacao || "—")}</strong></div>
+            <h4>Linha do tempo</h4>
+            <div class="rgp-timeline">
+              ${(reg.timeline_items || []).length
+                ? reg.timeline_items.map((t) => `
+                  <div class="rgp-tl-item">
+                    <div class="rgp-tl-dot"></div>
+                    <div>
+                      <div class="rgp-tl-event">${esc(t.evento || "")}</div>
+                      <div class="rgp-tl-meta">${esc(t.em || "")} · ${esc(t.ator || "")}</div>
+                    </div>
+                  </div>`).join("")
+                : `<p class="rgp-empty-note">Sem eventos ainda.</p>`}
+            </div>
+            <label class="rgp-obs-label">Observações</label>
+            <textarea id="rgp-obs-edit" class="rgp-obs-box" rows="3">${esc(reg.observacao || "")}</textarea>
+            <div class="rgp-side-actions">
+              <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-save-obs">Salvar observação</button>
+              <button type="button" class="rgp-link" id="rgp-open-mpa">Abrir site MPA</button>
+            </div>
+          `}
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const close = () => {
+      closeConsultaDetalheModal();
+      state.consultaRgpEditMode = false;
+      state.consultaRgpSideTab = "resumo";
+    };
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    $("#rgp-det-x")?.addEventListener("click", close);
+
+    backdrop.querySelectorAll(".rgp-tab[data-tab]").forEach((tabEl) => {
+      tabEl.addEventListener("click", () => {
+        const fresh = (state.consultaRgpItens || []).find((x) => x.id === reg.id) || reg;
+        openConsultaDetalheModal(fresh, { tab: tabEl.dataset.tab || "resumo" });
+      });
+    });
+    $("#rgp-edit-cadastro")?.addEventListener("click", () => {
+      const fresh = (state.consultaRgpItens || []).find((x) => x.id === reg.id) || reg;
+      openConsultaDetalheModal(fresh, { tab: "dados" });
+    });
+    $("#rgp-cancel-edit")?.addEventListener("click", () => {
+      const fresh = (state.consultaRgpItens || []).find((x) => x.id === reg.id) || reg;
+      openConsultaDetalheModal(fresh, { tab: "resumo" });
+    });
+    $("#rgp-save-cadastro")?.addEventListener("click", () => {
+      const payload = payloadFromConsultaDetalhe(reg);
+      if (!payload.nome) { toast("Informe o nome."); return; }
+      if ((String(payload.cpf || "").replace(/\D/g, "")).length !== 11) {
+        toast("CPF inválido.");
+        return;
+      }
+      state.consultaRgpEditMode = false;
+      state.consultaRgpSideTab = "resumo";
+      state.consultaRgpPendingConsulta = false;
+      api("save_consulta_rgp_registro", payload);
+    });
+    const cpfDet = $("#rgp-det-cpf");
+    if (cpfDet && typeof bindCpfMask === "function") bindCpfMask(cpfDet);
+    $("#rgp-save-obs")?.addEventListener("click", () => {
+      api("save_consulta_rgp_registro", {
+        id: reg.id,
+        person_id: reg.person_id,
+        nome: reg.nome,
+        cpf: reg.cpf,
+        telefone: reg.telefone,
+        municipio: reg.municipio,
+        uf: reg.uf,
+        situacao_rgp: reg.situacao_rgp,
+        observacao: $("#rgp-obs-edit")?.value || "",
+        ultima_consulta_em: reg.ultima_consulta_em,
+        codigo_rgp: reg.codigo_rgp,
+        categoria: reg.categoria,
+        email: reg.email,
+        importado_reap_em: reg.importado_reap_em,
+        importado_defeso_em: reg.importado_defeso_em,
+        cadastro_reap_em: reg.cadastro_reap_em,
+        timeline: reg.timeline,
+      });
+    });
+    $("#rgp-consultar-sel")?.addEventListener("click", () => {
+      if ((String(reg.cpf || "").replace(/\D/g, "")).length !== 11) {
+        toast("CPF inválido para consulta.");
+        return;
+      }
+      toast("Consultando situação RGP no MPA…", 3500);
+      api("consultar_rgp_pessoa", reg.id, reg.cpf || "");
+    });
+    $("#rgp-open-mpa")?.addEventListener("click", () => {
+      api("abrir_consulta_rgp_mpa", reg.cpf || "");
+    });
+  }
+
+  function refreshConsultaDetalheModalIfOpen() {
+    if (!document.querySelector(".rgp-detalhe-backdrop")) return;
+    const id = state.consultaRgpSelectedId;
+    const reg = (state.consultaRgpItens || []).find((r) => r.id === id);
+    if (!reg) {
+      closeConsultaDetalheModal();
+      return;
+    }
+    openConsultaDetalheModal(reg, { tab: state.consultaRgpSideTab || "resumo" });
   }
 
   function renderConsultaRgp() {
@@ -2229,7 +2413,6 @@
     const page = state.consultaRgpPage || 1;
     const start = (page - 1) * pageSize;
     const slice = filtered.slice(start, start + pageSize);
-    const selected = (state.consultaRgpItens || []).find((r) => r.id === state.consultaRgpSelectedId) || null;
     const situacoesExtra = [...new Set((state.consultaRgpItens || []).map((r) => r.situacao_rgp).filter(Boolean))]
       .filter((s) => !RGP_CHIP_SITUACOES.includes(s))
       .sort();
@@ -2242,14 +2425,8 @@
       ? userName.replace(/[^a-zA-ZÀ-ÿ0-9]/g, "").slice(0, 2).toUpperCase() || "?"
       : "";
     const loadingHint = state.consultaRgpLoading && !state.consultaRgpLoaded
-      ? `<tr><td colspan="8" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
-      : `<tr><td colspan="8" class="rgp-empty">Nenhum registro. Clique em <strong>Cadastrar sócio</strong> para gravar nome, CPF, município, telefone e observação.</td></tr>`;
-    const editMode = !!(selected && state.consultaRgpEditMode);
-    const sideTab = editMode ? "dados" : (state.consultaRgpSideTab || "resumo");
-    const reapStamp = selected?.importado_reap_em || selected?.cadastro_reap_em || "";
-    const reapPill = reapStamp
-      ? `<div class="rgp-sync-pill rgp-sync-ok">REAP · Sincronizado em ${esc(reapStamp)}</div>`
-      : `<div class="rgp-sync-pill rgp-sync-off">REAP · Ainda não sincronizado</div>`;
+      ? `<tr><td colspan="7" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
+      : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Clique em <strong>Cadastrar sócio</strong> para gravar nome, CPF, município, telefone e observação.</td></tr>`;
 
     setPage(`
       <div class="rgp-shell">
@@ -2278,189 +2455,114 @@
           </div>
         </div>
 
-        <div class="rgp-kpis">
-          <div class="rgp-kpi">
-            <div class="rgp-kpi-ico rgp-ico-blue" aria-hidden="true">👥</div>
-            <div class="rgp-kpi-copy">
-              <div class="rgp-kpi-label">Total de registros</div>
-              <div class="rgp-kpi-value">${esc(fmtBrNum(kpis.total))}</div>
-              <div class="rgp-kpi-meta">planilha Consulta RGP</div>
+        <div class="rgp-body-scroll">
+          <div class="rgp-kpis">
+            <div class="rgp-kpi">
+              <div class="rgp-kpi-ico rgp-ico-blue" aria-hidden="true">👥</div>
+              <div class="rgp-kpi-copy">
+                <div class="rgp-kpi-label">Total de registros</div>
+                <div class="rgp-kpi-value">${esc(fmtBrNum(kpis.total))}</div>
+                <div class="rgp-kpi-meta">planilha Consulta RGP</div>
+              </div>
+            </div>
+            <div class="rgp-kpi">
+              <div class="rgp-kpi-ico rgp-ico-green" aria-hidden="true">✓</div>
+              <div class="rgp-kpi-copy">
+                <div class="rgp-kpi-label">Ativos</div>
+                <div class="rgp-kpi-value rgp-kpi-ok">${esc(fmtBrNum(kpis.ativos))}</div>
+                <div class="rgp-kpi-meta rgp-meta-ok">${esc(String(kpis.ativos_pct || 0).replace(".", ","))}% do total</div>
+              </div>
+            </div>
+            <div class="rgp-kpi">
+              <div class="rgp-kpi-ico rgp-ico-yellow" aria-hidden="true">⏱</div>
+              <div class="rgp-kpi-copy">
+                <div class="rgp-kpi-label">Aguardando análise</div>
+                <div class="rgp-kpi-value rgp-kpi-warn">${esc(fmtBrNum(kpis.aguardando_analise))}</div>
+                <div class="rgp-kpi-meta rgp-meta-warn">${esc(String(kpis.aguardando_analise_pct || 0).replace(".", ","))}% do total</div>
+              </div>
+            </div>
+            <div class="rgp-kpi">
+              <div class="rgp-kpi-ico rgp-ico-red" aria-hidden="true">✕</div>
+              <div class="rgp-kpi-copy">
+                <div class="rgp-kpi-label">Pendentes / Irregulares</div>
+                <div class="rgp-kpi-value rgp-kpi-bad">${esc(fmtBrNum(kpis.pendentes))}</div>
+                <div class="rgp-kpi-meta rgp-meta-bad">${esc(String(kpis.pendentes_pct || 0).replace(".", ","))}% do total</div>
+              </div>
             </div>
           </div>
-          <div class="rgp-kpi">
-            <div class="rgp-kpi-ico rgp-ico-green" aria-hidden="true">✓</div>
-            <div class="rgp-kpi-copy">
-              <div class="rgp-kpi-label">Ativos</div>
-              <div class="rgp-kpi-value rgp-kpi-ok">${esc(fmtBrNum(kpis.ativos))}</div>
-              <div class="rgp-kpi-meta rgp-meta-ok">${esc(String(kpis.ativos_pct || 0).replace(".", ","))}% do total</div>
-            </div>
-          </div>
-          <div class="rgp-kpi">
-            <div class="rgp-kpi-ico rgp-ico-yellow" aria-hidden="true">⏱</div>
-            <div class="rgp-kpi-copy">
-              <div class="rgp-kpi-label">Aguardando análise</div>
-              <div class="rgp-kpi-value rgp-kpi-warn">${esc(fmtBrNum(kpis.aguardando_analise))}</div>
-              <div class="rgp-kpi-meta rgp-meta-warn">${esc(String(kpis.aguardando_analise_pct || 0).replace(".", ","))}% do total</div>
-            </div>
-          </div>
-          <div class="rgp-kpi">
-            <div class="rgp-kpi-ico rgp-ico-red" aria-hidden="true">✕</div>
-            <div class="rgp-kpi-copy">
-              <div class="rgp-kpi-label">Pendentes / Irregulares</div>
-              <div class="rgp-kpi-value rgp-kpi-bad">${esc(fmtBrNum(kpis.pendentes))}</div>
-              <div class="rgp-kpi-meta rgp-meta-bad">${esc(String(kpis.pendentes_pct || 0).replace(".", ","))}% do total</div>
-            </div>
-          </div>
-        </div>
 
-        <div class="rgp-main ${selected ? "has-side" : ""}">
-          <div class="rgp-table-wrap">
-            <div class="rgp-toolbar">
-              <div class="rgp-search-wrap">
-                <span class="rgp-search-ico">⌕</span>
-                <input type="search" id="rgp-search" placeholder="Buscar por nome, CPF ou telefone…" value="${esc(state.consultaRgpSearch)}" />
+          <div class="rgp-main">
+            <div class="rgp-table-wrap">
+              <div class="rgp-toolbar">
+                <div class="rgp-search-wrap">
+                  <span class="rgp-search-ico">⌕</span>
+                  <input type="search" id="rgp-search" placeholder="Buscar por nome, CPF ou telefone…" value="${esc(state.consultaRgpSearch)}" />
+                </div>
+                <div class="rgp-filtro-wrap">
+                  <select id="rgp-filtro" class="rgp-filtro-select" aria-label="Filtros">
+                    <option value="">▾ Filtros</option>
+                    ${situacoesFiltro.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
+                  </select>
+                </div>
+                <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
               </div>
-              <div class="rgp-filtro-wrap">
-                <select id="rgp-filtro" class="rgp-filtro-select" aria-label="Filtros">
-                  <option value="">▾ Filtros</option>
-                  ${situacoesFiltro.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
-                </select>
+              <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
+                <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
+                ${RGP_CHIP_SITUACOES.map((s) => `
+                  <button type="button" class="rgp-chip ${state.consultaRgpFiltro === s ? "active" : ""}" data-chip="${esc(s)}">${esc(s)}</button>
+                `).join("")}
               </div>
-              <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
-            </div>
-            <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
-              <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
-              ${RGP_CHIP_SITUACOES.map((s) => `
-                <button type="button" class="rgp-chip ${state.consultaRgpFiltro === s ? "active" : ""}" data-chip="${esc(s)}">${esc(s)}</button>
-              `).join("")}
-            </div>
-            <div class="rgp-table-scroll">
-              <table class="rgp-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th><th>CPF</th><th>Telefone</th>
-                    <th>Situação RGP</th><th>Última consulta</th><th>Observação</th><th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${slice.length ? slice.map((r, i) => `
-                    <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
-                      <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
-                      <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
-                      <td>${esc(r.telefone || "—")}</td>
-                      <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
-                      <td>${esc(r.ultima_consulta_em || "—")}</td>
-                      <td class="rgp-obs">${esc(r.observacao || "—")}</td>
-                      <td class="rgp-actions">
-                        <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
-                        <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
-                      </td>
+              <div class="rgp-table-scroll">
+                <table class="rgp-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th><th>CPF</th><th>Telefone</th>
+                      <th>Situação RGP</th><th>Última consulta</th><th>Observação</th><th>Ações</th>
                     </tr>
-                  `).join("") : loadingHint.replace('colspan="8"', 'colspan="7"')}
-                </tbody>
-              </table>
-            </div>
-            <div class="rgp-footer">
-              <span>Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${fmtBrNum(filtered.length)} registros</span>
-              <label class="rgp-pagesize-label">Registros por página
-                <select id="rgp-pagesize">
-                  ${[10, 20, 50, 100].map((n) => `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n}</option>`).join("")}
-                </select>
-              </label>
-              <div class="rgp-pager">
-                <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-prev" ${page <= 1 ? "disabled" : ""}>←</button>
-                <span>${page}/${pages}</span>
-                <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-next" ${page >= pages ? "disabled" : ""}>→</button>
+                  </thead>
+                  <tbody>
+                    ${slice.length ? slice.map((r, i) => `
+                      <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
+                        <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
+                        <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
+                        <td>${esc(r.telefone || "—")}</td>
+                        <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
+                        <td>${esc(r.ultima_consulta_em || "—")}</td>
+                        <td class="rgp-obs">${esc(r.observacao || "—")}</td>
+                        <td class="rgp-actions">
+                          <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
+                          <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
+                        </td>
+                      </tr>
+                    `).join("") : loadingHint}
+                  </tbody>
+                </table>
+              </div>
+              <div class="rgp-footer">
+                <span>Exibindo ${filtered.length ? start + 1 : 0} a ${Math.min(start + pageSize, filtered.length)} de ${fmtBrNum(filtered.length)} registros</span>
+                <label class="rgp-pagesize-label">Registros por página
+                  <select id="rgp-pagesize">
+                    ${[10, 20, 50, 100].map((n) => `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n}</option>`).join("")}
+                  </select>
+                </label>
+                <div class="rgp-pager">
+                  <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-prev" ${page <= 1 ? "disabled" : ""}>←</button>
+                  <span>${page}/${pages}</span>
+                  <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-next" ${page >= pages ? "disabled" : ""}>→</button>
+                </div>
               </div>
             </div>
           </div>
-
-          ${selected ? `
-          <aside class="rgp-side">
-            <div class="rgp-side-head">
-              <div class="rgp-side-kicker">Detalhes do registro <span class="rgp-tag">RGP</span></div>
-              <button type="button" class="rgp-side-x" id="rgp-side-close" aria-label="Fechar">✕</button>
-            </div>
-            <div class="rgp-side-profile">
-              <div class="rgp-avatar">${esc(selected.iniciais || "?")}</div>
-              <div>
-                <div class="rgp-side-name">${esc(selected.nome_display || selected.nome || "")}</div>
-                <div class="rgp-side-cpf">${esc(selected.cpf_formatado || selected.cpf || "")}</div>
-                ${reapPill}
-              </div>
-            </div>
-            <div class="rgp-tabs" role="tablist">
-              <button type="button" class="rgp-tab ${sideTab === "resumo" ? "active" : ""}" data-tab="resumo">Resumo</button>
-              <button type="button" class="rgp-tab ${sideTab === "dados" ? "active" : ""}" data-tab="dados">Dados cadastrais</button>
-            </div>
-            <div class="rgp-side-toolbar">
-              ${sideTab === "dados"
-                ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar</button>
-                   <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-save-cadastro">Salvar cadastro</button>`
-                : `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-edit-cadastro">✎ Editar cadastro</button>
-                   <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-consultar-sel">Consultar no MPA</button>`}
-            </div>
-            <div class="rgp-side-body">
-              ${sideTab === "dados" ? `
-                <div class="rgp-cadastro-grid rgp-side-edit">
-                  <label class="rgp-field-block rgp-span-2">
-                    <span>Nome completo <em>*</em></span>
-                    <input id="rgp-side-nome" type="text" value="${esc(selected.nome || "")}" placeholder="Nome completo" />
-                  </label>
-                  <label class="rgp-field-block">
-                    <span>CPF <em>*</em></span>
-                    <input id="rgp-side-cpf" type="text" inputmode="numeric" value="${esc(selected.cpf_formatado || selected.cpf || "")}" placeholder="000.000.000-00" />
-                  </label>
-                  <label class="rgp-field-block">
-                    <span>Telefone</span>
-                    <input id="rgp-side-tel" type="text" inputmode="tel" value="${esc(selected.telefone || "")}" placeholder="(00) 00000-0000" />
-                  </label>
-                  <label class="rgp-field-block rgp-span-2">
-                    <span>Município</span>
-                    <input id="rgp-side-mun" type="text" value="${esc(selected.municipio || "")}" placeholder="Município" />
-                  </label>
-                  <label class="rgp-field-block rgp-span-2">
-                    <span>Observação</span>
-                    <textarea id="rgp-side-obs" rows="4" placeholder="Anotações internas">${esc(selected.observacao || "")}</textarea>
-                  </label>
-                </div>
-              ` : `
-                <h4>Informações principais</h4>
-                <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(selected.badge_class || "")}">${esc(selected.situacao_rgp || "Não consultado")}</span></strong></div>
-                <div class="rgp-field"><span>Última consulta</span><strong>${esc(selected.ultima_consulta_em || "—")}</strong></div>
-                <div class="rgp-field"><span>Telefone</span><strong>${esc(selected.telefone || "—")}</strong></div>
-                <div class="rgp-field"><span>E-mail</span><strong>${esc(selected.email || "—")}</strong></div>
-                <div class="rgp-field"><span>Município</span><strong>${esc([selected.municipio, selected.uf].filter(Boolean).join(" - ") || "—")}</strong></div>
-                <div class="rgp-field"><span>Observação</span><strong>${esc(selected.observacao || "—")}</strong></div>
-                <h4>Linha do tempo</h4>
-                <div class="rgp-timeline">
-                  ${(selected.timeline_items || []).length
-                    ? selected.timeline_items.map((t) => `
-                      <div class="rgp-tl-item">
-                        <div class="rgp-tl-dot"></div>
-                        <div>
-                          <div class="rgp-tl-event">${esc(t.evento || "")}</div>
-                          <div class="rgp-tl-meta">${esc(t.em || "")} · ${esc(t.ator || "")}</div>
-                        </div>
-                      </div>`).join("")
-                    : `<p class="rgp-empty-note">Sem eventos ainda.</p>`}
-                </div>
-                <label class="rgp-obs-label">Observações</label>
-                <textarea id="rgp-obs-edit" class="rgp-obs-box" rows="3">${esc(selected.observacao || "")}</textarea>
-                <div class="rgp-side-actions">
-                  <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-save-obs">Salvar observação</button>
-                  <button type="button" class="rgp-link" id="rgp-open-mpa">Abrir site MPA</button>
-                </div>
-              `}
-            </div>
-          </aside>` : ""}
         </div>
       </div>
     `);
 
     // NÃO recarregar a planilha aqui — evita loop/quota 60
 
-    $("#rgp-voltar")?.addEventListener("click", () => navigate("home", { push: false }));
+    $("#rgp-voltar")?.addEventListener("click", () => {
+      closeConsultaDetalheModal();
+      navigate("home", { push: false });
+    });
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
       state.consultaRgpPage = 1;
@@ -2495,32 +2597,20 @@
       renderConsultaRgp();
     });
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal(null));
-    document.querySelectorAll(".rgp-tab[data-tab]").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const name = tab.dataset.tab || "resumo";
-        state.consultaRgpSideTab = name;
-        state.consultaRgpEditMode = name === "dados";
-        renderConsultaRgp();
-      });
-    });
 
     document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
       tr.addEventListener("click", (e) => {
         if (e.target.closest("[data-act]")) return;
-        state.consultaRgpSelectedId = tr.dataset.id || "";
-        state.consultaRgpEditMode = false;
-        state.consultaRgpSideTab = "resumo";
-        renderConsultaRgp();
+        const id = tr.dataset.id || "";
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg) return;
+        openConsultaDetalheModal(reg, { tab: "resumo" });
       });
     });
     document.querySelectorAll("[data-act=consultar]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = btn.dataset.id || "";
-        state.consultaRgpSelectedId = id;
-        state.consultaRgpEditMode = false;
-        state.consultaRgpSideTab = "resumo";
-        renderConsultaRgp();
         const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         if (!reg?.id) {
           toast("Selecione um registro válido.");
@@ -2530,6 +2620,7 @@
           toast("CPF inválido para consulta.");
           return;
         }
+        openConsultaDetalheModal(reg, { tab: "resumo" });
         toast("Consultando situação RGP no MPA…", 3500);
         api("consultar_rgp_pessoa", reg.id, reg.cpf || "");
       });
@@ -2538,69 +2629,10 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = btn.dataset.id || "";
-        state.consultaRgpSelectedId = id;
-        state.consultaRgpEditMode = true;
-        state.consultaRgpSideTab = "dados";
-        renderConsultaRgp();
+        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
+        if (!reg) return;
+        openConsultaDetalheModal(reg, { tab: "dados" });
       });
-    });
-    $("#rgp-side-close")?.addEventListener("click", () => {
-      state.consultaRgpSelectedId = "";
-      state.consultaRgpEditMode = false;
-      state.consultaRgpSideTab = "resumo";
-      renderConsultaRgp();
-    });
-    $("#rgp-edit-cadastro")?.addEventListener("click", () => {
-      state.consultaRgpEditMode = true;
-      state.consultaRgpSideTab = "dados";
-      renderConsultaRgp();
-    });
-    $("#rgp-cancel-edit")?.addEventListener("click", () => {
-      state.consultaRgpEditMode = false;
-      state.consultaRgpSideTab = "resumo";
-      renderConsultaRgp();
-    });
-    $("#rgp-save-cadastro")?.addEventListener("click", () => {
-      if (!selected) return;
-      const payload = payloadFromConsultaSide(selected);
-      if (!payload.nome) { toast("Informe o nome."); return; }
-      if ((String(payload.cpf || "").replace(/\D/g, "")).length !== 11) {
-        toast("CPF inválido.");
-        return;
-      }
-      state.consultaRgpEditMode = false;
-      state.consultaRgpPendingConsulta = false;
-      api("save_consulta_rgp_registro", payload);
-    });
-    const cpfSide = $("#rgp-side-cpf");
-    if (cpfSide && typeof bindCpfMask === "function") bindCpfMask(cpfSide);
-    $("#rgp-save-obs")?.addEventListener("click", () => {
-      if (!selected) return;
-      api("save_consulta_rgp_registro", {
-        id: selected.id,
-        person_id: selected.person_id,
-        nome: selected.nome,
-        cpf: selected.cpf,
-        telefone: selected.telefone,
-        municipio: selected.municipio,
-        uf: selected.uf,
-        situacao_rgp: selected.situacao_rgp,
-        observacao: $("#rgp-obs-edit")?.value || "",
-        ultima_consulta_em: selected.ultima_consulta_em,
-        codigo_rgp: selected.codigo_rgp,
-        categoria: selected.categoria,
-        email: selected.email,
-        importado_reap_em: selected.importado_reap_em,
-        importado_defeso_em: selected.importado_defeso_em,
-        cadastro_reap_em: selected.cadastro_reap_em,
-        timeline: selected.timeline,
-      });
-    });
-    $("#rgp-consultar-sel")?.addEventListener("click", () => {
-      if (selected) api("consultar_rgp_pessoa", selected.id, selected.cpf);
-    });
-    $("#rgp-open-mpa")?.addEventListener("click", () => {
-      api("abrir_consulta_rgp_mpa", selected?.cpf || "");
     });
   }
 
@@ -2820,7 +2852,10 @@
       state.consultaRgpLoading = false;
       if (r.ok) {
         applyConsultaRgpPayload(r.data);
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else {
         state.consultaRgpLoaded = true; // evita loop de retry
         toast(r.error || "Falha ao carregar Consulta RGP.");
@@ -2836,14 +2871,20 @@
           state.consultaRgpGovbr = r.data.govbr_opcional;
         }
         toast(r.data?.mensagem || "Preferências salvas na planilha.");
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error || "Falha ao salvar na planilha.");
     });
     AppEvents.on("consulta_rgp_sync", (r) => {
       if (r.ok) {
         applyConsultaRgpPayload(r.data);
         toast(r.data?.mensagem || "Enviado ao REAP/Defeso.");
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error);
     });
     AppEvents.on("consulta_rgp_lote", (r) => {
@@ -2851,7 +2892,10 @@
         applyConsultaRgpPayload(r.data);
         toast(r.data?.mensagem || "Importado na Consulta.");
         if (r.data?.erros?.length) toast(r.data.erros.slice(0, 3).join(" · "), 7000);
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error);
     });
     AppEvents.on("consulta_rgp_cadastro", (r) => {
@@ -2865,7 +2909,10 @@
         toast(r.data?.mensagem || "Sócio cadastrado.");
         const shouldConsult = state.consultaRgpPendingConsulta && item?.id;
         state.consultaRgpPendingConsulta = false;
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          if (item?.id) openConsultaDetalheModal(item, { tab: "resumo" });
+        }
         if (shouldConsult) {
           toast("Consultando situação RGP no MPA…", 3500);
           // pequeno atraso evita corrida com a fila async do Python
@@ -2890,7 +2937,10 @@
           if (r.data?.kpis) state.consultaRgpKpis = r.data.kpis;
         }
         toast("Registro salvo.");
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error);
     });
     AppEvents.on("consulta_rgp_consulta", (r) => {
@@ -2906,7 +2956,10 @@
           if (r.data?.kpis) state.consultaRgpKpis = r.data.kpis;
         }
         if (r.data?.imports?.aviso) toast(r.data.imports.aviso, 6000);
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error || "Falha na consulta MPA.", 8000);
     });
     AppEvents.on("consulta_rgp_import", (r) => {
@@ -2919,7 +2972,10 @@
         }
         if (r.data?.reap?.aviso) toast(r.data.reap.aviso, 5000);
         if (r.data?.defeso?.aviso) toast(r.data.defeso.aviso, 5000);
-        if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
       } else toast(r.error);
     });
   }

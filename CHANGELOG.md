@@ -8,6 +8,18 @@ Formato: mais recente primeiro.
 
 ---
 
+---
+
+## [v1.7.35] — 2026-09-04 — Scroll estável + detalhes em modal
+
+**Tag:** [`v1.7.35`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.35)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.35/SinapescREAP-Windows-v1.7.35.zip
+
+- Remove painel lateral que apertava/cortava a tabela
+- KPIs + tabela em área com scroll próprio (`.rgp-body-scroll`)
+- Clique na linha, **Consultar** ou **Editar** abre modal largo (Resumo / Dados cadastrais)
+- Tabela em largura total; mais espaço para colunas e ações
+
 ## [v1.7.34] — 2026-09-04 — UI reformulada + senha no cadastro
 
 **Tag:** [`v1.7.34`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.34)  
