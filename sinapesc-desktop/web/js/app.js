@@ -60,7 +60,11 @@
     consultaRgpAuditoria: [],
     consultaRgpLoteRunning: false,
     consultaRgpLoteProgress: null,
+    consultaRgpDiasVencidos: 30,
+    consultaRgpAlertas: [],
   };
+
+  window.SinapescRgpState = state;
 
   const $ = (sel) => document.querySelector(sel);
   const content = $("#content");
@@ -1207,8 +1211,8 @@
       statusEl.textContent = `Iniciando… estimativa ~${mins} min.`;
       try {
         const payload = todos
-          ? { todos: true, ids: [] }
-          : { todos: false, ids };
+          ? { todos: true, ids: [], max_falhas_seguidas: 3 }
+          : { todos: false, ids, max_falhas_seguidas: 3 };
         const r = await api("consultar_rgp_lote", JSON.stringify(payload));
         if (r && r.ok === false && !r.pending) {
           toast(r.error || "Falha ao iniciar lote.");
@@ -2786,6 +2790,9 @@
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-lote">⇪ Cadastro em lote</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-sel">Consultar selecionados</button>
             <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-todos">Consultar todos</button>
+            ${(window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.toolbarButtonsHtml)
+              ? window.SinapescRgpFuncoes.toolbarButtonsHtml()
+              : ""}
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
           </div>
         </div>
@@ -2909,6 +2916,9 @@
     $("#rgp-lote")?.addEventListener("click", () => openConsultaLoteModal());
     $("#rgp-consulta-sel")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: false, ids: selectedConsultaIds() }));
     $("#rgp-consulta-todos")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: true }));
+    if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.bindToolbar) {
+      window.SinapescRgpFuncoes.bindToolbar();
+    }
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal());
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
@@ -3000,6 +3010,9 @@
         openConsultaSocioModal(reg);
       });
     });
+    if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.markAlertaRows) {
+      window.SinapescRgpFuncoes.markAlertaRows(state.consultaRgpAlertas || []);
+    }
   }
 
   function paintConsultaAuditoria() {
@@ -3423,7 +3436,13 @@
   }
 
   async function init() {
+    window.sinapescToast = toast;
+    window.sinapescCreateModal = createModal;
+    window.sinapescOpenConsultaAutomatica = openConsultaAutomaticaModal;
     wireEvents();
+    if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.wireFuncoesEvents) {
+      window.SinapescRgpFuncoes.wireFuncoesEvents();
+    }
     await refreshBootstrap();
     $("#app").classList.remove("hidden");
     navigate("home", { push: false });

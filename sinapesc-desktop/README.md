@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.42** — 4 funções RGP (fila/alertas/export/vencidos).
+
 **v1.7.41** — Senha Gov.br no Editar + formulário organizado.
 
 **v1.7.40** — Lote, consulta automática e auditoria RGP.

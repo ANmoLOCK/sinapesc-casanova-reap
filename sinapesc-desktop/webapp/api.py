@@ -1864,155 +1864,38 @@ class SinapescApi:
         return ok(mensagem="Cancelamento solicitado — para após a consulta atual.")
 
     def consultar_rgp_lote(self, payload: Any = None) -> Dict[str, Any]:
-        """Consulta MPA em série (um por um) para ids selecionados ou todos.
+        """Consulta MPA em série (fila inteligente: pausa após N falhas + CSV erros)."""
+        from webapp.consulta_rgp_ext import executar_lote
 
-        Emite ``consulta_rgp_lote_progress`` a cada registro.
-        """
         local = _js_payload_to_dict(payload)
+        ids = []
         ids_raw = local.get("ids") or []
         if isinstance(ids_raw, str):
             try:
                 ids_raw = json.loads(ids_raw)
             except json.JSONDecodeError:
                 ids_raw = [x.strip() for x in ids_raw.split(",") if x.strip()]
-        ids = [str(x).strip() for x in (ids_raw or []) if str(x).strip()]
+        if isinstance(ids_raw, (list, tuple)):
+            ids = [str(x).strip() for x in ids_raw if str(x).strip()]
         todos = bool(local.get("todos"))
+        try:
+            max_falhas = int(local.get("max_falhas_seguidas") or 3)
+        except (TypeError, ValueError):
+            max_falhas = 3
 
         def work():
             self._consulta_rgp_lote_cancel = False
             svc = self._ensure_consulta_rgp()
-            regs = svc.listar()
-            if todos or not ids:
-                alvos = list(regs)
-            else:
-                idset = set(ids)
-                alvos = [r for r in regs if r.id in idset]
-            total = len(alvos)
-            if total == 0:
-                raise ValueError("Nenhum registro para consultar.")
-
-            ok_n = 0
-            fail_n = 0
-            cancelado = False
-            erros: List[str] = []
-            est_min = max(1, int(round(total * SEGUNDOS_POR_CONSULTA_EST / 60.0)))
-            self._dispatch(
-                "consulta_rgp_lote_progress",
-                {
-                    "ok": True,
-                    "fase": "inicio",
-                    "atual": 0,
-                    "total": total,
-                    "minutos_estimados": est_min,
-                    "mensagem": (
-                        f"Iniciando consulta automática de {total} sócio(s). "
-                        f"Estimativa: ~{est_min} min."
-                    ),
-                },
+            return executar_lote(
+                svc=svc,
+                regs=svc.listar(),
+                ids=ids,
+                todos=todos,
+                cancel_check=lambda: self._consulta_rgp_lote_cancel,
+                on_progress=lambda p: self._dispatch("consulta_rgp_lote_progress", p),
+                on_status=lambda msg: self._dispatch("status", {"msg": msg}),
+                max_falhas_seguidas=max_falhas,
             )
-            svc.registrar_auditoria(
-                "consulta_rgp_lote_inicio",
-                f"Iniciou consulta em lote de {total} registro(s) (~{est_min} min).",
-            )
-
-            for i, reg in enumerate(alvos, start=1):
-                if self._consulta_rgp_lote_cancel:
-                    cancelado = True
-                    break
-                alvo = normalize_cpf(reg.cpf)
-                nome = reg.nome or ""
-                self._dispatch(
-                    "status",
-                    {"msg": f"Consultando {i}/{total}: {nome or alvo}…"},
-                )
-                self._dispatch(
-                    "consulta_rgp_lote_progress",
-                    {
-                        "ok": True,
-                        "fase": "item",
-                        "atual": i,
-                        "total": total,
-                        "id": reg.id,
-                        "nome": nome,
-                        "cpf": alvo,
-                        "mensagem": f"Consultando {i} de {total}: {nome or alvo}",
-                    },
-                )
-                if len(alvo) != 11:
-                    fail_n += 1
-                    erros.append(f"{nome or reg.id}: CPF inválido")
-                    continue
-                try:
-                    result = consultar_cpf_isolado(alvo)
-                    if not result.get("ok"):
-                        raise ValueError(str(result.get("error") or "sem resultado"))
-                    data = result.get("data") if isinstance(result.get("data"), dict) else {}
-                    if not data and isinstance(result.get("situacao"), str):
-                        data = {"situacao": result.get("situacao")}
-                    if not data:
-                        raise ValueError("API MPA sem dados")
-                    aplicar_resultado_mpa(reg, data, ator="Sistema")
-                    if result.get("situacao") and (
-                        not reg.situacao_rgp or reg.situacao_rgp == "Não consultado"
-                    ):
-                        from controle.consulta_rgp import normalize_situacao as _norm
-
-                        reg.situacao_rgp = _norm(result.get("situacao"))
-                    reg.cpf = alvo
-                    salvo = svc.salvar(reg.to_dict())
-                    svc.registrar_auditoria(
-                        "consulta_rgp_consulta",
-                        f"Consultou MPA (lote): {salvo.nome} → {salvo.situacao_rgp}",
-                        person_id=salvo.id,
-                        nome=salvo.nome,
-                    )
-                    ok_n += 1
-                    self._dispatch(
-                        "consulta_rgp_lote_progress",
-                        {
-                            "ok": True,
-                            "fase": "ok",
-                            "atual": i,
-                            "total": total,
-                            "id": salvo.id,
-                            "registro": salvo.to_dict(),
-                            "situacao": salvo.situacao_rgp,
-                            "mensagem": f"OK {i}/{total}: {salvo.situacao_rgp}",
-                        },
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    fail_n += 1
-                    erros.append(f"{nome or alvo}: {exc}")
-                    self._dispatch(
-                        "consulta_rgp_lote_progress",
-                        {
-                            "ok": False,
-                            "fase": "erro",
-                            "atual": i,
-                            "total": total,
-                            "id": reg.id,
-                            "error": str(exc),
-                            "mensagem": f"Erro {i}/{total}: {exc}",
-                        },
-                    )
-
-            regs2 = svc.listar()
-            msg = (
-                f"Consulta em lote "
-                f"{'cancelada' if cancelado else 'concluída'}: "
-                f"{ok_n} ok, {fail_n} erro(s) de {total}."
-            )
-            svc.registrar_auditoria("consulta_rgp_lote_fim", msg)
-            return {
-                "ok_count": ok_n,
-                "fail_count": fail_n,
-                "total": total,
-                "cancelado": cancelado,
-                "erros": erros[:40],
-                "itens": [r.to_dict() for r in regs2],
-                "kpis": resumo_kpis(regs2),
-                "mensagem": msg,
-            }
 
         n_hint = len(ids) if ids and not todos else 0
         busy = (
@@ -2021,6 +1904,55 @@ class SinapescApi:
             else "Consulta automática em lote…"
         )
         return self._run_async("consulta_rgp_consulta_lote", work, busy)
+
+    def listar_consulta_rgp_vencidos(self, dias: Any = 30) -> Dict[str, Any]:
+        """Função 4 — sócios Não consultado ou última consulta > N dias."""
+        from webapp.consulta_rgp_ext import listar_vencidos_payload
+
+        try:
+            n = int(dias or 30)
+        except (TypeError, ValueError):
+            n = 30
+
+        def work():
+            return listar_vencidos_payload(self._ensure_consulta_rgp(), dias=n)
+
+        return self._run_async(
+            "consulta_rgp_vencidos", work, "Listando vencidos…"
+        )
+
+    def exportar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Função 3 — exporta CSV + HTML (imprimir PDF) com filtros."""
+        from webapp.consulta_rgp_ext import exportar_payload
+
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            return exportar_payload(
+                self._ensure_consulta_rgp(),
+                municipio=str(local.get("municipio") or ""),
+                situacao=str(local.get("situacao") or ""),
+                ultima_de=str(local.get("ultima_de") or ""),
+                ultima_ate=str(local.get("ultima_ate") or ""),
+                abrir_html=bool(local.get("abrir_html", True)),
+            )
+
+        return self._run_async("consulta_rgp_export", work, "Exportando Consulta RGP…")
+
+    def abrir_csv_erros_consulta_rgp(self, path: str = "") -> Dict[str, Any]:
+        """Abre CSV de erros da fila inteligente."""
+        p = Path(str(path or "")).expanduser()
+        if not p.is_file():
+            return err("Arquivo de erros não encontrado.")
+        try:
+            _abrir_no_navegador(p) if p.suffix.lower() in (".html", ".htm", ".pdf") else None
+            if os.name == "nt":
+                os.startfile(str(p))  # type: ignore[attr-defined]
+            else:
+                webbrowser.open(p.as_uri())
+            return ok(path=str(p))
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
 
     def load_consulta_rgp_auditoria(self) -> Dict[str, Any]:
         def work():

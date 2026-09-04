@@ -10,6 +10,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.42] — 2026-09-04 — 4 funções Consulta RGP (módulos separados)
+
+**Tag:** [`v1.7.42`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.42)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.42/SinapescREAP-Windows-v1.7.42.zip
+
+Código em pastas/arquivos separados (sem bagunçar `app.js` / `api.py`):
+
+1. **Fila inteligente** — pausa após 3 falhas seguidas + CSV de erros  
+2. **Alerta de situação** — Ativo → Suspenso/Cancelado/Inativo (toast + destaque)  
+3. **Exportar** — CSV + HTML (imprimir PDF) com filtros  
+4. **Reconsultar vencidos** — Não consultado ou última consulta > N dias  
+
 ## [v1.7.41] — 2026-09-04 — Senha Gov.br no Editar + formulário organizado
 
 **Tag:** [`v1.7.41`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.41)  

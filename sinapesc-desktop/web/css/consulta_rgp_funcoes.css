@@ -1,0 +1,10 @@
+/* Estilos das funções extras Consulta RGP (arquivo separado) */
+.rgp-alerta-sit {
+  outline: 2px solid #A82E26;
+  outline-offset: -2px;
+  background: #FDF2F0 !important;
+}
+.rgp-alerta-sit td:first-child::before {
+  content: "⚠ ";
+  color: #A82E26;
+}
