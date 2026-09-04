@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Protocol
 
 from controle.consulta_rgp import extract_situacao_from_mpa, flatten_mpa_payload, normalize_situacao
-from ui.formatters import only_digits
+from ui.formatters import normalize_cpf, only_digits
 
 MPA_CONSULTA_URL = "https://pesqbrasil-pescadorprofissional.mpa.gov.br/acesso-externo"
 MPA_RECAPTCHA_SITE_KEY = "6LeJP-srAAAAAFdZMYINP6CJ4COI_MAzFvk_0gs1"
@@ -43,7 +43,7 @@ def _js_start_consulta(cpf: str) -> str:
     Resultado fica em window.__sinapescRgp = {done, ok, data|error}.
     Isso evita depender do pywebview aguardar Promise de async IIFE.
     """
-    cpf_js = json.dumps(only_digits(cpf))
+    cpf_js = json.dumps(normalize_cpf(cpf) or only_digits(cpf))
     key_js = json.dumps(MPA_RECAPTCHA_SITE_KEY)
     return f"""
 (function() {{
@@ -218,7 +218,7 @@ def drive_consulta_on_window(
 
     Usado pelo worker real e pelos testes com FakeWindow.
     """
-    digits = only_digits(cpf)
+    digits = normalize_cpf(cpf)
     if len(digits) != 11:
         return {"ok": False, "error": "CPF inválido (11 dígitos)."}
 
@@ -265,7 +265,7 @@ def drive_consulta_on_window(
 
 def run_consulta_in_webview(cpf: str, *, timeout_s: float = 120.0) -> Dict[str, Any]:
     """Abre janela isolada no site MPA, consulta e fecha (bloqueante)."""
-    digits = only_digits(cpf)
+    digits = normalize_cpf(cpf)
     if len(digits) != 11:
         return {"ok": False, "error": "CPF inválido (11 dígitos)."}
 
@@ -373,7 +373,7 @@ def consultar_cpf_isolado(cpf: str, *, timeout_s: float = 130.0) -> Dict[str, An
     """
     Dispara consulta em subprocesso separado para não derrubar o app principal.
     """
-    digits = only_digits(cpf)
+    digits = normalize_cpf(cpf)
     if len(digits) != 11:
         return {"ok": False, "error": "CPF inválido (11 dígitos)."}
 
@@ -499,7 +499,7 @@ def abrir_site_mpa_no_navegador(cpf: str = "") -> None:
     """Abre o site oficial no Edge/Chrome (fallback manual)."""
     import webbrowser
 
-    digits = only_digits(cpf)
+    digits = normalize_cpf(cpf) or only_digits(cpf)
     try:
         webbrowser.open(MPA_CONSULTA_URL)
     except Exception:  # noqa: BLE001

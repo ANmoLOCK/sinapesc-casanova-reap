@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
-from ui.formatters import display_nome, format_cpf, format_nome, only_digits
+from ui.formatters import display_nome, format_cpf, format_nome, normalize_cpf, only_digits
 
 
 CONSULTA_RGP_TAB = "ConsultaRGP"
@@ -247,7 +247,7 @@ class RegistroConsultaRgp:
             self.id,
             self.person_id,
             self.nome,
-            self.cpf,
+            normalize_cpf(self.cpf) or self.cpf,
             self.telefone,
             self.municipio,
             self.uf,
@@ -288,6 +288,7 @@ class RegistroConsultaRgp:
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["nome_display"] = display_nome(self.nome)
+        d["cpf"] = normalize_cpf(self.cpf) or self.cpf
         d["cpf_formatado"] = format_cpf(self.cpf)
         d["situacao_rgp"] = normalize_situacao(self.situacao_rgp)
         d["badge_class"] = situacao_badge_class(self.situacao_rgp)
@@ -316,7 +317,7 @@ def row_to_registro(row: Sequence[Any] | None) -> Optional[RegistroConsultaRgp]:
         id=cells[0].strip(),
         person_id=cells[1].strip(),
         nome=cells[2].strip(),
-        cpf=only_digits(cells[3]),
+        cpf=normalize_cpf(cells[3]),
         telefone=cells[4].strip(),
         municipio=cells[5].strip(),
         uf=cells[6].strip().upper()[:2],
@@ -341,7 +342,7 @@ def payload_to_registro(
     base = existing or RegistroConsultaRgp()
     agora = now_stamp()
     nome = format_nome(str(payload.get("nome") or base.nome or ""))
-    cpf = only_digits(str(payload.get("cpf") or base.cpf or ""))
+    cpf = normalize_cpf(payload.get("cpf") or base.cpf or "")
     situacao = normalize_situacao(str(payload.get("situacao_rgp") or base.situacao_rgp or ""))
     reg = RegistroConsultaRgp(
         id=(str(payload.get("id") or base.id or "").strip() or new_id()),
@@ -428,7 +429,7 @@ def aplicar_resultado_mpa(
         reg.nome = format_nome(nome_api)
 
     if flat.get("cpf"):
-        reg.cpf = only_digits(str(flat.get("cpf")))
+        reg.cpf = normalize_cpf(flat.get("cpf")) or only_digits(str(flat.get("cpf")))
     tel = flat.get("telefone") or flat.get("celular") or flat.get("fone")
     if tel:
         reg.telefone = str(tel).strip() or reg.telefone

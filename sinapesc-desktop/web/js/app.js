@@ -116,16 +116,31 @@
   }
 
   function formatCpf(value) {
-    const d = String(value || "").replace(/\D/g, "").slice(0, 11);
-    const p1 = d.slice(0, 3);
-    const p2 = d.slice(3, 6);
-    const p3 = d.slice(6, 9);
-    const p4 = d.slice(9, 11);
+    const d = normalizeCpf(value);
+    const digits = d.length === 11 ? d : String(value || "").replace(/\D/g, "").slice(0, 11);
+    const p1 = digits.slice(0, 3);
+    const p2 = digits.slice(3, 6);
+    const p3 = digits.slice(6, 9);
+    const p4 = digits.slice(9, 11);
     let out = p1;
     if (p2) out += `.${p2}`;
     if (p3) out += `.${p3}`;
     if (p4) out += `-${p4}`;
     return out;
+  }
+
+  /** CPF com 11 dígitos — recupera zero à esquerda perdido (ex.: planilha). */
+  function normalizeCpf(value) {
+    let s = String(value ?? "").trim();
+    if (/^\d+\.?\d*[eE][+-]?\d+$/.test(s)) {
+      const n = Number(s);
+      if (Number.isFinite(n)) s = String(Math.round(n));
+    }
+    let d = s.replace(/\D/g, "");
+    if (!d) return "";
+    if (d.length > 11) d = d.slice(-11);
+    if (d.length >= 9 && d.length < 11) d = d.padStart(11, "0");
+    return d.slice(0, 11);
   }
 
   function formatNome(value) {
@@ -2159,7 +2174,7 @@
       const observacao = ($("#rgp-ed-obs")?.value || "").trim();
       const govbrSenha = $("#rgp-ed-govbr") ? String($("#rgp-ed-govbr").value || "") : null;
       if (!nome) { toast("Informe o nome."); return; }
-      if ((cpf.replace(/\D/g, "")).length !== 11) { toast("CPF inválido."); return; }
+      if (normalizeCpf(cpf).length !== 11) { toast("CPF inválido."); return; }
       const payload = {
         id: reg?.id || "",
         person_id: reg?.person_id || "",
@@ -2344,7 +2359,7 @@
     $("#rgp-save-cadastro")?.addEventListener("click", () => {
       const payload = payloadFromConsultaDetalhe(reg);
       if (!payload.nome) { toast("Informe o nome."); return; }
-      if ((String(payload.cpf || "").replace(/\D/g, "")).length !== 11) {
+      if (normalizeCpf(payload.cpf).length !== 11) {
         toast("CPF inválido.");
         return;
       }
@@ -2377,12 +2392,12 @@
       });
     });
     $("#rgp-consultar-sel")?.addEventListener("click", () => {
-      if ((String(reg.cpf || "").replace(/\D/g, "")).length !== 11) {
+      if (normalizeCpf(reg.cpf).length !== 11) {
         toast("CPF inválido para consulta.");
         return;
       }
       toast("Consultando situação RGP no MPA…", 3500);
-      api("consultar_rgp_pessoa", reg.id, reg.cpf || "");
+      api("consultar_rgp_pessoa", reg.id, normalizeCpf(reg.cpf) || reg.cpf || "");
     });
     $("#rgp-open-mpa")?.addEventListener("click", () => {
       api("abrir_consulta_rgp_mpa", reg.cpf || "");
@@ -2616,13 +2631,13 @@
           toast("Selecione um registro válido.");
           return;
         }
-        if ((String(reg.cpf || "").replace(/\D/g, "")).length !== 11) {
+        if (normalizeCpf(reg.cpf).length !== 11) {
           toast("CPF inválido para consulta.");
           return;
         }
         openConsultaDetalheModal(reg, { tab: "resumo" });
         toast("Consultando situação RGP no MPA…", 3500);
-        api("consultar_rgp_pessoa", reg.id, reg.cpf || "");
+        api("consultar_rgp_pessoa", reg.id, normalizeCpf(reg.cpf) || reg.cpf || "");
       });
     });
     document.querySelectorAll("[data-act=editar]").forEach((btn) => {
@@ -2917,7 +2932,7 @@
           toast("Consultando situação RGP no MPA…", 3500);
           // pequeno atraso evita corrida com a fila async do Python
           setTimeout(() => {
-            api("consultar_rgp_pessoa", item.id, item.cpf || "");
+            api("consultar_rgp_pessoa", item.id, normalizeCpf(item.cpf) || item.cpf || "");
           }, 500);
         }
       } else {

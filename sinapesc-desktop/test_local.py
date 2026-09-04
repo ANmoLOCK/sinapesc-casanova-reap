@@ -22,11 +22,23 @@ def test_meses_intervalo() -> None:
 
 
 def test_formatters() -> None:
+    from ui.formatters import normalize_cpf
+
     assert only_digits("123.456.789-01") == "12345678901"
     assert format_cpf("12345678901") == "123.456.789-01"
     assert format_cpf("10520558545") == "105.205.585-45"
     assert format_cpf("105.205.585-45") == "105.205.585-45"
     assert format_cpf_masked("12345678901") == "***.***.789-**"
+    # zeros à esquerda (planilha / número)
+    assert normalize_cpf("095.453.325-90") == "09545332590"
+    assert normalize_cpf("9545332590") == "09545332590"
+    assert normalize_cpf(9545332590) == "09545332590"
+    assert normalize_cpf("056.106.905-01") == "05610690501"
+    assert normalize_cpf("5610690501") == "05610690501"
+    assert normalize_cpf(5610690501) == "05610690501"
+    assert format_cpf("9545332590") == "095.453.325-90"
+    assert format_cpf(5610690501) == "056.106.905-01"
+    assert len(normalize_cpf("12345")) == 5  # incompleto não inventa
 
 
 def test_display_nome() -> None:
@@ -1094,8 +1106,47 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "rgp-detalhe-modal" in js
     assert "rgp-body-scroll" in js
     assert '<aside class="rgp-side">' not in js
+    assert "normalizeCpf" in js
     assert "rgp-body-scroll" in css
     assert "rgp-detalhe-modal" in css
+    from ui.formatters import normalize_cpf
+
+    for raw in ("095.453.325-90", "9545332590", 9545332590, "056.106.905-01", "5610690501", 5610690501):
+        assert len(normalize_cpf(raw)) == 11
+    # gate da consulta MPA aceita CPF com zero inicial perdido
+    from controle.consulta_rgp_mpa import drive_consulta_on_window
+
+    class _Gate:
+        def __init__(self) -> None:
+            self.started = False
+
+        def evaluate_js(self, script: str):
+            if "grecaptcha" in script or "recaptchaToken" in script:
+                self.started = True
+                return True
+            if not self.started:
+                return True
+            return {
+                "done": True,
+                "ok": True,
+                "data": {"situacao": "Ativo", "cpf": "09545332590"},
+            }
+
+    r = drive_consulta_on_window(_Gate(), "9545332590", timeout_s=5, poll_s=0.01, settle_s=0)
+    assert r.get("ok") is True, r
+    assert r.get("cpf") == "09545332590"
+    r2 = drive_consulta_on_window(_Gate(), "5610690501", timeout_s=5, poll_s=0.01, settle_s=0)
+    assert r2.get("ok") is True, r2
+    assert r2.get("cpf") == "05610690501"
+    # rejeita incompleto
+    bad = drive_consulta_on_window(_Gate(), "12345", timeout_s=1, poll_s=0.01, settle_s=0)
+    assert bad.get("ok") is False
+    assert "inválido" in str(bad.get("error") or "").lower()
+    # JS do worker embute CPF com zero à esquerda
+    assert '"09545332590"' in _js_start_consulta("9545332590")
+    assert '"05610690501"' in _js_start_consulta("5610690501")
+    assert '"09545332590"' in _js_start_consulta("095.453.325-90")
+    assert '"05610690501"' in _js_start_consulta("056.106.905-01")
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "govbr_senha" in api_src
     assert "set_govbr_senha" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")

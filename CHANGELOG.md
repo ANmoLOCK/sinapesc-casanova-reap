@@ -10,6 +10,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.36] — 2026-09-04 — CPF zero à esquerda + UI compacta
+
+**Tag:** [`v1.7.36`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.36)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.36/SinapescREAP-Windows-v1.7.36.zip
+
+- `normalize_cpf`: recupera zero à esquerda perdido (ex.: `9545332590` → `09545332590`)
+- Consulta MPA / cadastro / planilha usam CPF normalizado (11 dígitos)
+- Testado no site MPA: `095.453.325-90` e `056.106.905-01` retornam situação; sem zero falha
+- UI Consulta RGP compactada (header, KPIs, linhas da tabela) para mais área útil
+
 ## [v1.7.35] — 2026-09-04 — Scroll estável + detalhes em modal
 
 **Tag:** [`v1.7.35`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.35)  

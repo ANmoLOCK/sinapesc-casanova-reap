@@ -56,7 +56,7 @@ from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
 from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
 from sheets.consulta_rgp_service import ConsultaRgpService
-from ui.formatters import display_nome, format_cpf, format_nome, only_digits, parse_lote_lines
+from ui.formatters import display_nome, format_cpf, format_nome, normalize_cpf, only_digits, parse_lote_lines
 from ui.public_link import ensure_site_qrs, urls_for
 from ui.qr_vault import normalize_public_base, preferred_public_base, qr_dir
 from ui.qrutil import make_qr_image
@@ -1684,7 +1684,7 @@ class SinapescApi:
     def consultar_rgp_pessoa(self, registro_id: str = "", cpf: str = "") -> Dict[str, Any]:
         """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP)."""
         rid = str(registro_id or "").strip()
-        cpf_digits = only_digits(cpf)
+        cpf_digits = normalize_cpf(cpf)
 
         def work():
             svc = self._ensure_consulta_rgp()
@@ -1696,7 +1696,7 @@ class SinapescApi:
                     "Registro não encontrado. Cadastre o sócio na Consulta RGP primeiro."
                 )
 
-            alvo = only_digits(reg.cpf) or cpf_digits
+            alvo = normalize_cpf(reg.cpf) or cpf_digits
             if len(alvo) != 11:
                 raise ValueError("CPF inválido para consulta.")
 

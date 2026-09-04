@@ -11,19 +11,19 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.35**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.35) |
+| Versão atual | [**v1.7.36**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.36) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.35)
+## Download do EXE (v1.7.36)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.35/SinapescREAP-Windows-v1.7.35.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.36/SinapescREAP-Windows-v1.7.36.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.35
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.36
 
 Versão anterior: [v1.7.34](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.34)
 
@@ -49,7 +49,7 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.7.35
+## O que há na v1.7.36
 
 - Consulta RGP: scroll estável (área rolável própria); nada cortado
 - Detalhes/edição em **modal largo** (não mais painel lateral que apertava a tabela)

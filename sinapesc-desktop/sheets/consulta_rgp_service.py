@@ -17,7 +17,7 @@ from controle.consulta_rgp import (
     row_to_registro,
 )
 from sheets.client import GoogleSheetsClient, SheetsConfigError, normalize_sheet_id
-from ui.formatters import format_nome, only_digits
+from ui.formatters import format_nome, normalize_cpf, only_digits
 
 
 class ConsultaRgpService:
@@ -137,11 +137,11 @@ class ConsultaRgpService:
         return None
 
     def por_cpf(self, cpf: str) -> Optional[RegistroConsultaRgp]:
-        digits = only_digits(cpf)
+        digits = normalize_cpf(cpf)
         if len(digits) != 11:
             return None
         for r in self.listar():
-            if only_digits(r.cpf) == digits:
+            if normalize_cpf(r.cpf) == digits:
                 return r
         return None
 
@@ -160,11 +160,11 @@ class ConsultaRgpService:
         if rid:
             existing = self.por_id(rid)
         if existing is None:
-            cpf = only_digits(str(payload.get("cpf") or ""))
+            cpf = normalize_cpf(payload.get("cpf") or "")
             if len(cpf) == 11:
                 existing = self.por_cpf(cpf)
         reg = payload_to_registro(payload, existing=existing)
-        if not reg.cpf or len(only_digits(reg.cpf)) != 11:
+        if not reg.cpf or len(normalize_cpf(reg.cpf)) != 11:
             raise ValueError("CPF inválido para Consulta RGP.")
         if not reg.nome.strip():
             raise ValueError("Nome obrigatório.")
@@ -233,7 +233,7 @@ class ConsultaRgpService:
         person_id: str = "",
     ) -> RegistroConsultaRgp:
         """Inclui/atualiza registro na Consulta (módulo independente — dados vindos do usuário)."""
-        digits = only_digits(cpf)
+        digits = normalize_cpf(cpf)
         if len(digits) != 11:
             raise ValueError("CPF inválido (11 dígitos).")
         existing = self.por_cpf(digits)

@@ -2,13 +2,59 @@
 
 from __future__ import annotations
 
+import re
+from typing import Any
+
 
 def only_digits(value: str, max_len: int = 11) -> str:
-    return "".join(ch for ch in value if ch.isdigit())[:max_len]
+    return "".join(ch for ch in str(value or "") if ch.isdigit())[:max_len]
+
+
+def normalize_cpf(value: Any) -> str:
+    """CPF com 11 dígitos e zeros à esquerda.
+
+    Google Sheets / JSON numérico costuma devolver 095.453.325-90 como
+    ``9545332590`` (10 dígitos). Sem o pad, a consulta MPA falha com
+    «CPF inválido».
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, int):
+        raw = str(value)
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raw = f"{value:.0f}"
+        else:
+            raw = str(int(value))
+    else:
+        raw = str(value).strip()
+        if re.fullmatch(r"\d+\.?\d*[eE][+-]?\d+", raw):
+            try:
+                raw = str(int(float(raw)))
+            except (TypeError, ValueError):
+                pass
+
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return ""
+    if len(digits) > 11:
+        # notação científica / lixo: fica com os 11 da direita
+        digits = digits[-11:]
+    if len(digits) < 11:
+        # 9–10 dígitos = zero inicial perdido; <9 = incompleto (não inventa)
+        if len(digits) >= 9:
+            digits = digits.zfill(11)
+        else:
+            return digits
+    return digits[:11]
 
 
 def format_cpf(digits: str) -> str:
-    clean = only_digits(digits)
+    clean = normalize_cpf(digits)
+    if len(clean) != 11:
+        clean = only_digits(digits)
     part1, part2, part3, part4 = clean[:3], clean[3:6], clean[6:9], clean[9:11]
     result = part1
     if part2:
@@ -21,9 +67,9 @@ def format_cpf(digits: str) -> str:
 
 
 def format_cpf_masked(digits: str) -> str:
-    clean = only_digits(digits)
+    clean = normalize_cpf(digits)
     if len(clean) != 11:
-        return format_cpf(clean)
+        return format_cpf(digits)
     return f"***.***.{clean[6:9]}-**"
 
 
