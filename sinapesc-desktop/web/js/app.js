@@ -2093,34 +2093,56 @@
   function openConsultaSocioModal(reg) {
     const edit = !!reg;
     const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop";
+    backdrop.className = "modal-backdrop rgp-modal-backdrop";
     backdrop.innerHTML = `
-      <div class="modal-card" style="max-width:480px">
-        <div class="modal-head">${edit ? "Editar sócio" : "Cadastrar sócio"}</div>
-        <p class="page-sub">${edit
-          ? "Atualiza nome, CPF, município, telefone e observação na planilha Consulta."
-          : "Salva na planilha e em seguida consulta o MPA automaticamente."}</p>
-        <label>Nome *</label>
-        <input id="rgp-ed-nome" value="${esc(reg?.nome || "")}" />
-        <label>CPF *</label>
-        <input id="rgp-ed-cpf" value="${esc(reg?.cpf_formatado || reg?.cpf || "")}" placeholder="000.000.000-00" />
-        <label>Município</label>
-        <input id="rgp-ed-mun" value="${esc(reg?.municipio || "")}" />
-        <label>Telefone</label>
-        <input id="rgp-ed-tel" value="${esc(reg?.telefone || "")}" placeholder="(00) 00000-0000" />
-        <label>Observação</label>
-        <textarea id="rgp-ed-obs" rows="3">${esc(reg?.observacao || "")}</textarea>
-        <div class="form-actions" style="justify-content:flex-end;margin-top:10px">
+      <div class="modal rgp-cadastro-modal" role="dialog" aria-modal="true" aria-labelledby="rgp-ed-title">
+        <div class="rgp-cadastro-head">
+          <div>
+            <div class="rgp-cadastro-kicker">Consulta RGP <span class="rgp-tag">CADASTRO</span></div>
+            <h2 id="rgp-ed-title" class="rgp-cadastro-title">${edit ? "Editar sócio" : "Cadastrar sócio"}</h2>
+            <p class="rgp-cadastro-sub">${edit
+              ? "Atualize os dados na planilha Consulta (nome, CPF, município, telefone e observação)."
+              : "Preencha os campos e salve. Em seguida a consulta no MPA roda automaticamente."}</p>
+          </div>
+          <button type="button" class="rgp-cadastro-close" id="rgp-ed-x" aria-label="Fechar">✕</button>
+        </div>
+        <div class="rgp-cadastro-body">
+          <div class="rgp-cadastro-grid">
+            <label class="rgp-field-block rgp-span-2">
+              <span>Nome completo <em>*</em></span>
+              <input id="rgp-ed-nome" type="text" autocomplete="name" value="${esc(reg?.nome || "")}" placeholder="Ex.: Maria Aparecida da Silva" />
+            </label>
+            <label class="rgp-field-block">
+              <span>CPF <em>*</em></span>
+              <input id="rgp-ed-cpf" type="text" inputmode="numeric" value="${esc(reg?.cpf_formatado || reg?.cpf || "")}" placeholder="000.000.000-00" />
+            </label>
+            <label class="rgp-field-block">
+              <span>Telefone</span>
+              <input id="rgp-ed-tel" type="text" inputmode="tel" value="${esc(reg?.telefone || "")}" placeholder="(00) 00000-0000" />
+            </label>
+            <label class="rgp-field-block rgp-span-2">
+              <span>Município</span>
+              <input id="rgp-ed-mun" type="text" value="${esc(reg?.municipio || "")}" placeholder="Ex.: Itajaí" />
+            </label>
+            <label class="rgp-field-block rgp-span-2">
+              <span>Observação</span>
+              <textarea id="rgp-ed-obs" rows="3" placeholder="Anotações internas (opcional)">${esc(reg?.observacao || "")}</textarea>
+            </label>
+          </div>
+        </div>
+        <div class="rgp-cadastro-foot">
           <button type="button" class="btn btn-outline-dark" id="rgp-ed-cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="rgp-ed-ok">${edit ? "Salvar" : "Cadastrar e consultar"}</button>
+          <button type="button" class="btn btn-primary" id="rgp-ed-ok">${edit ? "Salvar alterações" : "Cadastrar e consultar"}</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);
     const close = () => backdrop.remove();
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     $("#rgp-ed-cancel").addEventListener("click", close);
+    $("#rgp-ed-x").addEventListener("click", close);
     const cpfInput = $("#rgp-ed-cpf");
     if (cpfInput && typeof bindCpfMask === "function") bindCpfMask(cpfInput);
+    $("#rgp-ed-nome")?.focus();
     $("#rgp-ed-ok").addEventListener("click", () => {
       const nome = ($("#rgp-ed-nome")?.value || "").trim();
       const cpf = ($("#rgp-ed-cpf")?.value || "").trim();
@@ -2372,17 +2394,28 @@
             </div>
             <div class="rgp-side-body">
               ${editMode ? `
-                <h4>Editar cadastro</h4>
-                <label>Nome *</label>
-                <input id="rgp-side-nome" value="${esc(selected.nome || "")}" />
-                <label>CPF *</label>
-                <input id="rgp-side-cpf" value="${esc(selected.cpf_formatado || selected.cpf || "")}" />
-                <label>Município</label>
-                <input id="rgp-side-mun" value="${esc(selected.municipio || "")}" />
-                <label>Telefone</label>
-                <input id="rgp-side-tel" value="${esc(selected.telefone || "")}" />
-                <label>Observação</label>
-                <textarea id="rgp-side-obs" rows="3">${esc(selected.observacao || "")}</textarea>
+                <div class="rgp-cadastro-grid rgp-side-edit">
+                  <label class="rgp-field-block rgp-span-2">
+                    <span>Nome completo <em>*</em></span>
+                    <input id="rgp-side-nome" type="text" value="${esc(selected.nome || "")}" placeholder="Nome completo" />
+                  </label>
+                  <label class="rgp-field-block">
+                    <span>CPF <em>*</em></span>
+                    <input id="rgp-side-cpf" type="text" inputmode="numeric" value="${esc(selected.cpf_formatado || selected.cpf || "")}" placeholder="000.000.000-00" />
+                  </label>
+                  <label class="rgp-field-block">
+                    <span>Telefone</span>
+                    <input id="rgp-side-tel" type="text" inputmode="tel" value="${esc(selected.telefone || "")}" placeholder="(00) 00000-0000" />
+                  </label>
+                  <label class="rgp-field-block rgp-span-2">
+                    <span>Município</span>
+                    <input id="rgp-side-mun" type="text" value="${esc(selected.municipio || "")}" placeholder="Município" />
+                  </label>
+                  <label class="rgp-field-block rgp-span-2">
+                    <span>Observação</span>
+                    <textarea id="rgp-side-obs" rows="3" placeholder="Anotações internas">${esc(selected.observacao || "")}</textarea>
+                  </label>
+                </div>
               ` : `
                 <h4>Informações principais</h4>
                 <div class="rgp-field"><span>Situação RGP</span><strong><span class="rgp-badge ${esc(selected.badge_class || "")}">${esc(selected.situacao_rgp || "Não consultado")}</span></strong></div>

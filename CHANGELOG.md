@@ -8,6 +8,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.28] — 2026-09-04 — Cadastro sócio sólido
+
+**Tag:** [`v1.7.28`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.28)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.28/SinapescREAP-Windows-v1.7.28.zip
+
+- Corrige modal quase transparente (`modal-card` sem estilo)
+- Formulário opaco branco, labels e inputs organizados em grade
+- Edição no painel lateral com o mesmo padrão
+
 ## [v1.7.27] — 2026-09-04 — Consulta RGP UI (opções escolhidas)
 
 **Tag:** [`v1.7.27`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.27)  

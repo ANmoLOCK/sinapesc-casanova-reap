@@ -51,7 +51,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.27)
+          SINAPESC REAP — COMO USAR (v1.7.28)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
