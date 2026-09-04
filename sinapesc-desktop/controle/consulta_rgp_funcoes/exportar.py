@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from controle.auditoria import parse_em
 from controle.backup import backup_root
-from controle.consulta_rgp import normalize_situacao
+from controle.consulta_rgp import normalize_situacao, situacao_match_filtro
 from controle.relatorio import logo_data_uri
 from ui.formatters import format_cpf, format_nome
 
@@ -30,7 +30,7 @@ def filtrar_registros_export(
     ultima_ate: str = "",
 ) -> List[Any]:
     mun_q = (municipio or "").strip().lower()
-    sit_q = normalize_situacao(situacao) if (situacao or "").strip() else ""
+    sit_q = (situacao or "").strip()
     dt_de = parse_em(ultima_de) if (ultima_de or "").strip() else None
     dt_ate = parse_em(ultima_ate) if (ultima_ate or "").strip() else None
     # Se só data (sem hora), parse_em pode falhar — aceita YYYY-MM-DD
@@ -52,9 +52,8 @@ def filtrar_registros_export(
             mun = str(getattr(r, "municipio", "") or "").strip().lower()
             if mun_q not in mun:
                 continue
-        if sit_q:
-            if normalize_situacao(getattr(r, "situacao_rgp", "") or "") != sit_q:
-                continue
+        if sit_q and not situacao_match_filtro(getattr(r, "situacao_rgp", "") or "", sit_q):
+            continue
         ultima = parse_em(str(getattr(r, "ultima_consulta_em", "") or ""))
         if dt_de and (ultima is None or ultima < dt_de):
             continue

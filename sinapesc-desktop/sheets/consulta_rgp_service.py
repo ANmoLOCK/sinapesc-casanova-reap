@@ -142,6 +142,24 @@ class ConsultaRgpService:
                 out.append(reg)
         return out
 
+    def mapa_id_linha(self) -> Dict[str, int]:
+        """id → número da linha na planilha (1 GET). Usado no lote anti-cota."""
+        self.ensure()
+        rows = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:A")
+        out: Dict[str, int] = {}
+        for i, r in enumerate(rows):
+            if r and str(r[0]).strip():
+                out[str(r[0]).strip()] = i + 2
+        return out
+
+    def atualizar_linha(self, reg: RegistroConsultaRgp, row_idx: int) -> RegistroConsultaRgp:
+        """1 WRITE — sem reler a planilha (consulta em lote / anti-cota)."""
+        if row_idx < 2:
+            raise ValueError("Índice de linha inválido.")
+        self.ensure()
+        self.client.update_values(f"{CONSULTA_RGP_TAB}!A{row_idx}", [reg.to_row()])
+        return reg
+
     def por_id(self, registro_id: str) -> Optional[RegistroConsultaRgp]:
         rid = (registro_id or "").strip()
         if not rid:

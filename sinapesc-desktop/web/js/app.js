@@ -2387,7 +2387,7 @@
     const digits = q.replace(/\D/g, "");
     const filtro = state.consultaRgpFiltro || "";
     return (state.consultaRgpItens || []).filter((r) => {
-      if (filtro && String(r.situacao_rgp || "") !== filtro) return false;
+      if (filtro && !situacaoMatchFiltro(r.situacao_rgp, filtro)) return false;
       if (!q) return true;
       const blob = [
         r.nome, r.nome_display, r.cpf, r.cpf_formatado, r.telefone, r.municipio, r.observacao,
@@ -2398,13 +2398,29 @@
     });
   }
 
+  /** Filtros oficiais da UI (o robô MPA grava a situação verdadeira, não só estes). */
   const RGP_CHIP_SITUACOES = [
     "Ativo",
     "Aguardando análise",
-    "Pend. regularização",
-    "Inativo",
-    "Não consultado",
+    "Finalizada",
+    "Rascunho",
+    "Aguardando atualização",
   ];
+
+  function situacaoMatchFiltro(sit, filtro) {
+    if (!filtro) return true;
+    const a = String(sit || "").trim().toLowerCase();
+    const b = String(filtro || "").trim().toLowerCase();
+    if (!b) return true;
+    if (a === b) return true;
+    // Texto longo antigo do MPA ↔ filtro curto
+    if (b.startsWith("aguardando atualiza") && a.startsWith("aguardando atualiza")) return true;
+    if (b === "aguardando análise" || b === "aguardando analise") {
+      if (a === "aguardando análise" || a === "aguardando analise") return true;
+      if (a.includes("aguardando análise") || a.includes("aguardando analise")) return true;
+    }
+    return false;
+  }
 
   function openConsultaSocioModal(reg) {
     const edit = !!reg;
@@ -2758,10 +2774,7 @@
     const page = state.consultaRgpPage || 1;
     const start = (page - 1) * pageSize;
     const slice = filtered.slice(start, start + pageSize);
-    const situacoesExtra = [...new Set((state.consultaRgpItens || []).map((r) => r.situacao_rgp).filter(Boolean))]
-      .filter((s) => !RGP_CHIP_SITUACOES.includes(s))
-      .sort();
-    const situacoesFiltro = [...RGP_CHIP_SITUACOES, ...situacoesExtra];
+    const situacoesFiltro = RGP_CHIP_SITUACOES;
     const loadingHint = state.consultaRgpLoading && !state.consultaRgpLoaded
       ? `<tr><td colspan="8" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
       : `<tr><td colspan="8" class="rgp-empty">Nenhum registro. Use <strong>Cadastrar sócio</strong> ou <strong>Cadastro em lote</strong>.</td></tr>`;

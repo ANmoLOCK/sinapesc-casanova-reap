@@ -6,9 +6,24 @@ Formato: mais recente primeiro.
 
 ---
 
----
+## [v1.7.44] — 2026-09-04 — Filtros RGP oficiais + anti-cota na consulta em lote
 
----
+**Tag:** [`v1.7.44`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.44/SinapescREAP-Windows-v1.7.44.zip
+
+- **Filtros** da Consulta RGP (chips + select): Ativo · Aguardando análise · Finalizada · Rascunho · Aguardando atualização
+- O **robô MPA** continua gravando a situação verdadeira (ex.: Suspenso, Não encontrado) — o filtro não limita a gravação
+- **Anti-cota** na consulta automática em lote: 1 mapa de linhas + 1 update por CPF (sem listar/auditar a cada item)
+- Mantém import batch (v1.7.43) contra erro 429 / quota 60 em ~500 cadastros
+
+## [v1.7.43] — 2026-09-04 — Import PDF/XLS/TXT anti-cota + relatório HTML geral
+
+**Tag:** [`v1.7.43`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.43)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.43/SinapescREAP-Windows-v1.7.43.zip
+
+- Importar lote de arquivo PDF / XLS / XLSX / TXT / CSV
+- `upsert_lote_batch` evita estouro de cota Sheets no cadastro em massa
+- Relatório HTML geral: nome, CPF, município, telefone, situação RGP e senha Gov.br
 
 ## [v1.7.42] — 2026-09-04 — 4 funções Consulta RGP (módulos separados)
 

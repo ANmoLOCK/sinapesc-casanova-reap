@@ -51,12 +51,21 @@ def selecionar_alvos(regs: Sequence[Any], *, ids: List[str], todos: bool) -> Lis
     return [r for r in regs if r.id in idset]
 
 
-def consultar_um_registro(svc: Any, reg: Any) -> Dict[str, Any]:
-    """Uma consulta MPA + gravação. Usado pela fila inteligente."""
+def consultar_um_registro(
+    svc: Any,
+    reg: Any,
+    *,
+    row_idx: int = 0,
+    auditar: bool = True,
+) -> Dict[str, Any]:
+    """Uma consulta MPA + gravação.
+
+    Com ``row_idx`` > 0 usa ``atualizar_linha`` (1 write) — anti-cota no lote.
+    Sem ``row_idx`` cai no ``salvar`` completo (consulta individual).
+    """
     situacao_antes = normalize_situacao(reg.situacao_rgp or "")
     alvo = normalize_cpf(reg.cpf)
     if len(alvo) != 11 or not cpf_digitos_validos(alvo):
-        # ainda tenta pad/recover
         alvo = normalize_cpf(reg.cpf)
     if len(alvo) != 11:
         return {"ok": False, "erro": "CPF inválido", "situacao_antes": situacao_antes}
@@ -74,22 +83,31 @@ def consultar_um_registro(svc: Any, reg: Any) -> Dict[str, Any]:
     if not data:
         return {"ok": False, "erro": "API MPA sem dados", "situacao_antes": situacao_antes}
 
+    # Robô grava a situação verdadeira do MPA (não o filtro da UI)
     aplicar_resultado_mpa(reg, data, ator="Sistema")
-    if result.get("situacao") and (
-        not reg.situacao_rgp or reg.situacao_rgp == "Não consultado"
-    ):
-        reg.situacao_rgp = normalize_situacao(result.get("situacao"))
+    if result.get("situacao"):
+        sit_mpa = normalize_situacao(result.get("situacao"))
+        if sit_mpa and sit_mpa != "Não consultado":
+            reg.situacao_rgp = sit_mpa
+        elif not reg.situacao_rgp or reg.situacao_rgp == "Não consultado":
+            reg.situacao_rgp = sit_mpa or reg.situacao_rgp
     reg.cpf = alvo
-    salvo = svc.salvar(reg.to_dict())
-    try:
-        svc.registrar_auditoria(
-            "consulta_rgp_consulta",
-            f"Consultou MPA (lote): {salvo.nome} → {salvo.situacao_rgp}",
-            person_id=salvo.id,
-            nome=salvo.nome,
-        )
-    except Exception:  # noqa: BLE001
-        pass
+
+    if row_idx and row_idx >= 2 and hasattr(svc, "atualizar_linha"):
+        salvo = svc.atualizar_linha(reg, int(row_idx))
+    else:
+        salvo = svc.salvar(reg.to_dict())
+
+    if auditar:
+        try:
+            svc.registrar_auditoria(
+                "consulta_rgp_consulta",
+                f"Consultou MPA (lote): {salvo.nome} → {salvo.situacao_rgp}",
+                person_id=salvo.id,
+                nome=salvo.nome,
+            )
+        except Exception:  # noqa: BLE001
+            pass
     return {
         "ok": True,
         "registro": salvo.to_dict(),
@@ -124,7 +142,8 @@ def executar_lote(
             "minutos_estimados": est_min,
             "mensagem": (
                 f"Iniciando fila de {total} sócio(s). Estimativa: ~{est_min} min. "
-                f"Pausa após {max_falhas_seguidas} falhas seguidas."
+                f"Pausa após {max_falhas_seguidas} falhas seguidas. "
+                "Gravação leve (anti-cota Sheets)."
             ),
         }
     )
@@ -136,10 +155,17 @@ def executar_lote(
     except Exception:  # noqa: BLE001
         pass
 
+    # 1 GET de IDs → evita listar/por_id/_row_index a cada CPF (cota 60/429)
+    try:
+        id_to_row = svc.mapa_id_linha() if hasattr(svc, "mapa_id_linha") else {}
+    except Exception:  # noqa: BLE001
+        id_to_row = {}
+
     def _consultar(reg: Any) -> Dict[str, Any]:
         if on_status:
             on_status(f"Consultando: {getattr(reg, 'nome', '') or getattr(reg, 'cpf', '')}…")
-        return consultar_um_registro(svc, reg)
+        row = int(id_to_row.get(str(getattr(reg, "id", "") or ""), 0) or 0)
+        return consultar_um_registro(svc, reg, row_idx=row, auditar=False)
 
     resultado = rodar_fila_inteligente(
         alvos,

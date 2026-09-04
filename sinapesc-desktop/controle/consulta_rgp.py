@@ -47,13 +47,23 @@ SITUACAO_AGUARDANDO_ANALISE = "Aguardando análise"
 SITUACAO_EM_ANALISE = "Em análise"
 SITUACAO_RASCUNHO = "Rascunho"
 SITUACAO_FINALIZADA = "Finalizada"
-SITUACAO_AGUARDANDO_ATUALIZACAO = "Aguardando atualização do interessado"
+# Forma curta (filtro UI); textos longos do MPA normalizam para esta
+SITUACAO_AGUARDANDO_ATUALIZACAO = "Aguardando atualização"
 SITUACAO_SUSPENSO = "Suspenso"
 SITUACAO_CANCELADO = "Cancelado"
 SITUACAO_INATIVO = "Inativo"
 SITUACAO_PEND_REG = "Pend. regularização"
 SITUACAO_NAO_CONSULTADO = "Não consultado"
 SITUACAO_NAO_ENCONTRADO = "Não encontrado"
+
+# Filtro da tela Consulta RGP (chips + select) — só estes; o robô grava o que o MPA devolver
+SITUACOES_FILTRO_UI = (
+    SITUACAO_ATIVO,
+    SITUACAO_AGUARDANDO_ANALISE,
+    SITUACAO_FINALIZADA,
+    SITUACAO_RASCUNHO,
+    SITUACAO_AGUARDANDO_ATUALIZACAO,
+)
 
 # Só Ativo entra nas planilhas REAP e Defeso
 SITUACOES_APTAS_IMPORT = frozenset(
@@ -84,6 +94,8 @@ _SITUACAO_ALIASES = {
     "aguardando atualização de informações do(a) interessado(a)": SITUACAO_AGUARDANDO_ATUALIZACAO,
     "aguardando atualizacao do interessado": SITUACAO_AGUARDANDO_ATUALIZACAO,
     "aguardando atualização do interessado": SITUACAO_AGUARDANDO_ATUALIZACAO,
+    "aguardando atualizacao do(a) interessado(a)": SITUACAO_AGUARDANDO_ATUALIZACAO,
+    "aguardando atualização do(a) interessado(a)": SITUACAO_AGUARDANDO_ATUALIZACAO,
     "suspenso": SITUACAO_SUSPENSO,
     "cancelado": SITUACAO_CANCELADO,
     "inativo": SITUACAO_INATIVO,
@@ -204,6 +216,26 @@ def extract_situacao_from_mpa(data: Dict[str, Any] | None) -> str:
         if sit == SITUACAO_NAO_CONSULTADO and str(raw).strip() not in ("", "0", "Nenhum"):
             return sit
     return SITUACAO_NAO_CONSULTADO
+
+
+def situacao_match_filtro(situacao: Any, filtro: str) -> bool:
+    """Compara situação do registro com o valor do filtro da UI.
+
+    Aceita equivalências (ex.: texto longo do MPA ↔ «Aguardando atualização»).
+    """
+    f = (filtro or "").strip()
+    if not f:
+        return True
+    sit = normalize_situacao(situacao)
+    alvo = normalize_situacao(f)
+    if sit == alvo:
+        return True
+    # Dados antigos gravados com o texto longo antes da forma curta
+    if alvo == SITUACAO_AGUARDANDO_ATUALIZACAO:
+        low = str(situacao or "").strip().lower()
+        if low.startswith("aguardando atualiza"):
+            return True
+    return False
 
 
 def situacao_apta_import(situacao: str) -> bool:

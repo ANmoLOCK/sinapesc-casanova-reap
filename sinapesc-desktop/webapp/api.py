@@ -1813,15 +1813,26 @@ class SinapescApi:
                 raise ValueError("API MPA não retornou dados.")
 
             aplicar_resultado_mpa(reg, data, ator="Sistema")
-            # Garante situação vinda do enrich do worker
-            if result.get("situacao") and (
-                not reg.situacao_rgp or reg.situacao_rgp == "Não consultado"
-            ):
+            # Robô: situação verdadeira do MPA (não limitada ao filtro da UI)
+            if result.get("situacao"):
                 from controle.consulta_rgp import normalize_situacao as _norm
 
-                reg.situacao_rgp = _norm(result.get("situacao"))
+                sit_mpa = _norm(result.get("situacao"))
+                if sit_mpa and sit_mpa != "Não consultado":
+                    reg.situacao_rgp = sit_mpa
+                elif not reg.situacao_rgp or reg.situacao_rgp == "Não consultado":
+                    reg.situacao_rgp = sit_mpa or reg.situacao_rgp
             reg.cpf = alvo
-            salvo = svc.salvar(reg.to_dict())
+            # 1 write quando a linha já existe (anti-cota vs salvar→listar+_row_index)
+            row_idx = 0
+            try:
+                row_idx = int(svc._row_index(reg.id) or 0)
+            except Exception:  # noqa: BLE001
+                row_idx = 0
+            if row_idx >= 2 and hasattr(svc, "atualizar_linha"):
+                salvo = svc.atualizar_linha(reg, row_idx)
+            else:
+                salvo = svc.salvar(reg.to_dict())
             svc.registrar_auditoria(
                 "consulta_rgp_consulta",
                 f"Consultou MPA: {salvo.nome} → {salvo.situacao_rgp}",

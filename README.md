@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.42**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.42) |
+| Versão atual | [**v1.7.44**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.42)
+## Download do EXE (v1.7.44)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.42/SinapescREAP-Windows-v1.7.42.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.44/SinapescREAP-Windows-v1.7.44.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.42
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44
 
-Versão anterior: [v1.7.41](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.41)
+Versão anterior: [v1.7.43](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.43)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -49,9 +49,22 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
+## O que há na v1.7.44
+
+- **Filtros RGP** oficiais: Ativo, Aguardando análise, Finalizada, Rascunho, Aguardando atualização
+- Robô de consulta MPA grava a situação **verdadeira** (não só as do filtro)
+- Anti-cota na **consulta automática em lote** (1 update/CPF, sem listar a cada item)
+- Mantém import PDF/XLS/TXT em batch (v1.7.43)
+
+## O que há na v1.7.43
+
+- Importar lote Consulta RGP de PDF / XLS / TXT / CSV sem estourar cota Sheets (~500)
+- Relatório HTML geral com nome, CPF, município, telefone, situação e senha Gov.br
+
 ## O que há na v1.7.42
 
-- Consulta RGP volta a mostrar o **mesmo rodapé** dos outros módulos (crédito + status da planilha)
+- Consulta RGP: 4 funções (fila inteligente, alertas, exportar, vencidos)
+- Rodapé global (crédito + status da planilha)
 
 ## O que há na v1.7.38
 

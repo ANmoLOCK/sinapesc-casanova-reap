@@ -123,8 +123,7 @@
   function openExportModal() {
     const st = getState();
     const sits = [
-      "", "Ativo", "Aguardando análise", "Em análise", "Não consultado",
-      "Suspenso", "Cancelado", "Inativo", "Não encontrado",
+      "", "Ativo", "Aguardando análise", "Finalizada", "Rascunho", "Aguardando atualização",
     ];
     const munis = [...new Set(((st && st.consultaRgpItens) || []).map((r) => (r.municipio || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, "pt-BR"));
