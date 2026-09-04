@@ -131,7 +131,7 @@
     const backdrop = openModal(`
       <div class="modal-head">Exportar Consulta RGP</div>
       <div class="modal-body">
-        <p class="page-sub">Gera CSV e HTML (abra no navegador e imprima/salve PDF) com filtros.</p>
+        <p class="page-sub">CSV + HTML com filtros, ou relatório geral (nome, CPF, município, telefone, situação RGP e senha Gov.br).</p>
         <label>Município
           <select id="rgp-ex-mun" style="width:100%;margin-top:4px">
             <option value="">Todos</option>
@@ -155,20 +155,27 @@
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="rgp-ex-go">Exportar</button>
+        <button type="button" class="btn btn-ghost" id="rgp-ex-geral">Relatório HTML geral</button>
+        <button type="button" class="btn btn-primary" id="rgp-ex-go">Exportar CSV+HTML</button>
       </div>
     `);
-    backdrop.querySelector("#rgp-ex-go").addEventListener("click", async () => {
-      const payload = {
+    function payloadBase(modoGeral) {
+      return {
         municipio: backdrop.querySelector("#rgp-ex-mun").value || "",
         situacao: backdrop.querySelector("#rgp-ex-sit").value || "",
         ultima_de: backdrop.querySelector("#rgp-ex-de").value || "",
         ultima_ate: backdrop.querySelector("#rgp-ex-ate").value || "",
         abrir_html: true,
+        modo_geral: !!modoGeral,
       };
-      backdrop.querySelector("#rgp-ex-status").textContent = "Exportando…";
+    }
+    async function runExport(modoGeral) {
+      backdrop.querySelector("#rgp-ex-status").textContent = modoGeral
+        ? "Gerando relatório HTML geral…"
+        : "Exportando…";
       try {
-        const r = await api("exportar_consulta_rgp", JSON.stringify(payload));
+        const method = modoGeral ? "relatorio_geral_consulta_rgp" : "exportar_consulta_rgp";
+        const r = await api(method, JSON.stringify(payloadBase(modoGeral)));
         if (r && r.ok === false && !r.pending) {
           toast(r.error || "Falha ao exportar.");
           backdrop.querySelector("#rgp-ex-status").textContent = r.error || "Erro.";
@@ -176,7 +183,18 @@
       } catch (_e) {
         toast("Erro ao exportar.");
       }
-    });
+    }
+    backdrop.querySelector("#rgp-ex-go").addEventListener("click", () => runExport(false));
+    backdrop.querySelector("#rgp-ex-geral").addEventListener("click", () => runExport(true));
+  }
+
+  function openRelatorioGeral() {
+    openExportModal();
+    // auto-foco no botão geral — usuário confirma filtros
+    setTimeout(() => {
+      const btn = document.getElementById("rgp-ex-geral");
+      if (btn) btn.focus();
+    }, 50);
   }
 
   /** Marca linhas com alerta (função 2) */
@@ -196,6 +214,7 @@
   function toolbarButtonsHtml() {
     return `
       <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-vencidos" title="Não consultado ou consulta antiga">↻ Vencidos</button>
+      <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-relatorio-geral" title="Nome, CPF, município, telefone, situação e senha Gov.br">☰ Relatório HTML</button>
       <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-exportar">⇩ Exportar</button>
     `;
   }
@@ -203,6 +222,17 @@
   function bindToolbar() {
     document.getElementById("rgp-vencidos")?.addEventListener("click", openVencidosModal);
     document.getElementById("rgp-exportar")?.addEventListener("click", openExportModal);
+    document.getElementById("rgp-relatorio-geral")?.addEventListener("click", () => {
+      // gera direto o relatório geral (sem filtros extras)
+      (async () => {
+        try {
+          const r = await api("relatorio_geral_consulta_rgp", JSON.stringify({ abrir_html: true }));
+          if (r && r.ok === false && !r.pending) toast(r.error || "Falha no relatório.");
+        } catch (_e) {
+          toast("Erro ao gerar relatório.");
+        }
+      })();
+    });
   }
 
   function wireFuncoesEvents() {
@@ -268,6 +298,7 @@
   window.SinapescRgpFuncoes = {
     openVencidosModal,
     openExportModal,
+    openRelatorioGeral,
     toolbarButtonsHtml,
     bindToolbar,
     wireFuncoesEvents,

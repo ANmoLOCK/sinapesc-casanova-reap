@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -336,6 +337,111 @@ class ConsultaRgpService:
         self.ensure()
         self.client.append_values(f"{CONSULTA_RGP_TAB}!A2", [reg.to_row()])
         return reg
+
+    def upsert_lote_batch(self, itens: List[tuple]) -> dict:
+        """Cadastra/atualiza vários sócios com poucas chamadas à API (anti-cota 429).
+
+        itens = [(nome, cpf)] ou [(nome, cpf, municipio, telefone), ...]
+
+        Chamadas típicas para ~500 linhas:
+          1 leitura (listar) + 1 append (novos) + N/100 batchUpdate (atualizações)
+          + 1 auditoria — em vez de ~2–3 mil writes do loop ``upsert_manual``.
+        """
+        self.ensure()
+        rows_raw = self.client.get_values(f"{CONSULTA_RGP_TAB}!A2:S")
+        by_cpf: Dict[str, RegistroConsultaRgp] = {}
+        id_to_row: Dict[str, int] = {}
+        for i, r in enumerate(rows_raw):
+            reg = row_to_registro(r)
+            if not reg:
+                continue
+            digits = normalize_cpf(reg.cpf)
+            if len(digits) == 11:
+                by_cpf[digits] = reg
+            id_to_row[reg.id] = i + 2
+
+        agora = now_stamp()
+        novos_rows: List[list] = []
+        updates: List[dict] = []
+        criados = 0
+        atualizados = 0
+        erros: List[str] = []
+        vistos: set[str] = set()
+
+        for i, item in enumerate(itens, start=1):
+            if not isinstance(item, (list, tuple)) or len(item) < 2:
+                erros.append(f"Linha {i}: dados inválidos.")
+                continue
+            nome = format_nome(str(item[0] or "").strip())
+            cpf = normalize_cpf(item[1])
+            mun = str(item[2] if len(item) > 2 else "").strip()
+            tel = str(item[3] if len(item) > 3 else "").strip()
+            if not nome and not cpf:
+                continue
+            if len(cpf) != 11:
+                erros.append(f"Linha {i} ({nome or '?'}): CPF inválido.")
+                continue
+            if not nome:
+                erros.append(f"Linha {i}: nome vazio.")
+                continue
+            if cpf in vistos:
+                erros.append(f"Linha {i} ({nome}): CPF duplicado no lote.")
+                continue
+            vistos.add(cpf)
+
+            existing = by_cpf.get(cpf)
+            if existing:
+                existing.nome = nome or existing.nome
+                if mun:
+                    existing.municipio = mun
+                if tel:
+                    existing.telefone = tel
+                existing.atualizado_em = agora
+                existing.append_timeline("Atualizado no lote", ator="Usuário")
+                row_idx = id_to_row.get(existing.id)
+                if row_idx:
+                    updates.append(
+                        {
+                            "range": f"{CONSULTA_RGP_TAB}!A{row_idx}",
+                            "values": [existing.to_row()],
+                        }
+                    )
+                    atualizados += 1
+                else:
+                    erros.append(f"Linha {i} ({nome}): registro sem linha na planilha.")
+            else:
+                reg = RegistroConsultaRgp(
+                    id=new_id(),
+                    person_id="",
+                    nome=nome,
+                    cpf=cpf,
+                    telefone=tel,
+                    municipio=mun,
+                    criado_em=agora,
+                    atualizado_em=agora,
+                )
+                reg.append_timeline("Cadastro criado (lote)", ator="Usuário")
+                novos_rows.append(reg.to_row())
+                by_cpf[cpf] = reg
+                criados += 1
+
+        # Append em fatias para lotes muito grandes (evita timeout 500)
+        APPEND_CHUNK = 400
+        for start in range(0, len(novos_rows), APPEND_CHUNK):
+            chunk = novos_rows[start : start + APPEND_CHUNK]
+            self.client.append_values(f"{CONSULTA_RGP_TAB}!A2", chunk)
+            if start + APPEND_CHUNK < len(novos_rows):
+                time.sleep(0.4)
+
+        if updates:
+            self.client.batch_update_values(updates, chunk_size=80)
+
+        return {
+            "criados": criados,
+            "atualizados": atualizados,
+            "erros": erros,
+            "ok": criados + atualizados,
+        }
 
     def marcar_import_reap(self, registro_id: str) -> RegistroConsultaRgp:
         reg = self.por_id(registro_id)

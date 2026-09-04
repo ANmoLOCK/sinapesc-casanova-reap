@@ -104,6 +104,8 @@ def _html_export(
     org_short: str,
     org_full: str,
     filtros: Dict[str, str],
+    govbr_senha: str = "",
+    modo_geral: bool = False,
 ) -> str:
     logo = logo_data_uri()
     logo_tag = f'<img class="logo" src="{logo}" alt="">' if logo else ""
@@ -118,44 +120,76 @@ def _html_export(
         if v:
             filtro_bits.append(f"{label}: {html.escape(v)}")
     filtro_txt = " · ".join(filtro_bits) if filtro_bits else "Sem filtros (lista completa)"
+    senha = str(govbr_senha or "").strip()
+    senha_bloco = ""
+    if modo_geral:
+        senha_bloco = (
+            f'<p class="gov"><strong>Senha Gov.br (módulo):</strong> '
+            f"{html.escape(senha) if senha else '(não cadastrada)'}</p>"
+        )
     trs = []
     for r in regs:
-        trs.append(
-            "<tr>"
-            f"<td>{html.escape(format_nome(str(getattr(r, 'nome', '') or '')))}</td>"
-            f"<td>{html.escape(format_cpf(str(getattr(r, 'cpf', '') or '')))}</td>"
-            f"<td>{html.escape(str(getattr(r, 'telefone', '') or ''))}</td>"
-            f"<td>{html.escape(str(getattr(r, 'municipio', '') or ''))}</td>"
-            f"<td>{html.escape(normalize_situacao(getattr(r, 'situacao_rgp', '') or ''))}</td>"
-            f"<td>{html.escape(str(getattr(r, 'ultima_consulta_em', '') or ''))}</td>"
-            f"<td>{html.escape(str(getattr(r, 'observacao', '') or ''))}</td>"
-            "</tr>"
-        )
-    body = "\n".join(trs) if trs else '<tr><td colspan="7">Nenhum registro.</td></tr>'
+        if modo_geral:
+            trs.append(
+                "<tr>"
+                f"<td>{html.escape(format_nome(str(getattr(r, 'nome', '') or '')))}</td>"
+                f"<td>{html.escape(format_cpf(str(getattr(r, 'cpf', '') or '')))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'municipio', '') or ''))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'telefone', '') or ''))}</td>"
+                f"<td>{html.escape(normalize_situacao(getattr(r, 'situacao_rgp', '') or ''))}</td>"
+                f"<td>{html.escape(senha) if senha else '—'}</td>"
+                "</tr>"
+            )
+        else:
+            trs.append(
+                "<tr>"
+                f"<td>{html.escape(format_nome(str(getattr(r, 'nome', '') or '')))}</td>"
+                f"<td>{html.escape(format_cpf(str(getattr(r, 'cpf', '') or '')))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'telefone', '') or ''))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'municipio', '') or ''))}</td>"
+                f"<td>{html.escape(normalize_situacao(getattr(r, 'situacao_rgp', '') or ''))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'ultima_consulta_em', '') or ''))}</td>"
+                f"<td>{html.escape(str(getattr(r, 'observacao', '') or ''))}</td>"
+                "</tr>"
+            )
+    colspan = 6 if modo_geral else 7
+    body = "\n".join(trs) if trs else f'<tr><td colspan="{colspan}">Nenhum registro.</td></tr>'
     gerado = datetime.now().strftime("%d/%m/%Y %H:%M")
+    titulo = "Relatório geral" if modo_geral else "exportação"
+    if modo_geral:
+        thead = (
+            "<th>Nome</th><th>CPF</th><th>Município</th>"
+            "<th>Telefone</th><th>Situação RGP</th><th>Senha Gov.br</th>"
+        )
+    else:
+        thead = (
+            "<th>Nome</th><th>CPF</th><th>Telefone</th><th>Município</th>"
+            "<th>Situação</th><th>Última consulta</th><th>Observação</th>"
+        )
     return f"""<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8">
-<title>Consulta RGP — exportação</title>
+<title>Consulta RGP — {titulo}</title>
 <style>
   body {{ font-family: Segoe UI, system-ui, sans-serif; color: #0A2F52; margin: 24px; }}
   .head {{ display:flex; gap:16px; align-items:center; margin-bottom: 12px; }}
   .logo {{ height: 56px; }}
   h1 {{ margin: 0; font-size: 20px; }}
   .sub {{ color:#5A7388; font-size: 12px; margin: 4px 0 16px; }}
+  .gov {{ background:#E7F1F7; border:1px solid #D5E4EE; padding:8px 12px; font-size:13px; margin: 0 0 14px; }}
   table {{ width:100%; border-collapse: collapse; font-size: 12px; }}
   th, td {{ border: 1px solid #D5E4EE; padding: 6px 8px; text-align: left; }}
   th {{ background: #E7F1F7; }}
-  @media print {{ body {{ margin: 12px; }} }}
+  @media print {{ body {{ margin: 12px; }} .gov {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
 </style></head><body>
 <div class="head">{logo_tag}<div>
-  <h1>{html.escape(org_short)} — Consulta RGP</h1>
+  <h1>{html.escape(org_short)} — Consulta RGP ({html.escape(titulo)})</h1>
   <div class="sub">{html.escape(org_full)}</div>
 </div></div>
+{senha_bloco}
 <p class="sub">{html.escape(filtro_txt)} · {len(regs)} registro(s) · gerado em {gerado}</p>
 <table>
 <thead><tr>
-  <th>Nome</th><th>CPF</th><th>Telefone</th><th>Município</th>
-  <th>Situação</th><th>Última consulta</th><th>Observação</th>
+  {thead}
 </tr></thead>
 <tbody>
 {body}
@@ -175,9 +209,17 @@ def exportar_consulta_rgp(
     org_short: str = "Sinapesc",
     org_full: str = "",
     formatos: Optional[Sequence[str]] = None,
+    govbr_senha: str = "",
+    modo_geral: bool = False,
 ) -> Dict[str, Any]:
-    """Gera CSV e/ou HTML. Retorna paths e contagem."""
+    """Gera CSV e/ou HTML. Retorna paths e contagem.
+
+    ``modo_geral=True`` → relatório HTML com nome, CPF, município, telefone,
+    situação RGP e senha Gov.br (do módulo).
+    """
     formatos = [str(f).lower() for f in (formatos or ("csv", "html"))]
+    if modo_geral:
+        formatos = ["html"]
     filtrados = filtrar_registros_export(
         registros,
         municipio=municipio,
@@ -191,6 +233,7 @@ def exportar_consulta_rgp(
         "total": len(filtrados),
         "csv_path": "",
         "html_path": "",
+        "modo_geral": bool(modo_geral),
         "filtros": {
             "municipio": municipio or "",
             "situacao": situacao or "",
@@ -198,7 +241,7 @@ def exportar_consulta_rgp(
             "ultima_ate": ultima_ate or "",
         },
     }
-    if "csv" in formatos:
+    if "csv" in formatos and not modo_geral:
         csv_path = pasta / f"consulta-rgp-{stamp}.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
             writer = csv.writer(fh)
@@ -206,19 +249,23 @@ def exportar_consulta_rgp(
                 writer.writerow(row)
         out["csv_path"] = str(csv_path)
     if "html" in formatos:
-        html_path = pasta / f"consulta-rgp-{stamp}.html"
+        prefix = "consulta-rgp-geral" if modo_geral else "consulta-rgp"
+        html_path = pasta / f"{prefix}-{stamp}.html"
         html_path.write_text(
             _html_export(
                 filtrados,
                 org_short=org_short,
                 org_full=org_full,
                 filtros=out["filtros"],
+                govbr_senha=govbr_senha,
+                modo_geral=modo_geral,
             ),
             encoding="utf-8",
         )
         out["html_path"] = str(html_path)
+    label = "Relatório geral" if modo_geral else "Exportados"
     out["mensagem"] = (
-        f"Exportados {len(filtrados)} registro(s)"
+        f"{label}: {len(filtrados)} registro(s)"
         + (f" · CSV: {Path(out['csv_path']).name}" if out["csv_path"] else "")
         + (f" · HTML: {Path(out['html_path']).name}" if out["html_path"] else "")
     )

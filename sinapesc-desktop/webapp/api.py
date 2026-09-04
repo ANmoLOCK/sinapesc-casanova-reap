@@ -1579,63 +1579,65 @@ class SinapescApi:
         )
 
     def importar_lote_consulta_rgp(self, rows: Any = None) -> Dict[str, Any]:
-        """Importa nome/CPF/telefone/município na planilha Consulta."""
+        """Importa nome/CPF/telefone/município na planilha Consulta (batch anti-cota)."""
+        from webapp.consulta_rgp_ext import importar_lote_batch_payload
+
         itens = _lote_itens_from_rows(rows)
 
         def work():
-            if not itens:
-                raise ValueError("Nenhuma linha para importar (nome + CPF).")
-            svc = self._ensure_consulta_rgp()
-            criados = 0
-            atualizados = 0
-            erros: List[str] = []
-            for nome, cpf, mun, tel in itens:
-                try:
-                    before = svc.por_cpf(cpf)
-                    reg = svc.upsert_manual(
-                        nome=nome,
-                        cpf=cpf,
-                        telefone=tel,
-                        municipio=mun,
-                    )
-                    if before:
-                        atualizados += 1
-                        svc.registrar_auditoria(
-                            "consulta_rgp_lote_atualiza",
-                            f"Atualizou no lote: {reg.nome} ({reg.cpf})",
-                            person_id=reg.id,
-                            nome=reg.nome,
-                        )
-                    else:
-                        criados += 1
-                        svc.registrar_auditoria(
-                            "consulta_rgp_lote_cria",
-                            f"Cadastrou no lote: {reg.nome} ({reg.cpf})",
-                            person_id=reg.id,
-                            nome=reg.nome,
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    erros.append(f"{nome or cpf}: {exc}")
-            svc.registrar_auditoria(
-                "consulta_rgp_lote",
-                f"Lote Consulta RGP: {criados} novos, {atualizados} atualizados"
-                + (f", {len(erros)} erro(s)" if erros else ""),
-            )
-            regs = svc.listar()
-            return {
-                "criados": criados,
-                "atualizados": atualizados,
-                "erros": erros[:30],
-                "total": len(regs),
-                "itens": [r.to_dict() for r in regs],
-                "kpis": resumo_kpis(regs),
-                "mensagem": (
-                    f"Importados na Consulta: {criados} novos, {atualizados} atualizados"
-                    + (f" ({len(erros)} erro(s))." if erros else ".")
-                ),
-            }
+            return importar_lote_batch_payload(self._ensure_consulta_rgp(), itens)
 
         return self._run_async("consulta_rgp_lote", work, "Importando para Consulta RGP…")
+
+    def importar_arquivo_consulta_rgp(self, path: Any = None) -> Dict[str, Any]:
+        """Importa PDF/XLS/XLSX/TXT/CSV com batch (evita erro de cota 60/429 em ~500)."""
+        from webapp.consulta_rgp_ext import importar_arquivo_payload
+
+        arquivo = str(path or "").strip()
+        if not arquivo:
+            return err("Informe o caminho do arquivo.")
+
+        def work():
+            return importar_arquivo_payload(self._ensure_consulta_rgp(), arquivo)
+
+        return self._run_async(
+            "consulta_rgp_lote",
+            work,
+            "Importando arquivo para Consulta RGP…",
+        )
+
+    def escolher_arquivo_import_consulta_rgp(self) -> Dict[str, Any]:
+        """Abre seletor PDF/XLS/TXT e importa o lote de uma vez (anti-cota)."""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+        except ImportError as exc:  # pragma: no cover
+            return err(f"Seletor de arquivo indisponível: {exc}")
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        try:
+            chosen = filedialog.askopenfilename(
+                parent=root,
+                title="Importar lote Consulta RGP (PDF / XLS / TXT)",
+                filetypes=[
+                    ("Listas nome+CPF", "*.pdf *.xls *.xlsx *.txt *.csv"),
+                    ("PDF", "*.pdf"),
+                    ("Excel", "*.xls *.xlsx"),
+                    ("Texto/CSV", "*.txt *.csv"),
+                    ("Todos", "*.*"),
+                ],
+            )
+        finally:
+            root.destroy()
+
+        if not chosen:
+            return err("Nenhum arquivo selecionado.")
+        return self.importar_arquivo_consulta_rgp(chosen)
 
     def cadastrar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
         """Cadastra/atualiza sócio na Consulta (nome, CPF, município, telefone, obs)."""
@@ -1935,9 +1937,31 @@ class SinapescApi:
                 ultima_de=str(local.get("ultima_de") or ""),
                 ultima_ate=str(local.get("ultima_ate") or ""),
                 abrir_html=bool(local.get("abrir_html", True)),
+                modo_geral=bool(local.get("modo_geral") or local.get("relatorio_geral")),
             )
 
         return self._run_async("consulta_rgp_export", work, "Exportando Consulta RGP…")
+
+    def relatorio_geral_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Relatório HTML geral: nome, CPF, município, telefone, situação RGP, senha Gov.br."""
+        from webapp.consulta_rgp_ext import exportar_payload
+
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            return exportar_payload(
+                self._ensure_consulta_rgp(),
+                municipio=str(local.get("municipio") or ""),
+                situacao=str(local.get("situacao") or ""),
+                ultima_de=str(local.get("ultima_de") or ""),
+                ultima_ate=str(local.get("ultima_ate") or ""),
+                abrir_html=bool(local.get("abrir_html", True)),
+                modo_geral=True,
+            )
+
+        return self._run_async(
+            "consulta_rgp_export", work, "Gerando relatório HTML geral…"
+        )
 
     def abrir_csv_erros_consulta_rgp(self, path: str = "") -> Dict[str, Any]:
         """Abre CSV de erros da fila inteligente."""

@@ -1046,7 +1046,11 @@
     const backdrop = createModal(`
       <div class="modal-head">Cadastro em lote — Consulta RGP</div>
       <div class="modal-body">
-        <p class="page-sub">Mesmo quadro do REAP: uma linha = um sócio. Município e número são opcionais. Os dados ficam na planilha Consulta RGP.</p>
+        <p class="page-sub">Uma linha = um sócio. Município e número são opcionais. Gravação em lote (não estoura cota do Sheets em ~500).</p>
+        <div class="btn-row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="rgp-l-file">📂 Importar PDF / XLS / TXT…</button>
+          <span class="page-sub" style="margin:0">ou cole/edite abaixo</span>
+        </div>
         <label>Colar lista (Nome;CPF;Município;Número — uma pessoa por linha)</label>
         <textarea id="rgp-l-paste" placeholder="Maria Silva;105.205.585-45;Casa Nova;(74) 99999-0000"></textarea>
         <div class="btn-row" style="margin:6px 0 8px">
@@ -1069,6 +1073,7 @@
     const host = backdrop.querySelector("#rgp-l-rows");
     const saveBtn = backdrop.querySelector("#rgp-l-save");
     const statusEl = backdrop.querySelector("#rgp-l-status");
+    const fileBtn = backdrop.querySelector("#rgp-l-file");
 
     function collectRows() {
       return [...host.querySelectorAll(".lote-row")].map((r) => ({
@@ -1140,6 +1145,32 @@
       itens.forEach((r) => addRow(r.nome, r.cpf, r.municipio || "", r.telefone || ""));
       persistDraft();
       statusEl.textContent = `${itens.length} linha(s) coladas.`;
+    });
+    fileBtn?.addEventListener("click", async () => {
+      fileBtn.disabled = true;
+      saveBtn.disabled = true;
+      statusEl.textContent = "Escolha o arquivo (PDF, XLS, XLSX, TXT ou CSV)…";
+      try {
+        const r = await api("escolher_arquivo_import_consulta_rgp");
+        if (r && r.ok === false && !r.pending) {
+          toast(r.error || "Importação cancelada.");
+          statusEl.textContent = r.error || "Cancelado.";
+          fileBtn.disabled = false;
+          saveBtn.disabled = false;
+        } else if (r && r.pending) {
+          statusEl.textContent = "Importando arquivo em lote (anti-cota)…";
+          try { localStorage.removeItem("sinapesc_rgp_lote_draft"); } catch (_e) {}
+          backdrop.remove();
+        } else {
+          fileBtn.disabled = false;
+          saveBtn.disabled = false;
+        }
+      } catch (_e) {
+        toast("Erro ao importar arquivo.");
+        statusEl.textContent = "Erro ao importar arquivo.";
+        fileBtn.disabled = false;
+        saveBtn.disabled = false;
+      }
     });
     saveBtn.addEventListener("click", async () => {
       const rows = collectRows();

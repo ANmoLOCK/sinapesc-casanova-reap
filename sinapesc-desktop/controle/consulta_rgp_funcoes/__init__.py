@@ -2,9 +2,10 @@
 
 Módulos:
   - vencidos.py         → atalho «Reconsultar vencidos»
-  - exportar.py         → export CSV / HTML (imprimir PDF)
+  - exportar.py         → export CSV / HTML (imprimir PDF) + relatório geral
   - alertas.py          → alerta Ativo → Suspenso/Cancelado
   - fila_inteligente.py → fila com pausa após falhas seguidas + CSV de erros
+  - importar_arquivo.py → parse PDF / XLS / TXT para lote (anti-cota)
 """
 
 from __future__ import annotations
@@ -23,6 +24,11 @@ from controle.consulta_rgp_funcoes.fila_inteligente import (
     exportar_erros_csv,
     rodar_fila_inteligente,
 )
+from controle.consulta_rgp_funcoes.importar_arquivo import (
+    itens_para_dicts,
+    parse_arquivo_lote,
+    parse_texto_lote,
+)
 from controle.consulta_rgp_funcoes.vencidos import (
     DIAS_PADRAO_VENCIDOS,
     ids_vencidos,
@@ -39,6 +45,9 @@ __all__ = [
     "filtrar_registros_export",
     "formatar_alerta",
     "ids_vencidos",
+    "itens_para_dicts",
     "listar_vencidos",
+    "parse_arquivo_lote",
+    "parse_texto_lote",
     "rodar_fila_inteligente",
 ]

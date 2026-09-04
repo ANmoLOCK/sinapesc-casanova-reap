@@ -149,6 +149,7 @@ def test_arquivos_separados():
     assert (ROOT / "controle" / "consulta_rgp_funcoes" / "exportar.py").exists()
     assert (ROOT / "controle" / "consulta_rgp_funcoes" / "alertas.py").exists()
     assert (ROOT / "controle" / "consulta_rgp_funcoes" / "fila_inteligente.py").exists()
+    assert (ROOT / "controle" / "consulta_rgp_funcoes" / "importar_arquivo.py").exists()
     assert (ROOT / "web" / "js" / "consulta_rgp_funcoes.js").exists()
     assert (ROOT / "web" / "css" / "consulta_rgp_funcoes.css").exists()
     assert (ROOT / "webapp" / "consulta_rgp_ext.py").exists()
@@ -158,9 +159,12 @@ def test_arquivos_separados():
     js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
     assert "SinapescRgpFuncoes" in js
     assert "rgp-vencidos" in (ROOT / "web" / "js" / "consulta_rgp_funcoes.js").read_text(encoding="utf-8")
+    assert "rgp-relatorio-geral" in (ROOT / "web" / "js" / "consulta_rgp_funcoes.js").read_text(encoding="utf-8")
     api = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "listar_consulta_rgp_vencidos" in api
     assert "exportar_consulta_rgp" in api
+    assert "relatorio_geral_consulta_rgp" in api
+    assert "escolher_arquivo_import_consulta_rgp" in api
 
 
 if __name__ == "__main__":

@@ -200,8 +200,14 @@ def exportar_payload(
     ultima_de: str = "",
     ultima_ate: str = "",
     abrir_html: bool = True,
+    modo_geral: bool = False,
 ) -> Dict[str, Any]:
     regs = svc.listar()
+    govbr = ""
+    try:
+        govbr = str(svc.get_govbr_senha() or "")
+    except Exception:  # noqa: BLE001
+        govbr = ""
     out = exportar_consulta_rgp(
         regs,
         municipio=municipio,
@@ -210,11 +216,14 @@ def exportar_payload(
         ultima_ate=ultima_ate,
         org_short=ORG_SHORT,
         org_full=ORG_FULL,
-        formatos=("csv", "html"),
+        formatos=("html",) if modo_geral else ("csv", "html"),
+        govbr_senha=govbr,
+        modo_geral=bool(modo_geral),
     )
     try:
+        acao = "consulta_rgp_relatorio_geral" if modo_geral else "consulta_rgp_export"
         svc.registrar_auditoria(
-            "consulta_rgp_export",
+            acao,
             out.get("mensagem") or f"Exportou {out.get('total', 0)} registro(s).",
         )
     except Exception:  # noqa: BLE001
@@ -226,4 +235,64 @@ def exportar_payload(
             webbrowser.open(Path(out["html_path"]).resolve().as_uri())
         except Exception:  # noqa: BLE001
             pass
+    return out
+
+
+def importar_lote_batch_payload(svc: Any, itens: Sequence[tuple]) -> Dict[str, Any]:
+    """Grava lote com ``upsert_lote_batch`` (anti-cota) + 1 auditoria + listar."""
+    if not itens:
+        raise ValueError("Nenhuma linha para importar (nome + CPF).")
+    result = svc.upsert_lote_batch(list(itens))
+    criados = int(result.get("criados") or 0)
+    atualizados = int(result.get("atualizados") or 0)
+    erros = list(result.get("erros") or [])
+    try:
+        svc.registrar_auditoria(
+            "consulta_rgp_lote",
+            f"Lote Consulta RGP (batch): {criados} novos, {atualizados} atualizados"
+            + (f", {len(erros)} aviso(s)" if erros else ""),
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    regs = svc.listar()
+    return {
+        "criados": criados,
+        "atualizados": atualizados,
+        "erros": erros[:40],
+        "total": len(regs),
+        "itens": [r.to_dict() for r in regs],
+        "kpis": resumo_kpis(regs),
+        "mensagem": (
+            f"Importados na Consulta: {criados} novos, {atualizados} atualizados"
+            + (f" ({len(erros)} aviso(s))." if erros else ".")
+            + " Gravação em lote (sem estourar cota do Sheets)."
+        ),
+    }
+
+
+def importar_arquivo_payload(svc: Any, path: str) -> Dict[str, Any]:
+    from controle.consulta_rgp_funcoes.importar_arquivo import parse_arquivo_lote
+
+    parsed = parse_arquivo_lote(path)
+    itens = parsed.get("itens") or []
+    if not itens:
+        raise ValueError(
+            "Nenhum nome+CPF válido no arquivo. "
+            "Use colunas Nome e CPF (TXT/CSV/XLS/PDF)."
+        )
+    out = importar_lote_batch_payload(svc, itens)
+    out["arquivo"] = parsed.get("arquivo") or path
+    out["nome_arquivo"] = parsed.get("nome_arquivo") or ""
+    out["origem"] = parsed.get("origem") or ""
+    out["parse_erros"] = parsed.get("erros") or []
+    out["parse_total"] = int(parsed.get("total") or 0)
+    avisos = out.get("erros") or []
+    parse_erros = out["parse_erros"]
+    if parse_erros:
+        avisos = list(avisos) + [f"[arquivo] {e}" for e in parse_erros[:20]]
+        out["erros"] = avisos[:40]
+    out["mensagem"] = (
+        f"Arquivo «{out['nome_arquivo']}»: {out['parse_total']} linha(s) lida(s). "
+        + out["mensagem"]
+    )
     return out

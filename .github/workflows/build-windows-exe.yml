@@ -18,6 +18,7 @@ on:
       - cursor/consulta-rgp-lote-audit-46d6
       - cursor/consulta-rgp-govbr-edit-46d6
       - cursor/consulta-rgp-funcoes-46d6
+      - cursor/consulta-rgp-import-relatorio-46d6
       - main
     tags:
       - "v*"
@@ -63,7 +64,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.42)
+          SINAPESC REAP — COMO USAR (v1.7.43)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
