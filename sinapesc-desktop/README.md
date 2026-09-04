@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.38** — Corrige CPF inválido (JSON bridge + recupera `56106905010` / `95453325900`).
+**v1.7.39** — Rodapé global na Consulta RGP (crédito + status da planilha).
 
 ## Requisitos (Windows)
 

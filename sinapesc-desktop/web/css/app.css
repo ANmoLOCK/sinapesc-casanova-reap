@@ -1063,17 +1063,15 @@ body { overflow: hidden; }
 }
 
 /* ---- Consulta RGP ---- */
-/* ---- Modo tela cheia Consulta RGP (fiel ao mockup) ---- */
+/* Header/abas ocultos; rodapé global permanece (crédito + status/planilha). */
 body.screen-rgp .header,
-body.screen-rgp .tab-bar,
-body.screen-rgp .footer {
+body.screen-rgp .tab-bar {
   display: none !important;
 }
 body.screen-rgp .content {
   padding: 0;
   overflow: hidden;
   background: #EEF2F6;
-  height: 100%;
 }
 body.screen-rgp .page {
   max-width: none;
@@ -1086,6 +1084,11 @@ body.screen-rgp .rgp-shell {
 }
 body.screen-rgp .app-watermark {
   display: none;
+}
+/* Rodapé igual aos outros módulos (status, usuário, conexão + crédito). */
+body.screen-rgp .footer-inner,
+body.screen-rgp .footer-legal {
+  max-width: none;
 }
 
 .rgp-shell {

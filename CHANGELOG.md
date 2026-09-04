@@ -10,7 +10,14 @@ Formato: mais recente primeiro.
 
 ---
 
-## [v1.7.38] — 2026-09-04 — CPF inválido: JSON bridge + recuperação
+## [v1.7.39] — 2026-09-04 — Rodapé global na Consulta RGP
+
+**Tag:** [`v1.7.39`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.39)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.39/SinapescREAP-Windows-v1.7.39.zip
+
+- Consulta RGP volta a exibir o **mesmo rodapé** dos outros módulos
+- Status (ex.: «Carregando Consulta RGP…», «Consultando RGP no MPA…»), usuário, conexão e crédito do autor
+
 
 **Tag:** [`v1.7.38`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.38)  
 **Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.38/SinapescREAP-Windows-v1.7.38.zip
