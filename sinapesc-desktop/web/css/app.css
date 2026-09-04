@@ -1101,6 +1101,22 @@ body { overflow: hidden; }
   padding: 6px 10px;
   border-radius: 999px;
 }
+.rgp-topbar-user-empty {
+  opacity: 0.75;
+  font-weight: 500;
+}
+.rgp-user-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.rgp-user-chev { font-size: 10px; opacity: 0.85; }
 .rgp-user-ico { font-size: 12px; }
 
 .rgp-config-bar {
@@ -1222,9 +1238,31 @@ body { overflow: hidden; }
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-soft);
+  padding: 10px 12px 6px;
   align-items: center;
+}
+.rgp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rgp-chip {
+  border: 1px solid #D5E0EA;
+  background: #F7FAFC;
+  color: #3A5166;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rgp-chip:hover { border-color: #8BB5D6; color: #1B4F9C; }
+.rgp-chip.active {
+  background: #E8F0FE;
+  border-color: #1B6CA8;
+  color: #1B4F9C;
 }
 .rgp-search-wrap {
   flex: 1;
@@ -1368,31 +1406,25 @@ body { overflow: hidden; }
   display: inline-block;
   font-size: 10px;
   font-weight: 600;
-  color: var(--success);
-  background: var(--success-bg);
   padding: 3px 8px;
   border-radius: 999px;
 }
-.rgp-tabs {
+.rgp-sync-ok {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.rgp-sync-off {
+  color: #5A7388;
+  background: #EEF1F4;
+}
+.rgp-side-toolbar {
   display: flex;
-  border-bottom: 1px solid var(--border-soft);
-  padding: 0 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 10px;
 }
-.rgp-tab {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  padding: 10px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-.rgp-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
+.rgp-tabs { display: none; }
+.rgp-tab { display: none; }
 .rgp-side-body {
   padding: 10px 12px 14px;
   overflow: auto;
