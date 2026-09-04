@@ -23,6 +23,11 @@ if str(ROOT) not in sys.path:
 
 
 def main() -> None:
+    if "--consulta-rgp-worker" in sys.argv:
+        from controle.consulta_rgp_mpa import run_worker_cli
+
+        raise SystemExit(run_worker_cli())
+
     if "--tk" in sys.argv:
         from ui import SinapescApp
 
