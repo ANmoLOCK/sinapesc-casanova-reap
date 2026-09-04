@@ -13,6 +13,7 @@ on:
       - cursor/consulta-rgp-scroll-modal-46d6
       - cursor/consulta-rgp-cpf-ui-46d6
       - cursor/consulta-rgp-cpf-battery-46d6
+      - cursor/consulta-rgp-cpf-json-46d6
       - main
     tags:
       - "v*"
@@ -58,7 +59,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.37)
+          SINAPESC REAP — COMO USAR (v1.7.38)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;

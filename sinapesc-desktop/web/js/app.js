@@ -135,7 +135,7 @@
     if (typeof value === "number" && Number.isFinite(value)) {
       let d = String(Math.abs(Math.round(value)));
       if (d.length >= 9 && d.length < 11) d = d.padStart(11, "0");
-      return d.slice(0, 11);
+      return fixCpfDigits(d.slice(0, 11));
     }
     let s = String(value).trim();
     if (s.startsWith("'")) s = s.slice(1).trim();
@@ -147,10 +147,42 @@
     }
     let d = s.replace(/\D/g, "");
     if (!d) return "";
-    if (d.length === 12 && d.endsWith("0")) d = d.slice(0, 11);
+    if (d.length === 12 && d.endsWith("0")) d = d.slice(0, -1);
     if (d.length > 11) d = d.slice(-11);
     if (d.length >= 9 && d.length < 11) d = d.padStart(11, "0");
-    return d.slice(0, 11);
+    return fixCpfDigits(d.slice(0, 11));
+  }
+
+  function cpfDigitsOk(d) {
+    if (!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
+    const n = d.split("").map(Number);
+    let s = 0;
+    for (let i = 0; i < 9; i++) s += n[i] * (10 - i);
+    let r = (s * 10) % 11;
+    if (r === 10) r = 0;
+    if (r !== n[9]) return false;
+    s = 0;
+    for (let i = 0; i < 10; i++) s += n[i] * (11 - i);
+    r = (s * 10) % 11;
+    if (r === 10) r = 0;
+    return r === n[10];
+  }
+
+  function fixCpfDigits(d) {
+    if (d.length !== 11) return d;
+    // float .0: 10 dígitos + zero extra (ex. 56106905010 → 05610690501).
+    // Atenção: 56106905010 passa no DV por coincidência — não dá para só checar inválido.
+    if (d.endsWith("0")) {
+      const base = d.slice(0, -1);
+      if (base.length === 10) {
+        const cand = base.padStart(11, "0");
+        if (cand !== d && cpfDigitsOk(cand)) {
+          if (!cpfDigitsOk(d)) return cand;
+          if (cand.startsWith("0") && !d.startsWith("0")) return cand;
+        }
+      }
+    }
+    return d;
   }
 
   function cpfForConsulta(reg) {
@@ -158,18 +190,15 @@
   }
 
   function consultarRgpRegistro(reg) {
-    const cpf = cpfForConsulta(reg);
     if (!reg?.id) {
       toast("Selecione um registro válido.");
       return;
     }
-    if (cpf.length !== 11) {
-      toast("CPF inválido para consulta.");
-      return;
-    }
+    const cpf = cpfForConsulta(reg);
     toast("Consultando situação RGP no MPA…", 3500);
-    // Objeto evita a ponte pywebview transformar CPF com zero em número
-    api("consultar_rgp_pessoa", { id: reg.id, cpf: cpf });
+    // JSON string: pywebview NÃO pode transformar CPF com zero em número
+    const payload = JSON.stringify({ id: String(reg.id), cpf: String(cpf || "") });
+    api("consultar_rgp_pessoa", payload);
   }
 
   function formatNome(value) {
@@ -2231,10 +2260,10 @@
       close();
       if (edit && reg?.id) {
         state.consultaRgpPendingConsulta = false;
-        api("save_consulta_rgp_registro", payload);
+        api("save_consulta_rgp_registro", JSON.stringify(payload));
       } else {
         state.consultaRgpPendingConsulta = true;
-        api("cadastrar_consulta_rgp", payload);
+        api("cadastrar_consulta_rgp", JSON.stringify(payload));
       }
     });
   }
@@ -2397,16 +2426,16 @@
       state.consultaRgpEditMode = false;
       state.consultaRgpSideTab = "resumo";
       state.consultaRgpPendingConsulta = false;
-      api("save_consulta_rgp_registro", payload);
+      api("save_consulta_rgp_registro", JSON.stringify(payload));
     });
     const cpfDet = $("#rgp-det-cpf");
     if (cpfDet && typeof bindCpfMask === "function") bindCpfMask(cpfDet);
     $("#rgp-save-obs")?.addEventListener("click", () => {
-      api("save_consulta_rgp_registro", {
+      api("save_consulta_rgp_registro", JSON.stringify({
         id: reg.id,
         person_id: reg.person_id,
         nome: reg.nome,
-        cpf: reg.cpf,
+        cpf: normalizeCpf(reg.cpf) || reg.cpf,
         telefone: reg.telefone,
         municipio: reg.municipio,
         uf: reg.uf,
@@ -2420,7 +2449,7 @@
         importado_defeso_em: reg.importado_defeso_em,
         cadastro_reap_em: reg.cadastro_reap_em,
         timeline: reg.timeline,
-      });
+      }));
     });
     $("#rgp-consultar-sel")?.addEventListener("click", () => {
       consultarRgpRegistro(reg);
@@ -2953,7 +2982,7 @@
           toast("Consultando situação RGP no MPA…", 3500);
           // pequeno atraso evita corrida com a fila async do Python
           setTimeout(() => {
-            api("consultar_rgp_pessoa", { id: item.id, cpf: cpfForConsulta(item) });
+            api("consultar_rgp_pessoa", JSON.stringify({ id: String(item.id), cpf: String(cpfForConsulta(item) || "") }));
           }, 500);
         }
       } else {

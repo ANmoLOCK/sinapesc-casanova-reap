@@ -10,6 +10,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.38] — 2026-09-04 — CPF inválido: JSON bridge + recuperação
+
+**Tag:** [`v1.7.38`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.38)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.38/SinapescREAP-Windows-v1.7.38.zip
+
+- JS envia `JSON.stringify({id,cpf})` — sem coerção numérica na ponte
+- `normalize_cpf` recupera `95453325900` → `09545332590` e `56106905010` → `05610690501`
+  (este último passava no dígito verificador por coincidência e quebrava no MPA)
+- Regrava CPF normalizado na planilha ao consultar
+
 ## [v1.7.37] — 2026-09-04 — CPF inválido (bateria + float/ponte)
 
 **Tag:** [`v1.7.37`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.37)  

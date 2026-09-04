@@ -11,6 +11,23 @@ def only_digits(value: str, max_len: int = 11) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())[:max_len]
 
 
+def cpf_digitos_validos(digits: str) -> bool:
+    """Valida dígitos verificadores do CPF (rejeita sequência repetida)."""
+    d = "".join(ch for ch in str(digits or "") if ch.isdigit())
+    if len(d) != 11 or d == d[0] * 11:
+        return False
+    nums = [int(ch) for ch in d]
+    total = sum(nums[i] * (10 - i) for i in range(9))
+    rest = (total * 10) % 11
+    rest = 0 if rest == 10 else rest
+    if rest != nums[9]:
+        return False
+    total = sum(nums[i] * (11 - i) for i in range(10))
+    rest = (total * 10) % 11
+    rest = 0 if rest == 10 else rest
+    return rest == nums[10]
+
+
 def normalize_cpf(value: Any) -> str:
     """CPF com 11 dígitos e zeros à esquerda.
 
@@ -18,6 +35,7 @@ def normalize_cpf(value: Any) -> str:
     - planilha/JSON numérico: ``095.453.325-90`` → ``9545332590`` (10 dígitos)
     - pywebview/float: ``9545332590.0`` → dígitos ``95453325900`` (11 errados)
     - string ``"9545332590.0"`` / notação científica
+    - valor já gravado errado ``95453325900`` (recupera via dígito verificador)
     """
     if value is None or isinstance(value, bool):
         return ""
@@ -52,7 +70,12 @@ def normalize_cpf(value: Any) -> str:
 
     # Sobra de ".0" que virou dígito extra (12 chars terminando em 0)
     if len(digits) == 12 and digits.endswith("0"):
-        digits = digits[:-1]
+        cand = digits[:-1]
+        if len(cand) >= 9:
+            cand11 = cand.zfill(11) if len(cand) < 11 else cand[:11]
+            if cpf_digitos_validos(cand11) or len(cand) <= 10:
+                digits = cand
+
     if len(digits) > 11:
         digits = digits[-11:]
 
@@ -63,7 +86,32 @@ def normalize_cpf(value: Any) -> str:
         else:
             return digits
 
-    return digits[:11]
+    digits = digits[:11]
+    digits = _recover_float_trailing_zero(digits)
+    return digits
+
+
+def _recover_float_trailing_zero(digits: str) -> str:
+    """Recupera CPF corrompido por float ``.0`` (ex.: ``56106905010`` → ``05610690501``).
+
+    O caso ``56106905010`` passa no dígito verificador por coincidência — por isso
+    não basta «só recuperar se inválido».
+    """
+    if len(digits) != 11 or not digits.endswith("0"):
+        return digits
+    base = digits[:-1]
+    if len(base) != 10:
+        return digits
+    cand = base.zfill(11)
+    if cand == digits or not cpf_digitos_validos(cand):
+        return digits
+    # Inválido atual → recupera
+    if not cpf_digitos_validos(digits):
+        return cand
+    # Ambos "válidos": preferir zero à esquerda (artefato de número da planilha)
+    if cand.startswith("0") and not digits.startswith("0"):
+        return cand
+    return digits
 
 
 def format_cpf(digits: str) -> str:

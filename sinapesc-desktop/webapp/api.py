@@ -56,7 +56,15 @@ from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
 from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
 from sheets.consulta_rgp_service import ConsultaRgpService
-from ui.formatters import display_nome, format_cpf, format_nome, normalize_cpf, only_digits, parse_lote_lines
+from ui.formatters import (
+    cpf_digitos_validos,
+    display_nome,
+    format_cpf,
+    format_nome,
+    normalize_cpf,
+    only_digits,
+    parse_lote_lines,
+)
 from ui.public_link import ensure_site_qrs, urls_for
 from ui.qr_vault import normalize_public_base, preferred_public_base, qr_dir
 from ui.qrutil import make_qr_image
@@ -1684,19 +1692,11 @@ class SinapescApi:
     def consultar_rgp_pessoa(self, registro_id: Any = "", cpf: Any = "") -> Dict[str, Any]:
         """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP).
 
-        Aceita ``(id, cpf)`` **ou** um dict/JSON ``{id, cpf}`` — o dict evita a ponte
-        pywebview converter CPF com zero à esquerda em número.
+        Prefira JSON string: ``JSON.stringify({id, cpf})`` — evita a ponte pywebview
+        transformar CPF com zero à esquerda em número.
+        Também aceita dict/JSObject ou ``(id, cpf)``.
         """
-        rid = ""
-        cpf_digits = ""
-        # Payload único (objeto JS / JSON string) — evita coerção de CPF com zero
-        if _is_consulta_payload(registro_id):
-            data = _js_payload_to_dict(registro_id)
-            rid = str(data.get("id") or data.get("registro_id") or "").strip()
-            cpf_digits = normalize_cpf(data.get("cpf") or cpf or "")
-        else:
-            rid = str(registro_id or "").strip()
-            cpf_digits = normalize_cpf(cpf)
+        rid, cpf_digits = _parse_consulta_rgp_args(registro_id, cpf)
 
         def work():
             svc = self._ensure_consulta_rgp()
@@ -1708,9 +1708,38 @@ class SinapescApi:
                     "Registro não encontrado. Cadastre o sócio na Consulta RGP primeiro."
                 )
 
-            alvo = normalize_cpf(reg.cpf) or cpf_digits
+            # Planilha + arg JS (ambos normalizados; arg cobre planilha corrompida)
+            sheet_cpf = normalize_cpf(reg.cpf)
+            arg_cpf = normalize_cpf(cpf_digits) if cpf_digits else ""
+            if len(sheet_cpf) == 11 and cpf_digitos_validos(sheet_cpf):
+                alvo = sheet_cpf
+            elif len(arg_cpf) == 11 and cpf_digitos_validos(arg_cpf):
+                alvo = arg_cpf
+            else:
+                alvo = sheet_cpf or arg_cpf
+            # Se ambos existem e diferem, preferir o que tem zero à esquerda válido
+            if (
+                len(sheet_cpf) == 11
+                and len(arg_cpf) == 11
+                and sheet_cpf != arg_cpf
+                and cpf_digitos_validos(arg_cpf)
+                and arg_cpf.startswith("0")
+                and not sheet_cpf.startswith("0")
+            ):
+                alvo = arg_cpf
             if len(alvo) != 11:
-                raise ValueError("CPF inválido para consulta.")
+                raise ValueError(
+                    "CPF inválido para consulta. "
+                    f"Planilha={reg.cpf!r} arg={cpf_digits!r}. "
+                    "Edite o cadastro e salve o CPF completo (11 dígitos)."
+                )
+            # Regrava normalizado se a planilha tinha valor corrompido (float .0)
+            if sheet_cpf != alvo or str(reg.cpf or "").strip() != alvo:
+                reg.cpf = alvo
+                try:
+                    svc.salvar(reg.to_dict())
+                except Exception:  # noqa: BLE001
+                    pass
 
             try:
                 result = consultar_cpf_isolado(alvo)
@@ -1740,6 +1769,7 @@ class SinapescApi:
                 from controle.consulta_rgp import normalize_situacao as _norm
 
                 reg.situacao_rgp = _norm(result.get("situacao"))
+            reg.cpf = alvo
             salvo = svc.salvar(reg.to_dict())
             regs = svc.listar()
             return {
@@ -1771,6 +1801,30 @@ class SinapescApi:
             webview.destroy_window()
         return ok()
 
+
+
+def _parse_consulta_rgp_args(registro_id: Any = "", cpf: Any = "") -> tuple[str, str]:
+    """Extrai (id, cpf_normalizado) de JSON string, dict/JSObject ou args clássicos."""
+    # 1) JSON string — forma preferida (sem coerção de zero à esquerda na ponte)
+    if isinstance(registro_id, str):
+        text = registro_id.strip()
+        if text.startswith("{"):
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                data = {}
+            if isinstance(data, dict):
+                rid = str(data.get("id") or data.get("registro_id") or "").strip()
+                digits = normalize_cpf(data.get("cpf") or cpf or "")
+                return rid, digits
+    # 2) dict / JSObject
+    if _is_consulta_payload(registro_id):
+        data = _js_payload_to_dict(registro_id)
+        rid = str(data.get("id") or data.get("registro_id") or "").strip()
+        digits = normalize_cpf(data.get("cpf") or cpf or "")
+        return rid, digits
+    # 3) (id, cpf) clássico
+    return str(registro_id or "").strip(), normalize_cpf(cpf)
 
 
 def _is_consulta_payload(obj: Any) -> bool:

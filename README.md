@@ -11,19 +11,19 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.7.37**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.37) |
+| Versão atual | [**v1.7.38**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.38) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.7.37)
+## Download do EXE (v1.7.38)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.37/SinapescREAP-Windows-v1.7.37.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.38/SinapescREAP-Windows-v1.7.38.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.37
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.38
 
 Versão anterior: [v1.7.34](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.34)
 
@@ -49,11 +49,12 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.7.37
+## O que há na v1.7.38
 
-- Consulta RGP: scroll estável (área rolável própria); nada cortado
-- Detalhes/edição em **modal largo** (não mais painel lateral que apertava a tabela)
-- Tabela em largura total; clicar linha / Consultar / Editar abre o modal
+- **Corrige CPF inválido** na Consulta RGP (zeros à esquerda / artefato float da planilha)
+- Recupera `95453325900` → `095.453.325-90` e `56106905010` → `056.106.905-01`
+- JS envia CPF como JSON string (sem virar número na ponte pywebview)
+- Regrava o CPF corrigido na planilha ao consultar
 
 ## O que há na v1.7.34
 

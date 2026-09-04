@@ -45,6 +45,9 @@ def test_formatters() -> None:
     assert normalize_cpf("09545332590.0") == "09545332590"
     # only_digits sozinho AINDA erra no float — por isso cadastro/consulta usam normalize
     assert only_digits(str(9545332590.0)) == "95453325900"
+    assert normalize_cpf("95453325900") == "09545332590"
+    # 56106905010 passa no DV por coincidência — ainda recupera
+    assert normalize_cpf("56106905010") == "05610690501"
 
 
 def test_display_nome() -> None:

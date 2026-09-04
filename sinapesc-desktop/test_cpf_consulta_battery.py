@@ -27,6 +27,7 @@ TARGET_B = "05610690501"
 
 # Entradas que o app realmente encontra (planilha, pywebview, digitação)
 INPUTS_A = [
+    "95453325900",  # float já gravado errado na planilha
     "095.453.325-90",
     "09545332590",
     "9545332590",
@@ -40,6 +41,7 @@ INPUTS_A = [
     " 095.453.325-90 ",
 ]
 INPUTS_B = [
+    "56106905010",  # float .0 já gravado; DV passa por coincidência — deve recuperar
     "056.106.905-01",
     "05610690501",
     "5610690501",
@@ -127,31 +129,16 @@ def test_consultar_cpf_isolado_gate() -> None:
 
 
 def test_api_consultar_accepts_dict_and_args() -> None:
-    from webapp.api import SinapescApi
+    from webapp.api import _parse_consulta_rgp_args
 
-    api = SinapescApi()
-    # inspeciona parsing sem chamar Sheets/MPA: replica o início do método
-    def parse(registro_id, cpf=""):
-        from ui.formatters import normalize_cpf as nc
-        from webapp.api import _js_payload_to_dict
-
-        if isinstance(registro_id, dict) or (
-            isinstance(registro_id, str) and registro_id.strip().startswith("{")
-        ):
-            data = _js_payload_to_dict(registro_id)
-            rid = str(data.get("id") or data.get("registro_id") or "").strip()
-            digits = nc(data.get("cpf") or cpf or "")
-        else:
-            rid = str(registro_id or "").strip()
-            digits = nc(cpf)
-        return rid, digits
-
-    rid, digits = parse({"id": "abc", "cpf": 9545332590.0})
+    rid, digits = _parse_consulta_rgp_args({"id": "abc", "cpf": 9545332590.0})
     assert rid == "abc" and digits == TARGET_A
-    rid, digits = parse(json.dumps({"id": "xyz", "cpf": "056.106.905-01"}))
+    rid, digits = _parse_consulta_rgp_args(json.dumps({"id": "xyz", "cpf": "056.106.905-01"}))
     assert rid == "xyz" and digits == TARGET_B
-    rid, digits = parse("abc", 5610690501)
+    rid, digits = _parse_consulta_rgp_args("abc", 5610690501)
     assert rid == "abc" and digits == TARGET_B
+    rid, digits = _parse_consulta_rgp_args(json.dumps({"id": "z", "cpf": "95453325900"}))
+    assert rid == "z" and digits == TARGET_A
 
 
 def test_js_has_object_consulta_and_helpers() -> None:
@@ -159,14 +146,30 @@ def test_js_has_object_consulta_and_helpers() -> None:
     assert "function normalizeCpf" in js
     assert "function cpfForConsulta" in js
     assert "function consultarRgpRegistro" in js
-    assert 'api("consultar_rgp_pessoa", { id:' in js
-    assert "9545332590.0" not in js  # sanity
-    # cadastro grava CPF normalizado
+    assert "JSON.stringify" in js
+    assert "consultar_rgp_pessoa" in js
+    assert "fixCpfDigits" in js
     assert "cpf: cpfN" in js
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
-    assert "normalize_cpf(local.get(\"cpf\")" in api_src
-    assert "_is_consulta_payload" in api_src
-    assert "function consultarRgpRegistro" in js
+    assert 'normalize_cpf(local.get("cpf")' in api_src
+    assert "_parse_consulta_rgp_args" in api_src
+
+
+def test_corrupted_float_stored_recovers() -> None:
+    from ui.formatters import cpf_digitos_validos
+
+    # …900 com dígito verificador inválido → recupera
+    assert normalize_cpf("95453325900") == TARGET_A
+    assert not cpf_digitos_validos("95453325900")
+    # …010 passa no DV por coincidência — ainda assim recupera zero à esquerda
+    assert cpf_digitos_validos("56106905010")
+    assert normalize_cpf("56106905010") == TARGET_B
+    assert cpf_digitos_validos(TARGET_A)
+    assert cpf_digitos_validos(TARGET_B)
+    # entrada float ainda na ponte (antes de gravar errado)
+    assert normalize_cpf(5610690501.0) == TARGET_B
+    assert normalize_cpf("5610690501.0") == TARGET_B
+    assert normalize_cpf(only_digits(str(5610690501.0))) == TARGET_B
 
 
 def test_incomplete_still_rejected() -> None:
@@ -183,5 +186,6 @@ if __name__ == "__main__":
     test_consultar_cpf_isolado_gate()
     test_api_consultar_accepts_dict_and_args()
     test_js_has_object_consulta_and_helpers()
+    test_corrupted_float_stored_recovers()
     test_incomplete_still_rejected()
     print("OK — bateria CPF consulta passou.")
