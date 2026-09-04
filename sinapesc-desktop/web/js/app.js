@@ -46,6 +46,7 @@
     consultaRgpFiltro: "",
     consultaRgpSelectedId: "",
     consultaRgpEditMode: false,
+    consultaRgpSideTab: "resumo",
     consultaRgpPendingConsulta: false,
     consultaRgpPage: 1,
     consultaRgpPageSize: 20,
@@ -2104,7 +2105,7 @@
             <h2 id="rgp-ed-title" class="rgp-cadastro-title">${edit ? "Editar sócio" : "Cadastrar sócio"}</h2>
             <p class="rgp-cadastro-sub">${edit
               ? "Atualize os dados na planilha Consulta (nome, CPF, município, telefone e observação)."
-              : "Preencha os campos e salve. Em seguida a consulta no MPA roda automaticamente."}</p>
+              : "Preencha os dados do sócio. A senha Gov.br (opcional) também é salva na planilha."}</p>
           </div>
           <button type="button" class="rgp-cadastro-close" id="rgp-ed-x" aria-label="Fechar">✕</button>
         </div>
@@ -2126,6 +2127,11 @@
               <span>Município</span>
               <input id="rgp-ed-mun" type="text" value="${esc(reg?.municipio || "")}" placeholder="Ex.: Itajaí" />
             </label>
+            ${!edit ? `
+            <label class="rgp-field-block rgp-span-2">
+              <span>Senha Gov.br <em>(opcional)</em></span>
+              <input id="rgp-ed-govbr" type="password" autocomplete="new-password" placeholder="Digite a senha Gov.br" value="${esc(state.consultaRgpGovbrSenha || "")}" />
+            </label>` : ""}
             <label class="rgp-field-block rgp-span-2">
               <span>Observação</span>
               <textarea id="rgp-ed-obs" rows="3" placeholder="Anotações internas (opcional)">${esc(reg?.observacao || "")}</textarea>
@@ -2151,6 +2157,7 @@
       const municipio = ($("#rgp-ed-mun")?.value || "").trim();
       const telefone = ($("#rgp-ed-tel")?.value || "").trim();
       const observacao = ($("#rgp-ed-obs")?.value || "").trim();
+      const govbrSenha = $("#rgp-ed-govbr") ? String($("#rgp-ed-govbr").value || "") : null;
       if (!nome) { toast("Informe o nome."); return; }
       if ((cpf.replace(/\D/g, "")).length !== 11) { toast("CPF inválido."); return; }
       const payload = {
@@ -2172,6 +2179,10 @@
         importado_defeso_em: reg?.importado_defeso_em || "",
         cadastro_reap_em: reg?.cadastro_reap_em || "",
       };
+      if (govbrSenha !== null) {
+        payload.govbr_senha = govbrSenha;
+        state.consultaRgpGovbrSenha = govbrSenha;
+      }
       close();
       if (edit && reg?.id) {
         state.consultaRgpPendingConsulta = false;
@@ -2234,6 +2245,7 @@
       ? `<tr><td colspan="8" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
       : `<tr><td colspan="8" class="rgp-empty">Nenhum registro. Clique em <strong>Cadastrar sócio</strong> para gravar nome, CPF, município, telefone e observação.</td></tr>`;
     const editMode = !!(selected && state.consultaRgpEditMode);
+    const sideTab = editMode ? "dados" : (state.consultaRgpSideTab || "resumo");
     const reapStamp = selected?.importado_reap_em || selected?.cadastro_reap_em || "";
     const reapPill = reapStamp
       ? `<div class="rgp-sync-pill rgp-sync-ok">REAP · Sincronizado em ${esc(reapStamp)}</div>`
@@ -2260,17 +2272,6 @@
         </header>
 
         <div class="rgp-action-bar">
-          <label class="rgp-govbr-field">
-            <span class="rgp-govbr-label">Senha Gov.br</span>
-            <input
-              type="password"
-              id="rgp-govbr-senha"
-              autocomplete="current-password"
-              placeholder="Digite a senha Gov.br"
-              value="${esc(state.consultaRgpGovbrSenha || "")}"
-            />
-          </label>
-          <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-govbr-save">Salvar senha</button>
           <div class="rgp-action-spacer" aria-hidden="true"></div>
           <div class="rgp-action-buttons">
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
@@ -2337,7 +2338,7 @@
               <table class="rgp-table">
                 <thead>
                   <tr>
-                    <th>Nome</th><th>CPF</th><th>Município</th><th>Telefone</th>
+                    <th>Nome</th><th>CPF</th><th>Telefone</th>
                     <th>Situação RGP</th><th>Última consulta</th><th>Observação</th><th>Ações</th>
                   </tr>
                 </thead>
@@ -2346,7 +2347,6 @@
                     <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
                       <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
                       <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
-                      <td>${esc([r.municipio, r.uf].filter(Boolean).join(" - ") || "—")}</td>
                       <td>${esc(r.telefone || "—")}</td>
                       <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
                       <td>${esc(r.ultima_consulta_em || "—")}</td>
@@ -2356,7 +2356,7 @@
                         <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
                       </td>
                     </tr>
-                  `).join("") : loadingHint}
+                  `).join("") : loadingHint.replace('colspan="8"', 'colspan="7"')}
                 </tbody>
               </table>
             </div>
@@ -2389,15 +2389,19 @@
                 ${reapPill}
               </div>
             </div>
+            <div class="rgp-tabs" role="tablist">
+              <button type="button" class="rgp-tab ${sideTab === "resumo" ? "active" : ""}" data-tab="resumo">Resumo</button>
+              <button type="button" class="rgp-tab ${sideTab === "dados" ? "active" : ""}" data-tab="dados">Dados cadastrais</button>
+            </div>
             <div class="rgp-side-toolbar">
-              ${editMode
-                ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar edição</button>
+              ${sideTab === "dados"
+                ? `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-cancel-edit">Cancelar</button>
                    <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-save-cadastro">Salvar cadastro</button>`
                 : `<button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-edit-cadastro">✎ Editar cadastro</button>
                    <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-consultar-sel">Consultar no MPA</button>`}
             </div>
             <div class="rgp-side-body">
-              ${editMode ? `
+              ${sideTab === "dados" ? `
                 <div class="rgp-cadastro-grid rgp-side-edit">
                   <label class="rgp-field-block rgp-span-2">
                     <span>Nome completo <em>*</em></span>
@@ -2417,7 +2421,7 @@
                   </label>
                   <label class="rgp-field-block rgp-span-2">
                     <span>Observação</span>
-                    <textarea id="rgp-side-obs" rows="3" placeholder="Anotações internas">${esc(selected.observacao || "")}</textarea>
+                    <textarea id="rgp-side-obs" rows="4" placeholder="Anotações internas">${esc(selected.observacao || "")}</textarea>
                   </label>
                 </div>
               ` : `
@@ -2491,17 +2495,13 @@
       renderConsultaRgp();
     });
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal(null));
-    $("#rgp-govbr-save")?.addEventListener("click", () => {
-      const senha = String($("#rgp-govbr-senha")?.value || "");
-      state.consultaRgpGovbrSenha = senha;
-      toast("Salvando senha Gov.br na planilha…", 2500);
-      api("save_consulta_rgp_prefs", { govbr_senha: senha });
-    });
-    $("#rgp-govbr-senha")?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        $("#rgp-govbr-save")?.click();
-      }
+    document.querySelectorAll(".rgp-tab[data-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const name = tab.dataset.tab || "resumo";
+        state.consultaRgpSideTab = name;
+        state.consultaRgpEditMode = name === "dados";
+        renderConsultaRgp();
+      });
     });
 
     document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
@@ -2509,6 +2509,7 @@
         if (e.target.closest("[data-act]")) return;
         state.consultaRgpSelectedId = tr.dataset.id || "";
         state.consultaRgpEditMode = false;
+        state.consultaRgpSideTab = "resumo";
         renderConsultaRgp();
       });
     });
@@ -2518,6 +2519,7 @@
         const id = btn.dataset.id || "";
         state.consultaRgpSelectedId = id;
         state.consultaRgpEditMode = false;
+        state.consultaRgpSideTab = "resumo";
         renderConsultaRgp();
         const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         if (!reg?.id) {
@@ -2536,23 +2538,26 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = btn.dataset.id || "";
-        const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         state.consultaRgpSelectedId = id;
-        state.consultaRgpEditMode = false;
-        openConsultaSocioModal(reg || null);
+        state.consultaRgpEditMode = true;
+        state.consultaRgpSideTab = "dados";
+        renderConsultaRgp();
       });
     });
     $("#rgp-side-close")?.addEventListener("click", () => {
       state.consultaRgpSelectedId = "";
       state.consultaRgpEditMode = false;
+      state.consultaRgpSideTab = "resumo";
       renderConsultaRgp();
     });
     $("#rgp-edit-cadastro")?.addEventListener("click", () => {
       state.consultaRgpEditMode = true;
+      state.consultaRgpSideTab = "dados";
       renderConsultaRgp();
     });
     $("#rgp-cancel-edit")?.addEventListener("click", () => {
       state.consultaRgpEditMode = false;
+      state.consultaRgpSideTab = "resumo";
       renderConsultaRgp();
     });
     $("#rgp-save-cadastro")?.addEventListener("click", () => {
@@ -2852,6 +2857,9 @@
     AppEvents.on("consulta_rgp_cadastro", (r) => {
       if (r.ok) {
         applyConsultaRgpPayload(r.data);
+        if (typeof r.data?.govbr_senha === "string") {
+          state.consultaRgpGovbrSenha = r.data.govbr_senha;
+        }
         const item = r.data?.registro;
         if (item?.id) state.consultaRgpSelectedId = item.id;
         toast(r.data?.mensagem || "Sócio cadastrado.");

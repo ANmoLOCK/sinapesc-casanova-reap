@@ -8,6 +8,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.34] — 2026-09-04 — UI reformulada + senha no cadastro
+
+**Tag:** [`v1.7.34`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.34)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.34/SinapescREAP-Windows-v1.7.34.zip
+
+- Remove campo/botão «Salvar senha» do topo do módulo
+- Senha Gov.br só no modal **Cadastrar sócio** (grava na planilha Config)
+- **Editar** abre o painel lateral completo (aba Dados cadastrais)
+- Abas Resumo / Dados cadastrais; layout folgado alinhado ao mockup
+
 ## [v1.7.33] — 2026-09-04 — Senha Gov.br na planilha
 
 **Tag:** [`v1.7.33`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.33)  

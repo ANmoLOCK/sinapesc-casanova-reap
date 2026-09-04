@@ -1615,6 +1615,14 @@ class SinapescApi:
             if len(cpf) != 11:
                 raise ValueError("CPF inválido (11 dígitos).")
             svc = self._ensure_consulta_rgp()
+            # Senha Gov.br opcional no cadastro → aba Config da planilha
+            if "govbr_senha" in local:
+                senha = str(local.get("govbr_senha") or "")
+                svc.set_govbr_senha(senha)
+                cfg = load_config()
+                cfg["consulta_rgp_govbr_senha"] = senha
+                cfg["consulta_rgp_govbr_opcional"] = bool(senha)
+                save_config(cfg)
             reg = svc.upsert_manual(
                 nome=nome,
                 cpf=cpf,
@@ -1629,6 +1637,7 @@ class SinapescApi:
                 "registro": reg.to_dict(),
                 "itens": [r.to_dict() for r in regs],
                 "kpis": resumo_kpis(regs),
+                "govbr_senha": svc.get_govbr_senha(),
                 "mensagem": "Sócio salvo na Consulta RGP.",
             }
 

@@ -1082,13 +1082,14 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert "rgp-shell" in css
     assert "rgp-topbar" in css
     assert "rgp-action-bar" in css
-    assert "rgp-govbr-field" in css
+    assert "rgp-tab" in css
     assert "Senha Gov.br" in js
-    assert "rgp-govbr-senha" in js
+    assert "rgp-ed-govbr" in js
+    assert "Salvar senha" not in js
+    assert "rgp-govbr-senha" not in js
     assert "govbr_senha" in js
-    assert "CONFIGURAÇÕES" not in js
-    assert "Importar automático REAP" not in js
-    assert "Senha Gov.br (opcional)" not in js
+    assert "consultaRgpSideTab" in js
+    assert 'data-tab="dados"' in js
     api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
     assert "govbr_senha" in api_src
     assert "set_govbr_senha" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
