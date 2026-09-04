@@ -1004,6 +1004,75 @@ def test_config_appdata_sobrescreve_exe() -> None:
         cfgmod.app_data_dir = old_app  # type: ignore[assignment]
 
 
+def test_consulta_rgp_dominio_e_ui() -> None:
+    from controle.consulta_rgp import (
+        SITUACAO_ATIVO,
+        aplicar_resultado_mpa,
+        normalize_situacao,
+        resumo_kpis,
+        row_to_registro,
+        situacao_apta_import,
+        RegistroConsultaRgp,
+    )
+    from controle.consulta_rgp_mpa import MPA_CONSULTA_URL, WORKER_FLAG, _js_consultar
+
+    assert normalize_situacao("rascunho") == "Rascunho"
+    assert normalize_situacao("Finalizado") == "Finalizada"
+    assert situacao_apta_import("Ativo")
+    assert not situacao_apta_import("Aguardando análise")
+    assert not situacao_apta_import("Finalizada")
+    assert not situacao_apta_import("Finalizado")
+
+    reg = RegistroConsultaRgp(id="abc", nome="Teste", cpf="10582575524")
+    aplicar_resultado_mpa(
+        reg,
+        {
+            "situacao": "Aguardando análise",
+            "cpf": "10582575524",
+            "municipio": "Casa Nova",
+            "uf": "BA",
+            "telefone": "74999990000",
+            "codigoRGP": "RGP1",
+        },
+    )
+    assert reg.situacao_rgp == "Aguardando análise"
+    assert reg.municipio == "Casa Nova"
+    assert reg.ultima_consulta_em
+    assert any("Consulta realizada" in t["evento"] for t in reg.timeline_items())
+
+    row = reg.to_row()
+    back = row_to_registro(row)
+    assert back and back.cpf == "10582575524"
+    assert resumo_kpis([reg])["aguardando_analise"] == 1
+
+    aplicar_resultado_mpa(reg, {"situacao": "Ativo"})
+    assert reg.situacao_rgp == SITUACAO_ATIVO
+    assert situacao_apta_import(reg.situacao_rgp)
+
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "renderConsultaRgp" in js
+    assert "go-consulta-rgp" in js
+    assert "consultar_rgp_pessoa" in js
+    assert "cadastrar_consulta_rgp" in js
+    assert "Cadastrar sócio" in js
+    assert "consultaRgpLoading" in js
+    css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert "rgp-shell" in css
+    assert "rgp-topbar" in css
+    main = (ROOT / "main.py").read_text(encoding="utf-8")
+    assert WORKER_FLAG in main
+    assert "pesqbrasil-pescadorprofissional.mpa.gov.br" in MPA_CONSULTA_URL
+    assert "10582575524" in _js_consultar("105.825.755-24")
+    assert "grecaptcha.execute" in _js_consultar("10582575524")
+    api_src = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
+    assert "def consultar_rgp_pessoa" in api_src
+    assert "def cadastrar_consulta_rgp" in api_src
+    assert "desativada nesta etapa" in api_src
+    assert "upsert_manual" in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+    assert "upsert_from_reap" not in (ROOT / "sheets" / "consulta_rgp_service.py").read_text(encoding="utf-8")
+
+
+
 if __name__ == "__main__":
     test_formatters()
     test_display_nome()
@@ -1024,6 +1093,7 @@ if __name__ == "__main__":
     test_js_filtros_defeso_e_sync_planilhas()
     test_js_payload_to_dict_aceita_json_e_dict()
     test_config_appdata_sobrescreve_exe()
+    test_consulta_rgp_dominio_e_ui()
     test_backup_rotacao()
     test_chrome_routes()
     test_brand_assets()

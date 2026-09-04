@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - cursor/sinapesc-desktop-exe-46d6
+      - cursor/consulta-rgp-46d6
       - main
     tags:
       - "v*"
@@ -49,7 +50,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.23)
+          SINAPESC REAP — COMO USAR (v1.7.26)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -70,10 +71,13 @@ jobs:
              (ex. D:\Meu Drive\Sinapesc-Defeso) para anexos sincronizarem.
           9. Na ficha Defeso, use a engrenagem para escolher a fonte da
              declaracao (Padrao, Allura ou Architects Daughter).
-          10. Município REAP (planilha Pessoas) e município Defeso (declaração)
-             são campos separados — salvar um não altera o outro.
+          10. Municipio REAP (planilha Pessoas) e municipio Defeso (declaracao)
+             sao campos separados — salvar um nao altera o outro.
+          11. Modulo Consulta RGP: Cadastrar socio (nome/CPF/municipio/telefone/
+             observacao) na planilha Consulta. Consultar no MPA. Nesta etapa
+             NAO ha sync Consulta <-> REAP.
 
-          11. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
+          12. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar
              ou modificar sem autorizacao.
 
