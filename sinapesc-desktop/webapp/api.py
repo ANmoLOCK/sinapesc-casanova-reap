@@ -1643,7 +1643,7 @@ class SinapescApi:
         if not situacao_apta_import(reg.situacao_rgp):
             raise ValueError(
                 f"Situação '{reg.situacao_rgp}' ainda não está apta para importação "
-                "(use Ativo ou Finalizada)."
+                "(somente Ativo)."
             )
 
         reap = self._ensure_service()

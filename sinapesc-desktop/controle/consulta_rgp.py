@@ -46,12 +46,10 @@ SITUACAO_INATIVO = "Inativo"
 SITUACAO_PEND_REG = "Pend. regularização"
 SITUACAO_NAO_CONSULTADO = "Não consultado"
 
-# Aptas para importação automática REAP/Defeso
+# Só Ativo entra nas planilhas REAP e Defeso
 SITUACOES_APTAS_IMPORT = frozenset(
     {
         SITUACAO_ATIVO.lower(),
-        SITUACAO_FINALIZADA.lower(),
-        "finalizado",
     }
 )
 

@@ -1020,6 +1020,8 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     assert normalize_situacao("Finalizado") == "Finalizada"
     assert situacao_apta_import("Ativo")
     assert not situacao_apta_import("Aguardando análise")
+    assert not situacao_apta_import("Finalizada")
+    assert not situacao_apta_import("Finalizado")
 
     reg = RegistroConsultaRgp(id="abc", nome="Teste", cpf="10582575524")
     aplicar_resultado_mpa(
