@@ -1682,16 +1682,28 @@ class SinapescApi:
                 )
 
             data = result.get("data") if isinstance(result.get("data"), dict) else {}
+            if not data and isinstance(result.get("situacao"), str):
+                data = {"situacao": result.get("situacao")}
             if not data:
                 raise ValueError("API MPA não retornou dados.")
 
             aplicar_resultado_mpa(reg, data, ator="Sistema")
+            # Garante situação vinda do enrich do worker
+            if result.get("situacao") and (
+                not reg.situacao_rgp or reg.situacao_rgp == "Não consultado"
+            ):
+                from controle.consulta_rgp import normalize_situacao as _norm
+
+                reg.situacao_rgp = _norm(result.get("situacao"))
             salvo = svc.salvar(reg.to_dict())
+            regs = svc.listar()
             return {
                 "registro": salvo.to_dict(),
                 "situacao": salvo.situacao_rgp,
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
                 "imports": {},
-                "mensagem": f"Situação RGP: {salvo.situacao_rgp}",
+                "mensagem": f"Situação RGP gravada: {salvo.situacao_rgp}",
             }
 
         return self._run_async("consulta_rgp_consulta", work, "Consultando RGP no MPA…")

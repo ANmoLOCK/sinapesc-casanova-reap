@@ -8,6 +8,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.30] — 2026-09-04 — Consulta MPA grava situação + UI folgada
+
+**Tag:** [`v1.7.30`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.30)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.30/SinapescREAP-Windows-v1.7.30.zip
+
+- Worker MPA: espera reCAPTCHA, múltiplas URLs, parse de situação (texto/número)
+- Após consulta, grava situação/última consulta e atualiza lista + KPIs
+- Cadastro → consulta automática com atraso seguro na fila
+- Layout menos apertado (header, KPIs, tabela, modal)
+
 ## [v1.7.29] — 2026-09-04 — Consulta RGP UI fiel ao mockup
 
 **Tag:** [`v1.7.29`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.29)  

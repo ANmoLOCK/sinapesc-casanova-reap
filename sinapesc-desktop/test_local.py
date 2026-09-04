@@ -1008,6 +1008,7 @@ def test_consulta_rgp_dominio_e_ui() -> None:
     from controle.consulta_rgp import (
         SITUACAO_ATIVO,
         aplicar_resultado_mpa,
+        extract_situacao_from_mpa,
         normalize_situacao,
         resumo_kpis,
         row_to_registro,
@@ -1018,6 +1019,8 @@ def test_consulta_rgp_dominio_e_ui() -> None:
 
     assert normalize_situacao("rascunho") == "Rascunho"
     assert normalize_situacao("Finalizado") == "Finalizada"
+    assert normalize_situacao(4) == "Ativo"
+    assert extract_situacao_from_mpa({"situacaoRgp": "Ativo"}) == "Ativo"
     assert situacao_apta_import("Ativo")
     assert not situacao_apta_import("Aguardando análise")
     assert not situacao_apta_import("Finalizada")

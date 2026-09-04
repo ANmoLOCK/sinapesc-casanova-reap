@@ -1079,6 +1079,10 @@ body.screen-rgp .page {
   height: 100%;
   margin: 0;
 }
+body.screen-rgp .rgp-shell {
+  font-size: 15px;
+}
+
 body.screen-rgp .app-watermark {
   display: none;
 }
@@ -1099,10 +1103,10 @@ body.screen-rgp .app-watermark {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  padding: 18px 28px;
+  padding: 22px 32px;
   background: #0A2F52;
   color: #fff;
-  min-height: 72px;
+  min-height: 88px;
 }
 .rgp-topbar-left {
   display: flex;
@@ -1123,7 +1127,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-back:hover { background: rgba(255,255,255,0.16); }
 .rgp-logo {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1137,7 +1141,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-topbar-titles { min-width: 0; }
 .rgp-topbar-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.15;
 }
@@ -1179,10 +1183,10 @@ body.screen-rgp .app-watermark {
   flex-wrap: wrap;
   align-items: center;
   gap: 18px 22px;
-  padding: 14px 28px;
+  padding: 18px 32px;
   background: #EAF0F6;
   border-bottom: 1px solid #D5E0EA;
-  min-height: 64px;
+  min-height: 72px;
 }
 .rgp-config-label {
   font-size: 12px;
@@ -1281,8 +1285,8 @@ body.screen-rgp .app-watermark {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  padding: 20px 28px 8px;
+  gap: 18px;
+  padding: 24px 32px 14px;
 }
 .rgp-kpi {
   display: flex;
@@ -1290,10 +1294,10 @@ body.screen-rgp .app-watermark {
   gap: 14px;
   border: 1px solid #D5E0EA;
   background: #fff;
-  padding: 18px 18px;
+  padding: 22px 20px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(10,47,82,0.05);
-  min-height: 108px;
+  min-height: 124px;
 }
 .rgp-kpi-copy { min-width: 0; flex: 1; }
 .rgp-kpi-label {
@@ -1303,7 +1307,7 @@ body.screen-rgp .app-watermark {
   margin-bottom: 6px;
 }
 .rgp-kpi-value {
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 750;
   color: #0A2F52;
   letter-spacing: -0.03em;
@@ -1342,10 +1346,10 @@ body.screen-rgp .app-watermark {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  padding: 12px 28px 24px;
+  gap: 18px;
+  padding: 16px 32px 28px;
 }
-.rgp-main.has-side { grid-template-columns: minmax(0, 1fr) 400px; }
+.rgp-main.has-side { grid-template-columns: minmax(0, 1fr) 420px; }
 .rgp-table-wrap {
   border: 1px solid #D5E0EA;
   background: #fff;
@@ -1405,7 +1409,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-search-wrap input {
   width: 100%;
-  height: 44px;
+  height: 48px;
   padding: 0 14px 0 40px;
   box-sizing: border-box;
   border: 1px solid #C9D6E3;
@@ -1421,7 +1425,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-filtro-wrap { flex: 0 0 auto; }
 .rgp-filtro-select {
-  height: 44px;
+  height: 48px;
   min-width: 140px;
   padding: 0 14px;
   border: 1px solid #C9D6E3;
@@ -1435,7 +1439,7 @@ body.screen-rgp .app-watermark {
 .rgp-table-scroll {
   overflow: auto;
   flex: 1 1 auto;
-  min-height: 280px;
+  min-height: 380px;
 }
 .rgp-table {
   width: 100%;
@@ -1444,7 +1448,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-table th {
   text-align: left;
-  padding: 14px 16px;
+  padding: 16px;
   background: #F3F8FC;
   color: #5A7388;
   font-weight: 750;
@@ -1456,7 +1460,7 @@ body.screen-rgp .app-watermark {
   white-space: nowrap;
 }
 .rgp-table td {
-  padding: 16px;
+  padding: 18px 16px;
   border-bottom: 1px solid #E8EEF3;
   vertical-align: middle;
   color: #0A2F52;
@@ -1702,7 +1706,7 @@ body.screen-rgp .app-watermark {
   backdrop-filter: none;
 }
 .rgp-cadastro-modal {
-  max-width: 640px;
+  max-width: 680px;
   width: 100%;
   background: #ffffff !important;
   opacity: 1 !important;
@@ -1719,7 +1723,7 @@ body.screen-rgp .app-watermark {
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
-  padding: 22px 24px 16px;
+  padding: 26px 28px 18px;
   background: #F5F8FB;
   border-bottom: 1px solid #E0E7EE;
 }
@@ -1733,7 +1737,7 @@ body.screen-rgp .app-watermark {
 }
 .rgp-cadastro-title {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 750;
   color: #0A2F52;
   line-height: 1.2;
@@ -1758,14 +1762,14 @@ body.screen-rgp .app-watermark {
 }
 .rgp-cadastro-close:hover { background: #E0E7EE; }
 .rgp-cadastro-body {
-  padding: 22px 24px;
+  padding: 26px 28px;
   background: #ffffff;
   overflow: auto;
 }
 .rgp-cadastro-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px 16px;
+  gap: 18px 18px;
 }
 .rgp-field-block {
   display: flex;
@@ -1791,7 +1795,7 @@ body.screen-rgp .app-watermark {
   box-sizing: border-box;
   margin: 0;
   padding: 12px 14px;
-  min-height: 46px;
+  min-height: 50px;
   border: 1px solid #C9D6E3;
   border-radius: 8px;
   background: #ffffff !important;

@@ -59,11 +59,16 @@ _SITUACAO_ALIASES = {
     "aguardando análise": SITUACAO_AGUARDANDO_ANALISE,
     "aguardando analise consulta publica": SITUACAO_AGUARDANDO_ANALISE,
     "aguardando análise consulta pública": SITUACAO_AGUARDANDO_ANALISE,
+    "aguardando analise consulta pública": SITUACAO_AGUARDANDO_ANALISE,
     "em analise": SITUACAO_EM_ANALISE,
     "em análise": SITUACAO_EM_ANALISE,
     "rascunho": SITUACAO_RASCUNHO,
     "finalizada": SITUACAO_FINALIZADA,
     "finalizado": SITUACAO_FINALIZADA,
+    "deferida": SITUACAO_ATIVO,
+    "deferido": SITUACAO_ATIVO,
+    "indeferida": SITUACAO_PEND_REG,
+    "indeferido": SITUACAO_PEND_REG,
     "aguardando atualizacao": SITUACAO_AGUARDANDO_ATUALIZACAO,
     "aguardando atualização": SITUACAO_AGUARDANDO_ATUALIZACAO,
     "aguardando atualizacao de informacoes do(a) interessado(a)": SITUACAO_AGUARDANDO_ATUALIZACAO,
@@ -77,9 +82,24 @@ _SITUACAO_ALIASES = {
     "pend. regularização": SITUACAO_PEND_REG,
     "pendente regularizacao": SITUACAO_PEND_REG,
     "pendente regularização": SITUACAO_PEND_REG,
+    "em correção": SITUACAO_PEND_REG,
+    "em correçao": SITUACAO_PEND_REG,
+    "em correcao": SITUACAO_PEND_REG,
     "nao consultado": SITUACAO_NAO_CONSULTADO,
     "não consultado": SITUACAO_NAO_CONSULTADO,
     "": SITUACAO_NAO_CONSULTADO,
+}
+
+# Códigos numéricos vistos nos enums do front MPA (consulta pública / solicitação)
+_SITUACAO_NUMERIC = {
+    "0": SITUACAO_NAO_CONSULTADO,
+    "1": SITUACAO_RASCUNHO,
+    "2": SITUACAO_AGUARDANDO_ANALISE,
+    "3": SITUACAO_EM_ANALISE,
+    "4": SITUACAO_ATIVO,  # deferido / deferida em alguns enums
+    "5": SITUACAO_FINALIZADA,
+    "6": SITUACAO_AGUARDANDO_ANALISE,
+    "7": SITUACAO_EM_ANALISE,
 }
 
 
@@ -91,18 +111,61 @@ def now_stamp() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def normalize_situacao(raw: str) -> str:
+def normalize_situacao(raw: Any) -> str:
+    if raw is None:
+        return SITUACAO_NAO_CONSULTADO
+    if isinstance(raw, bool):
+        return SITUACAO_NAO_CONSULTADO
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        key = str(int(raw))
+        if key in _SITUACAO_NUMERIC:
+            return _SITUACAO_NUMERIC[key]
+        raw = str(int(raw))
     text = " ".join(str(raw or "").strip().split())
     if not text:
         return SITUACAO_NAO_CONSULTADO
+    if text.isdigit() and text in _SITUACAO_NUMERIC:
+        return _SITUACAO_NUMERIC[text]
     key = text.lower()
     if key in _SITUACAO_ALIASES:
         return _SITUACAO_ALIASES[key]
-    # match parcial (API às vezes manda texto longo)
     for alias, label in _SITUACAO_ALIASES.items():
         if alias and alias in key:
             return label
     return text
+
+
+def extract_situacao_from_mpa(data: Dict[str, Any] | None) -> str:
+    """Extrai situação RGP de formatos variados da API pública MPA."""
+    if not isinstance(data, dict):
+        return SITUACAO_NAO_CONSULTADO
+    candidates = [
+        data.get("situacao"),
+        data.get("situacaoRgp"),
+        data.get("situacao_rgp"),
+        data.get("situacaoRGP"),
+        data.get("status"),
+        data.get("label"),
+    ]
+    nested = data.get("resultado") or data.get("content") or data.get("data")
+    if isinstance(nested, dict):
+        candidates.extend(
+            [
+                nested.get("situacao"),
+                nested.get("situacaoRgp"),
+                nested.get("situacao_rgp"),
+                nested.get("status"),
+            ]
+        )
+    for raw in candidates:
+        if raw is None or raw == "":
+            continue
+        sit = normalize_situacao(raw)
+        if sit and sit != SITUACAO_NAO_CONSULTADO:
+            return sit
+        if sit == SITUACAO_NAO_CONSULTADO and str(raw).strip() not in ("", "0", "Nenhum"):
+            return sit
+    return SITUACAO_NAO_CONSULTADO
 
 
 def situacao_apta_import(situacao: str) -> bool:
@@ -316,7 +379,7 @@ def aplicar_resultado_mpa(
     ator: str = "Sistema",
 ) -> RegistroConsultaRgp:
     """Atualiza registro com payload JSON da API pública MPA."""
-    situacao = normalize_situacao(str(data.get("situacao") or ""))
+    situacao = extract_situacao_from_mpa(data)
     nome_api = " ".join(
         p
         for p in (
@@ -328,26 +391,33 @@ def aplicar_resultado_mpa(
     if nome_api and (not reg.nome or reg.nome.lower() == "sem nome"):
         reg.nome = format_nome(nome_api)
     elif nome_api and len(nome_api) > len(reg.nome or ""):
-        # completa se API trouxe nome mais completo
         reg.nome = format_nome(nome_api)
 
     if data.get("cpf"):
         reg.cpf = only_digits(str(data.get("cpf")))
-    if data.get("telefone"):
-        reg.telefone = str(data.get("telefone") or "").strip() or reg.telefone
-    if data.get("municipio"):
-        reg.municipio = str(data.get("municipio") or "").strip() or reg.municipio
-    if data.get("uf"):
-        reg.uf = str(data.get("uf") or "").strip().upper()[:2] or reg.uf
-    if data.get("codigoRGP") or data.get("codigo_rgp"):
-        reg.codigo_rgp = str(data.get("codigoRGP") or data.get("codigo_rgp") or "").strip()
+    tel = data.get("telefone") or data.get("celular") or data.get("fone")
+    if tel:
+        reg.telefone = str(tel).strip() or reg.telefone
+    mun = data.get("municipio") or data.get("municipioPescador")
+    if mun:
+        reg.municipio = str(mun).strip() or reg.municipio
+    uf = data.get("uf") or data.get("ufPescador")
+    if uf:
+        reg.uf = str(uf).strip().upper()[:2] or reg.uf
+    if data.get("codigoRGP") or data.get("codigo_rgp") or data.get("rgp"):
+        reg.codigo_rgp = str(
+            data.get("codigoRGP") or data.get("codigo_rgp") or data.get("rgp") or ""
+        ).strip()
     if data.get("categoria"):
         reg.categoria = str(data.get("categoria") or "").strip()
     if data.get("email"):
         reg.email = str(data.get("email") or "").strip() or reg.email
 
     old = normalize_situacao(reg.situacao_rgp)
-    reg.situacao_rgp = situacao or old
+    if situacao and situacao != SITUACAO_NAO_CONSULTADO:
+        reg.situacao_rgp = situacao
+    elif not reg.situacao_rgp:
+        reg.situacao_rgp = SITUACAO_NAO_CONSULTADO
     reg.ultima_consulta_em = now_stamp()
     reg.atualizado_em = reg.ultima_consulta_em
     reg.append_timeline(f"Consulta realizada → {reg.situacao_rgp}", ator=ator)

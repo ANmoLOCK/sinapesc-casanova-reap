@@ -2840,14 +2840,16 @@
         const item = r.data?.registro;
         if (item?.id) state.consultaRgpSelectedId = item.id;
         toast(r.data?.mensagem || "Sócio cadastrado.");
-        if (state.consultaRgpPendingConsulta && item?.id) {
-          state.consultaRgpPendingConsulta = false;
-          toast("Consultando MPA…", 2500);
-          api("consultar_rgp_pessoa", item.id, item.cpf || "");
-        } else {
-          state.consultaRgpPendingConsulta = false;
-        }
+        const shouldConsult = state.consultaRgpPendingConsulta && item?.id;
+        state.consultaRgpPendingConsulta = false;
         if (state.screen === "consulta_rgp") renderConsultaRgp();
+        if (shouldConsult) {
+          toast("Consultando situação RGP no MPA…", 3500);
+          // pequeno atraso evita corrida com a fila async do Python
+          setTimeout(() => {
+            api("consultar_rgp_pessoa", item.id, item.cpf || "");
+          }, 500);
+        }
       } else {
         state.consultaRgpPendingConsulta = false;
         toast(r.error || "Falha ao cadastrar.");
@@ -2870,17 +2872,19 @@
     });
     AppEvents.on("consulta_rgp_consulta", (r) => {
       if (r.ok) {
+        if (r.data?.itens) applyConsultaRgpPayload(r.data);
         const item = r.data?.registro;
         toast(r.data?.mensagem || "Consulta concluída.");
         if (item?.id) {
           const idx = state.consultaRgpItens.findIndex((x) => x.id === item.id);
           if (idx >= 0) state.consultaRgpItens[idx] = item;
-          else state.consultaRgpItens.push(item);
+          else if (!r.data?.itens) state.consultaRgpItens.push(item);
           state.consultaRgpSelectedId = item.id;
+          if (r.data?.kpis) state.consultaRgpKpis = r.data.kpis;
         }
         if (r.data?.imports?.aviso) toast(r.data.imports.aviso, 6000);
         if (state.screen === "consulta_rgp") renderConsultaRgp();
-      } else toast(r.error || "Falha na consulta MPA.", 7000);
+      } else toast(r.error || "Falha na consulta MPA.", 8000);
     });
     AppEvents.on("consulta_rgp_import", (r) => {
       if (r.ok) {
