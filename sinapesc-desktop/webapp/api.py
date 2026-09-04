@@ -34,6 +34,16 @@ from controle.defeso_declaracao import (
 from controle.defeso_pacote import listar_opcoes_pacote, montar_pacote_pdf, normalize_selecao
 from controle.pendencias import classificar
 from controle.sync_planilhas import sync_municipios_bidirecional
+from controle.consulta_rgp import (
+    aplicar_resultado_mpa,
+    resumo_kpis,
+    situacao_apta_import,
+)
+from controle.consulta_rgp_mpa import (
+    MPA_CONSULTA_URL,
+    abrir_site_mpa_no_navegador,
+    consultar_cpf_isolado,
+)
 from controle.defeso_relatorio import (
     itens_defeso_para_relatorio,
     montar_html_defeso,
@@ -45,6 +55,7 @@ from drive import DriveDefesoClient
 from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
 from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
+from sheets.consulta_rgp_service import ConsultaRgpService
 from ui.formatters import display_nome, format_cpf, format_nome, only_digits, parse_lote_lines
 from ui.public_link import ensure_site_qrs, urls_for
 from ui.qr_vault import normalize_public_base, preferred_public_base, qr_dir
@@ -160,6 +171,7 @@ class SinapescApi:
         self._admin_user = ""
         self._service: Optional[SheetsService] = None
         self._defeso_service: Optional[DefesoService] = None
+        self._consulta_rgp_service: Optional[ConsultaRgpService] = None
 
     def bind_window(self, window: Any) -> None:
         self._window = window
@@ -197,6 +209,10 @@ class SinapescApi:
                 "defeso_atalhos_emails": _normalize_atalhos_lista(
                     cfg.get("defeso_atalhos_emails")
                 ),
+                "consulta_rgp_spreadsheet_id": str(cfg.get("consulta_rgp_spreadsheet_id") or ""),
+                "consulta_rgp_importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "consulta_rgp_govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+                "consulta_rgp_mpa_url": MPA_CONSULTA_URL,
                 "public_site_url": site,
                 "ultimo_backup_em": str(cfg.get("ultimo_backup_em") or "Nunca"),
                 "credentials_label": cred_label,
@@ -219,6 +235,7 @@ class SinapescApi:
         self._admin_user = email.strip()
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         return ok(admin_user=self._admin_user)
 
     def logout(self) -> Dict[str, Any]:
@@ -226,6 +243,7 @@ class SinapescApi:
         self._admin_user = ""
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         return ok()
 
     def get_settings(self) -> Dict[str, Any]:
@@ -241,6 +259,9 @@ class SinapescApi:
                     str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
                 ),
                 "defeso_fontes": listar_fontes(),
+                "consulta_rgp_spreadsheet_id": str(cfg.get("consulta_rgp_spreadsheet_id") or ""),
+                "consulta_rgp_importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "consulta_rgp_govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
                 "public_site_url": normalize_public_base(
                     cfg.get("public_site_url") or cfg.get("public_base_url") or ""
                 ),
@@ -278,6 +299,14 @@ class SinapescApi:
             cfg["defeso_declaracao_fonte"] = normalize_fonte(
                 str(payload.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             )
+        if "consulta_rgp_spreadsheet_id" in payload:
+            cfg["consulta_rgp_spreadsheet_id"] = normalize_sheet_id(
+                str(payload.get("consulta_rgp_spreadsheet_id") or "")
+            )
+        if "consulta_rgp_importar_auto" in payload:
+            cfg["consulta_rgp_importar_auto"] = bool(payload.get("consulta_rgp_importar_auto"))
+        if "consulta_rgp_govbr_opcional" in payload:
+            cfg["consulta_rgp_govbr_opcional"] = bool(payload.get("consulta_rgp_govbr_opcional"))
         if "public_site_url" in payload:
             base = normalize_public_base(str(payload.get("public_site_url") or ""))
             cfg["public_site_url"] = base
@@ -289,6 +318,7 @@ class SinapescApi:
         save_config(cfg)
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         self._sync_site_config_js(cfg.get("spreadsheet_id", ""))
         return ok()
 
@@ -386,6 +416,16 @@ class SinapescApi:
         if self._defeso_service is None:
             self._defeso_service = DefesoService.from_config(cfg)
         return self._defeso_service
+
+    def _ensure_consulta_rgp(self) -> ConsultaRgpService:
+        if not self._logged_in:
+            raise SheetsConfigError("Faça login como administrador.")
+        cfg = load_config()
+        if not is_sheets_configured(cfg):
+            raise SheetsConfigError("Google Sheets ainda não configurado.")
+        if self._consulta_rgp_service is None:
+            self._consulta_rgp_service = ConsultaRgpService.from_config(cfg)
+        return self._consulta_rgp_service
 
     def _sync_site_config_js(self, spreadsheet_id: str) -> None:
         sid = (spreadsheet_id or "").strip()
@@ -1451,6 +1491,234 @@ class SinapescApi:
             return up
 
         return self._run_async("defeso_anexo", work, "Enviando anexo…")
+
+    # ---- Consulta RGP ----------------------------------------------------
+
+    def load_consulta_rgp(self) -> Dict[str, Any]:
+        def work():
+            cfg = load_config()
+            svc = self._ensure_consulta_rgp()
+            regs = svc.listar()
+            return {
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+                "spreadsheet_id": normalize_sheet_id(
+                    str(cfg.get("consulta_rgp_spreadsheet_id") or cfg.get("spreadsheet_id") or "")
+                ),
+                "mpa_url": MPA_CONSULTA_URL,
+            }
+
+        return self._run_async("consulta_rgp", work, "Carregando Consulta RGP…")
+
+    def save_consulta_rgp_prefs(self, payload: Any = None) -> Dict[str, Any]:
+        data = _js_payload_to_dict(payload)
+        cfg = load_config()
+        if "importar_auto" in data:
+            cfg["consulta_rgp_importar_auto"] = bool(data.get("importar_auto"))
+        if "govbr_opcional" in data:
+            cfg["consulta_rgp_govbr_opcional"] = bool(data.get("govbr_opcional"))
+        save_config(cfg)
+        return ok(
+            importar_auto=bool(cfg.get("consulta_rgp_importar_auto", True)),
+            govbr_opcional=bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+        )
+
+    def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
+        def work():
+            reap = self._ensure_service()
+            crgp = self._ensure_consulta_rgp()
+            pessoas = reap.get_all_pessoas()
+            criados = 0
+            atualizados = 0
+            for p in pessoas:
+                before = crgp.por_cpf(p.cpf)
+                crgp.upsert_from_reap(
+                    person_id=p.id,
+                    nome=p.nome,
+                    cpf=p.cpf,
+                    telefone=str(getattr(p, "telefone", "") or ""),
+                    municipio=str(getattr(p, "municipio", "") or ""),
+                )
+                if before:
+                    atualizados += 1
+                else:
+                    criados += 1
+            regs = crgp.listar()
+            return {
+                "criados": criados,
+                "atualizados": atualizados,
+                "total": len(regs),
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "mensagem": (
+                    f"REAP sincronizado: {criados} novos, {atualizados} atualizados "
+                    f"({len(regs)} na Consulta RGP)."
+                ),
+            }
+
+        return self._run_async("consulta_rgp_sync", work, "Sincronizando REAP → Consulta RGP…")
+
+    def save_consulta_rgp_registro(self, payload: Any = None) -> Dict[str, Any]:
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            reg = svc.salvar(local)
+            return reg.to_dict()
+
+        return self._run_async("consulta_rgp_saved", work, "Salvando registro…")
+
+    def consultar_rgp_pessoa(self, registro_id: str = "", cpf: str = "") -> Dict[str, Any]:
+        """Abre consulta MPA em processo isolado e grava situação na planilha."""
+        rid = str(registro_id or "").strip()
+        cpf_digits = only_digits(cpf)
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            reg = svc.por_id(rid) if rid else None
+            if reg is None and cpf_digits:
+                reg = svc.por_cpf(cpf_digits)
+            if reg is None:
+                raise ValueError("Registro não encontrado na Consulta RGP. Sincronize o REAP antes.")
+
+            alvo = only_digits(reg.cpf) or cpf_digits
+            if len(alvo) != 11:
+                raise ValueError("CPF inválido para consulta.")
+
+            # Processo separado (estilo .bat) — falha não derruba o EXE
+            try:
+                result = consultar_cpf_isolado(alvo)
+            except Exception as exc:  # noqa: BLE001
+                abrir_site_mpa_no_navegador(alvo)
+                raise ValueError(
+                    f"Consulta automática falhou ({exc}). "
+                    "Site MPA aberto no navegador; CPF na área de transferência."
+                ) from exc
+
+            if not result.get("ok"):
+                # Fallback: abre site sem quebrar o fluxo
+                try:
+                    abrir_site_mpa_no_navegador(alvo)
+                except Exception:  # noqa: BLE001
+                    pass
+                raise ValueError(
+                    str(result.get("error") or "Consulta MPA sem resultado.")
+                    + " Site aberto no navegador (CPF copiado)."
+                )
+
+            data = result.get("data") if isinstance(result.get("data"), dict) else {}
+            if not data:
+                raise ValueError("API MPA não retornou dados.")
+
+            aplicar_resultado_mpa(reg, data, ator="Sistema")
+            salvo = svc.salvar(reg.to_dict())
+
+            imports: Dict[str, Any] = {}
+            cfg = load_config()
+            if bool(cfg.get("consulta_rgp_importar_auto", True)) and situacao_apta_import(
+                salvo.situacao_rgp
+            ):
+                try:
+                    imports = self._importar_consulta_para_planilhas(salvo.id)
+                except Exception as exc:  # noqa: BLE001
+                    imports = {"ok": False, "aviso": str(exc)}
+
+            return {
+                "registro": salvo.to_dict(),
+                "situacao": salvo.situacao_rgp,
+                "imports": imports,
+                "mensagem": f"Situação RGP: {salvo.situacao_rgp}",
+            }
+
+        return self._run_async("consulta_rgp_consulta", work, "Consultando RGP no MPA…")
+
+    def _importar_consulta_para_planilhas(self, registro_id: str) -> Dict[str, Any]:
+        """REAP: município + telefone; Defeso: CPF + nome."""
+        crgp = self._ensure_consulta_rgp()
+        reg = crgp.por_id(registro_id)
+        if not reg:
+            raise ValueError("Registro não encontrado.")
+        if not situacao_apta_import(reg.situacao_rgp):
+            raise ValueError(
+                f"Situação '{reg.situacao_rgp}' ainda não está apta para importação "
+                "(use Ativo ou Finalizada)."
+            )
+
+        reap = self._ensure_service()
+        out: Dict[str, Any] = {"reap": None, "defeso": None}
+
+        # --- REAP (município + telefone) ---
+        pessoa = None
+        if reg.person_id:
+            try:
+                pessoa = next((p for p in reap.get_all_pessoas() if p.id == reg.person_id), None)
+            except Exception:  # noqa: BLE001
+                pessoa = None
+        if pessoa is None:
+            pessoa = reap.pessoa_por_cpf(reg.cpf)
+        if pessoa:
+            mun = (reg.municipio or "").strip() or str(getattr(pessoa, "municipio", "") or "")
+            tel = (reg.telefone or "").strip() or str(getattr(pessoa, "telefone", "") or "")
+            reap.update_pessoa(pessoa.id, pessoa.nome, pessoa.cpf, mun, tel)
+            crgp.marcar_import_reap(reg.id)
+            out["reap"] = {"ok": True, "person_id": pessoa.id, "municipio": mun, "telefone": tel}
+        else:
+            out["reap"] = {
+                "ok": False,
+                "aviso": "CPF não encontrado no REAP — sincronize ou cadastre o sócio.",
+            }
+
+        # --- Defeso (CPF + nome) ---
+        try:
+            defeso = self._ensure_defeso()
+            existing = defeso.por_cpf(reg.cpf)
+            payload = {
+                "id": existing.id if existing else "",
+                "person_id": reg.person_id or (pessoa.id if pessoa else ""),
+                "nome": reg.nome,
+                "cpf": reg.cpf,
+                "municipio": "",  # município Defeso isolado — não copia do REAP
+                "telefone_reap": (reg.telefone or "").strip(),
+            }
+            if existing:
+                # Mantém município/endereço já preenchidos na ficha Defeso
+                payload["municipio"] = existing.municipio
+                payload["rg"] = existing.rg
+                payload["cep"] = existing.cep
+                payload["endereco"] = existing.endereco
+                payload["numero"] = existing.numero
+                payload["bairro"] = existing.bairro
+                payload["uf"] = existing.uf
+                payload["telefone"] = existing.telefone
+                payload["email"] = existing.email or reg.email
+                payload["status"] = existing.status
+            ficha = defeso.salvar(payload)
+            crgp.marcar_import_defeso(reg.id)
+            out["defeso"] = {"ok": True, "ficha_id": ficha.id}
+        except Exception as exc:  # noqa: BLE001
+            out["defeso"] = {"ok": False, "aviso": str(exc)}
+
+        reg2 = crgp.por_id(reg.id)
+        out["registro"] = reg2.to_dict() if reg2 else reg.to_dict()
+        out["ok"] = True
+        return out
+
+    def importar_consulta_rgp(self, registro_id: str = "") -> Dict[str, Any]:
+        rid = str(registro_id or "").strip()
+
+        def work():
+            return self._importar_consulta_para_planilhas(rid)
+
+        return self._run_async("consulta_rgp_import", work, "Importando para REAP/Defeso…")
+
+    def abrir_consulta_rgp_mpa(self, cpf: str = "") -> Dict[str, Any]:
+        try:
+            abrir_site_mpa_no_navegador(cpf)
+            return ok(url=MPA_CONSULTA_URL)
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
 
     def quit_app(self) -> Dict[str, Any]:
         if webview:
