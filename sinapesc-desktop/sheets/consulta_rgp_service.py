@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
 from typing import Dict, List, Optional
 
+from controle.auditoria import EventoAuditoria, evento_para_row, row_to_evento
 from controle.consulta_rgp import (
+    CONSULTA_RGP_AUDITORIA_TAB,
     CONSULTA_RGP_CONFIG_HEADER,
     CONSULTA_RGP_CONFIG_TAB,
     CONSULTA_RGP_HEADER,
@@ -17,13 +21,15 @@ from controle.consulta_rgp import (
     row_to_registro,
 )
 from sheets.client import GoogleSheetsClient, SheetsConfigError, normalize_sheet_id
-from ui.formatters import format_nome, normalize_cpf, only_digits
+from ui.formatters import format_nome, normalize_cpf
 
 
 class ConsultaRgpService:
     def __init__(self, client: GoogleSheetsClient) -> None:
         self.client = client
+        self.actor: str = ""
         self._ready = False
+        self._audit_silent = False
 
     @classmethod
     def from_config(cls, cfg: dict) -> "ConsultaRgpService":
@@ -62,10 +68,9 @@ class ConsultaRgpService:
             if sheet.get("properties", {}).get("title")
         }
         to_add = []
-        if CONSULTA_RGP_TAB not in existing:
-            to_add.append({"addSheet": {"properties": {"title": CONSULTA_RGP_TAB}}})
-        if CONSULTA_RGP_CONFIG_TAB not in existing:
-            to_add.append({"addSheet": {"properties": {"title": CONSULTA_RGP_CONFIG_TAB}}})
+        for title in (CONSULTA_RGP_TAB, CONSULTA_RGP_CONFIG_TAB, CONSULTA_RGP_AUDITORIA_TAB):
+            if title not in existing:
+                to_add.append({"addSheet": {"properties": {"title": title}}})
         if to_add:
             self.client._service.spreadsheets().batchUpdate(
                 spreadsheetId=self.client.spreadsheet_id,
@@ -115,6 +120,15 @@ class ConsultaRgpService:
                     f"{CONSULTA_RGP_CONFIG_TAB}!A1:B1",
                     [row[: len(CONSULTA_RGP_CONFIG_HEADER)]],
                 )
+
+        from controle.auditoria import AUDITORIA_COLUNAS
+
+        aud_header = self.client.get_values(f"{CONSULTA_RGP_AUDITORIA_TAB}!A1:I1")
+        if not aud_header or not aud_header[0]:
+            self.client.update_values(
+                f"{CONSULTA_RGP_AUDITORIA_TAB}!A1",
+                [AUDITORIA_COLUNAS],
+            )
         self._ready = True
 
     def listar(self) -> List[RegistroConsultaRgp]:
@@ -152,6 +166,51 @@ class ConsultaRgpService:
             if r and str(r[0]).strip() == registro_id:
                 return i + 2
         return -1
+
+    def registrar_auditoria(
+        self,
+        acao: str,
+        detalhe: str,
+        *,
+        person_id: str = "",
+        nome: str = "",
+    ) -> None:
+        """Grava na aba Auditoria da planilha Consulta RGP. Nunca interrompe a ação."""
+        if self._audit_silent:
+            return
+        evt = EventoAuditoria(
+            id=str(uuid.uuid4()),
+            em=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+            usuario=(self.actor or "").strip() or "(sem login)",
+            acao=acao,
+            detalhe=detalhe,
+            person_id=person_id or "",
+            nome=nome or "",
+            ano="",
+            meses="",
+        )
+        self._audit_silent = True
+        try:
+            self.ensure()
+            self.client.append_values(
+                f"{CONSULTA_RGP_AUDITORIA_TAB}!A2",
+                [evento_para_row(evt)],
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            self._audit_silent = False
+
+    def listar_auditoria(self, limite: int = 400) -> List[EventoAuditoria]:
+        self.ensure()
+        rows = self.client.get_values(f"{CONSULTA_RGP_AUDITORIA_TAB}!A2:I")
+        eventos: List[EventoAuditoria] = []
+        for r in rows:
+            evt = row_to_evento(r)
+            if evt:
+                eventos.append(evt)
+        eventos.reverse()
+        return eventos[: max(1, int(limite))]
 
     def salvar(self, payload: Dict) -> RegistroConsultaRgp:
         self.ensure()

@@ -12,6 +12,7 @@ from ui.formatters import display_nome, format_cpf, format_nome, normalize_cpf, 
 
 CONSULTA_RGP_TAB = "ConsultaRGP"
 CONSULTA_RGP_CONFIG_TAB = "Config"
+CONSULTA_RGP_AUDITORIA_TAB = "Auditoria"
 CONSULTA_RGP_CONFIG_HEADER = ["chave", "valor"]
 CONSULTA_RGP_PREF_GOVBR_SENHA = "govbr_senha"
 CONSULTA_RGP_HEADER = [
@@ -35,6 +36,10 @@ CONSULTA_RGP_HEADER = [
     "criadoEm",
     "timeline",
 ]
+
+# Estimativa de UX: ~20 min para 500 consultas sequenciais (~2,4 s/CPF).
+# O site MPA pode demorar mais; a UI mostra progresso real.
+SEGUNDOS_POR_CONSULTA_EST = 2.4
 
 # Situações retornadas / normalizadas do site MPA
 SITUACAO_ATIVO = "Ativo"

@@ -55,6 +55,11 @@
     consultaRgpGovbrSenha: "",
     consultaRgpLoaded: false,
     consultaRgpLoading: false,
+    consultaRgpModTab: "consulta", // consulta | auditoria
+    consultaRgpSelectedIds: {},
+    consultaRgpAuditoria: [],
+    consultaRgpLoteRunning: false,
+    consultaRgpLoteProgress: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -1031,6 +1036,206 @@
       if (nome || cpf) itens.push({ nome, cpf, municipio, telefone });
     });
     return itens;
+  }
+
+  function openConsultaLoteModal() {
+    const backdrop = createModal(`
+      <div class="modal-head">Cadastro em lote — Consulta RGP</div>
+      <div class="modal-body">
+        <p class="page-sub">Mesmo quadro do REAP: uma linha = um sócio. Município e número são opcionais. Os dados ficam na planilha Consulta RGP.</p>
+        <label>Colar lista (Nome;CPF;Município;Número — uma pessoa por linha)</label>
+        <textarea id="rgp-l-paste" placeholder="Maria Silva;105.205.585-45;Casa Nova;(74) 99999-0000"></textarea>
+        <div class="btn-row" style="margin:6px 0 8px">
+          <button type="button" class="btn btn-ghost btn-sm" id="rgp-l-paste-btn">Colar nas linhas</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="rgp-l-add">+ Linha</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="rgp-l-add-10">+ 10 linhas</button>
+        </div>
+        <div class="lote-head">
+          <span>Nome completo</span><span>CPF</span><span>Município</span><span>Número</span><span></span>
+        </div>
+        <div class="lote-rows" id="rgp-l-rows"></div>
+        <p class="page-sub" id="rgp-l-status"></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="rgp-l-save">Importar</button>
+      </div>
+    `, "modal-wide");
+
+    const host = backdrop.querySelector("#rgp-l-rows");
+    const saveBtn = backdrop.querySelector("#rgp-l-save");
+    const statusEl = backdrop.querySelector("#rgp-l-status");
+
+    function collectRows() {
+      return [...host.querySelectorAll(".lote-row")].map((r) => ({
+        nome: formatNome(r.querySelector(".l-nome").value),
+        cpf: r.querySelector(".l-cpf").value,
+        municipio: (r.querySelector(".l-mun")?.value || "").trim(),
+        telefone: (r.querySelector(".l-tel")?.value || "").trim(),
+      })).filter((r) => r.nome.trim() || r.cpf.trim());
+    }
+
+    function persistDraft() {
+      try {
+        localStorage.setItem("sinapesc_rgp_lote_draft", JSON.stringify({ rows: collectRows() }));
+      } catch (_e) {}
+    }
+
+    function addRow(nome = "", cpf = "", municipio = "", telefone = "") {
+      const row = document.createElement("div");
+      row.className = "lote-row";
+      row.innerHTML = `
+        <input class="l-nome" value="${esc(formatNome(nome))}" placeholder="Nome completo" />
+        <input class="l-cpf" value="${esc(formatCpf(cpf))}" placeholder="000.000.000-00" maxlength="14" />
+        <input class="l-mun" value="${esc(municipio)}" placeholder="Município" />
+        <input class="l-tel" value="${esc(telefone)}" placeholder="Número" />
+        <button type="button" class="icon-btn danger l-del">🗑</button>
+      `;
+      row.querySelector(".l-del").addEventListener("click", () => {
+        if (host.children.length <= 1) {
+          row.querySelector(".l-nome").value = "";
+          row.querySelector(".l-cpf").value = "";
+          if (row.querySelector(".l-mun")) row.querySelector(".l-mun").value = "";
+          if (row.querySelector(".l-tel")) row.querySelector(".l-tel").value = "";
+          persistDraft();
+          return;
+        }
+        row.remove();
+        persistDraft();
+      });
+      row.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", persistDraft));
+      host.appendChild(row);
+      bindNomeMask(row.querySelector(".l-nome"));
+      bindCpfMask(row.querySelector(".l-cpf"));
+    }
+
+    let restored = [];
+    try {
+      const raw = localStorage.getItem("sinapesc_rgp_lote_draft");
+      if (raw) restored = JSON.parse(raw).rows || [];
+    } catch (_e) { restored = []; }
+
+    if (restored.length) {
+      restored.forEach((r) => addRow(r.nome || "", r.cpf || "", r.municipio || "", r.telefone || ""));
+      statusEl.textContent = `Rascunho restaurado: ${restored.length} linha(s).`;
+    } else {
+      for (let i = 0; i < 8; i++) addRow();
+    }
+
+    backdrop.querySelector("#rgp-l-add").addEventListener("click", () => addRow());
+    backdrop.querySelector("#rgp-l-add-10").addEventListener("click", () => {
+      for (let i = 0; i < 10; i++) addRow();
+    });
+    backdrop.querySelector("#rgp-l-paste-btn").addEventListener("click", () => {
+      const itens = parseLoteText(backdrop.querySelector("#rgp-l-paste").value);
+      if (!itens.length) {
+        toast("Cole linhas no formato Nome;CPF;Município;Número.");
+        return;
+      }
+      host.innerHTML = "";
+      itens.forEach((r) => addRow(r.nome, r.cpf, r.municipio || "", r.telefone || ""));
+      persistDraft();
+      statusEl.textContent = `${itens.length} linha(s) coladas.`;
+    });
+    saveBtn.addEventListener("click", async () => {
+      const rows = collectRows();
+      if (!rows.length) {
+        toast("Preencha pelo menos um Nome e CPF.");
+        return;
+      }
+      persistDraft();
+      saveBtn.disabled = true;
+      statusEl.textContent = `Enviando ${rows.length} sócio(s)…`;
+      try {
+        const r = await api("importar_lote_consulta_rgp", JSON.stringify(rows));
+        if (r && r.ok === false && !r.pending) {
+          toast(r.error || "Não foi possível importar o lote.");
+          statusEl.textContent = r.error || "Erro ao importar.";
+          saveBtn.disabled = false;
+        } else {
+          try { localStorage.removeItem("sinapesc_rgp_lote_draft"); } catch (_e) {}
+          backdrop.remove();
+        }
+      } catch (_e) {
+        toast("Erro ao enviar o lote. Rascunho guardado.");
+        statusEl.textContent = "Erro de envio — pode tentar de novo.";
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  function estimativaConsultaMinutos(n) {
+    const secs = Math.max(0, Number(n) || 0) * 2.4;
+    return Math.max(1, Math.round(secs / 60));
+  }
+
+  function openConsultaAutomaticaModal(opts = {}) {
+    const todos = !!opts.todos;
+    const ids = opts.ids || Object.keys(state.consultaRgpSelectedIds || {}).filter((id) => state.consultaRgpSelectedIds[id]);
+    const n = todos ? (state.consultaRgpItens || []).length : ids.length;
+    if (!n) {
+      toast("Selecione sócios na tabela ou use «Consultar todos».");
+      return;
+    }
+    const mins = estimativaConsultaMinutos(n);
+    const backdrop = createModal(`
+      <div class="modal-head">Consulta automática em lote</div>
+      <div class="modal-body">
+        <p class="page-sub">O sistema consulta <strong>um por um</strong> no MPA e grava a situação na planilha.</p>
+        <p><strong>${n}</strong> sócio(s)${todos ? " (todos da lista)" : " selecionado(s)"}.</p>
+        <p class="page-sub">Estimativa: <strong>~${mins} min</strong> (modelo ~20 min para 500). O site MPA pode variar.</p>
+        <div class="rgp-lote-progress" aria-hidden="true"><span id="rgp-lote-bar"></span></div>
+        <p class="page-sub" id="rgp-lote-status">Pronto para iniciar.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" id="rgp-lote-cancel" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="rgp-lote-start">Iniciar consulta</button>
+      </div>
+    `);
+    const statusEl = backdrop.querySelector("#rgp-lote-status");
+    const bar = backdrop.querySelector("#rgp-lote-bar");
+    const startBtn = backdrop.querySelector("#rgp-lote-start");
+    const cancelBtn = backdrop.querySelector("#rgp-lote-cancel");
+
+    state._rgpLoteModal = { backdrop, bar, statusEl, total: n };
+
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      cancelBtn.textContent = "Parar após atual";
+      cancelBtn.removeAttribute("data-modal-close");
+      state.consultaRgpLoteRunning = true;
+      statusEl.textContent = `Iniciando… estimativa ~${mins} min.`;
+      try {
+        const payload = todos
+          ? { todos: true, ids: [] }
+          : { todos: false, ids };
+        const r = await api("consultar_rgp_lote", JSON.stringify(payload));
+        if (r && r.ok === false && !r.pending) {
+          toast(r.error || "Falha ao iniciar lote.");
+          statusEl.textContent = r.error || "Erro.";
+          startBtn.disabled = false;
+          state.consultaRgpLoteRunning = false;
+        }
+      } catch (_e) {
+        toast("Erro ao iniciar consulta em lote.");
+        startBtn.disabled = false;
+        state.consultaRgpLoteRunning = false;
+      }
+    });
+
+    cancelBtn.addEventListener("click", () => {
+      if (state.consultaRgpLoteRunning) {
+        api("cancelar_consulta_rgp_lote");
+        statusEl.textContent = "Cancelamento solicitado — para após a consulta atual…";
+      } else {
+        backdrop.remove();
+        state._rgpLoteModal = null;
+      }
+    });
+  }
+
+  function selectedConsultaIds() {
+    return Object.keys(state.consultaRgpSelectedIds || {}).filter((id) => state.consultaRgpSelectedIds[id]);
   }
 
   function openLoteModal(opts = {}) {
@@ -2487,40 +2692,65 @@
       .filter((s) => !RGP_CHIP_SITUACOES.includes(s))
       .sort();
     const situacoesFiltro = [...RGP_CHIP_SITUACOES, ...situacoesExtra];
-    const rawUser = (state.adminUser || "").trim();
-    const userName = rawUser
-      ? (rawUser.includes("@") ? rawUser.split("@")[0] : rawUser)
-      : "";
-    const userInitials = userName
-      ? userName.replace(/[^a-zA-ZÀ-ÿ0-9]/g, "").slice(0, 2).toUpperCase() || "?"
-      : "";
     const loadingHint = state.consultaRgpLoading && !state.consultaRgpLoaded
-      ? `<tr><td colspan="7" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
-      : `<tr><td colspan="7" class="rgp-empty">Nenhum registro. Clique em <strong>Cadastrar sócio</strong> para gravar nome, CPF, município, telefone e observação.</td></tr>`;
+      ? `<tr><td colspan="8" class="rgp-empty">Carregando planilha Consulta RGP…</td></tr>`
+      : `<tr><td colspan="8" class="rgp-empty">Nenhum registro. Use <strong>Cadastrar sócio</strong> ou <strong>Cadastro em lote</strong>.</td></tr>`;
+    const modTab = state.consultaRgpModTab || "consulta";
+    const selCount = selectedConsultaIds().length;
+
+    if (modTab === "auditoria") {
+      setPage(`
+        <div class="rgp-shell">
+          <div class="rgp-mod-tabs" role="tablist">
+            <button type="button" class="rgp-mod-tab" data-rgp-tab="consulta">Consulta</button>
+            <button type="button" class="rgp-mod-tab active" data-rgp-tab="auditoria">Auditoria</button>
+          </div>
+          <div class="rgp-action-bar">
+            <div class="rgp-action-spacer">
+              <span class="page-title" style="font-size:18px">Auditoria — Consulta RGP</span>
+              <span class="page-meta" id="rgp-aud-hint">Carregando…</span>
+            </div>
+            <div class="rgp-action-buttons">
+              <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-aud-refresh">Atualizar</button>
+            </div>
+          </div>
+          <div class="rgp-body-scroll">
+            <div class="toolbar" style="padding:8px 20px">
+              <input type="search" id="rgp-aud-search" placeholder="Buscar na auditoria…" style="flex:0 1 280px;padding:6px 8px;border:1px solid var(--border)" />
+            </div>
+            <div class="rgp-audit-list" id="rgp-aud-list"></div>
+          </div>
+        </div>
+      `);
+      document.querySelectorAll("[data-rgp-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.consultaRgpModTab = btn.dataset.rgpTab || "consulta";
+          renderConsultaRgp();
+        });
+      });
+      $("#rgp-aud-refresh")?.addEventListener("click", () => api("load_consulta_rgp_auditoria"));
+      $("#rgp-aud-search")?.addEventListener("input", () => paintConsultaAuditoria());
+      paintConsultaAuditoria();
+      api("load_consulta_rgp_auditoria");
+      return;
+    }
 
     setPage(`
       <div class="rgp-shell">
-        <header class="rgp-topbar">
-          <div class="rgp-topbar-left">
-            <button type="button" class="rgp-back" id="rgp-voltar" title="Voltar">←</button>
-            <div class="rgp-logo">${esc(state.bootstrap?.org_short || "SINAPESC")}</div>
-            <div class="rgp-topbar-divider" aria-hidden="true"></div>
-            <div class="rgp-topbar-titles">
-              <div class="rgp-topbar-title">Consulta RGP</div>
-              <div class="rgp-topbar-sub">Registro Geral da Atividade Pesqueira</div>
-            </div>
-          </div>
-          ${userName ? `
-          <div class="rgp-topbar-user" title="${esc(rawUser)}">
-            <span class="rgp-user-avatar">${esc(userInitials)}</span>
-            <span class="rgp-user-name">${esc(userName)}</span>
-            <span class="rgp-user-chev" aria-hidden="true">▾</span>
-          </div>` : `<div class="rgp-topbar-user rgp-topbar-user-empty">Sem usuário</div>`}
-        </header>
+        <div class="rgp-mod-tabs" role="tablist">
+          <button type="button" class="rgp-mod-tab active" data-rgp-tab="consulta">Consulta</button>
+          <button type="button" class="rgp-mod-tab" data-rgp-tab="auditoria">Auditoria</button>
+        </div>
 
         <div class="rgp-action-bar">
-          <div class="rgp-action-spacer" aria-hidden="true"></div>
+          <div class="rgp-action-spacer">
+            <span class="page-title" style="font-size:18px">Consulta RGP</span>
+            <span class="page-meta">${selCount ? `${selCount} selecionado(s)` : "Registro Geral da Atividade Pesqueira"}</span>
+          </div>
           <div class="rgp-action-buttons">
+            <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-lote">⇪ Cadastro em lote</button>
+            <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-sel">Consultar selecionados</button>
+            <button type="button" class="rgp-btn rgp-btn-ghost" id="rgp-consulta-todos">Consultar todos</button>
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
           </div>
         </div>
@@ -2575,6 +2805,8 @@
                   </select>
                 </div>
                 <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
+                <button type="button" class="rgp-link" id="rgp-sel-page">Selecionar página</button>
+                <button type="button" class="rgp-link" id="rgp-sel-clear">Limpar seleção</button>
               </div>
               <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
                 <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
@@ -2586,6 +2818,7 @@
                 <table class="rgp-table">
                   <thead>
                     <tr>
+                      <th class="rgp-check-col"><input type="checkbox" id="rgp-check-all" title="Selecionar página" /></th>
                       <th>Nome</th><th>CPF</th><th>Telefone</th>
                       <th>Situação RGP</th><th>Última consulta</th><th>Observação</th><th>Ações</th>
                     </tr>
@@ -2593,13 +2826,16 @@
                   <tbody>
                     ${slice.length ? slice.map((r, i) => `
                       <tr class="${r.id === state.consultaRgpSelectedId ? "selected" : ""} ${(start + i) % 2 ? "alt" : ""}" data-id="${esc(r.id)}">
+                        <td class="rgp-check-col" data-stop="1">
+                          <input type="checkbox" class="rgp-row-check" data-id="${esc(r.id)}" ${state.consultaRgpSelectedIds[r.id] ? "checked" : ""} />
+                        </td>
                         <td class="rgp-td-nome">${esc(r.nome_display || r.nome || "")}</td>
                         <td>${esc(r.cpf_formatado || r.cpf || "")}</td>
                         <td>${esc(r.telefone || "—")}</td>
                         <td><span class="rgp-badge ${esc(r.badge_class || "")}">${esc(r.situacao_rgp || "Não consultado")}</span></td>
                         <td>${esc(r.ultima_consulta_em || "—")}</td>
                         <td class="rgp-obs">${esc(r.observacao || "—")}</td>
-                        <td class="rgp-actions">
+                        <td class="rgp-actions" data-stop="1">
                           <button type="button" class="rgp-link" data-act="consultar" data-id="${esc(r.id)}">👁 Consultar</button>
                           <button type="button" class="rgp-link" data-act="editar" data-id="${esc(r.id)}">✎ Editar</button>
                         </td>
@@ -2629,10 +2865,16 @@
 
     // NÃO recarregar a planilha aqui — evita loop/quota 60
 
-    $("#rgp-voltar")?.addEventListener("click", () => {
-      closeConsultaDetalheModal();
-      navigate("home", { push: false });
+    document.querySelectorAll("[data-rgp-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.consultaRgpModTab = btn.dataset.rgpTab || "consulta";
+        renderConsultaRgp();
+      });
     });
+    $("#rgp-lote")?.addEventListener("click", () => openConsultaLoteModal());
+    $("#rgp-consulta-sel")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: false, ids: selectedConsultaIds() }));
+    $("#rgp-consulta-todos")?.addEventListener("click", () => openConsultaAutomaticaModal({ todos: true }));
+    $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal());
     $("#rgp-search")?.addEventListener("input", (e) => {
       state.consultaRgpSearch = e.target.value;
       state.consultaRgpPage = 1;
@@ -2666,11 +2908,35 @@
       state.consultaRgpPage = (state.consultaRgpPage || 1) + 1;
       renderConsultaRgp();
     });
-    $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal(null));
+
+    const toggleSel = (id, on) => {
+      if (!id) return;
+      if (on) state.consultaRgpSelectedIds[id] = true;
+      else delete state.consultaRgpSelectedIds[id];
+    };
+    $("#rgp-check-all")?.addEventListener("change", (e) => {
+      const on = !!e.target.checked;
+      slice.forEach((r) => toggleSel(r.id, on));
+      renderConsultaRgp();
+    });
+    $("#rgp-sel-page")?.addEventListener("click", () => {
+      slice.forEach((r) => toggleSel(r.id, true));
+      renderConsultaRgp();
+    });
+    $("#rgp-sel-clear")?.addEventListener("click", () => {
+      state.consultaRgpSelectedIds = {};
+      renderConsultaRgp();
+    });
+    document.querySelectorAll(".rgp-row-check").forEach((ck) => {
+      ck.addEventListener("click", (e) => e.stopPropagation());
+      ck.addEventListener("change", () => {
+        toggleSel(ck.dataset.id || "", !!ck.checked);
+      });
+    });
 
     document.querySelectorAll(".rgp-table tbody tr[data-id]").forEach((tr) => {
       tr.addEventListener("click", (e) => {
-        if (e.target.closest("[data-act]")) return;
+        if (e.target.closest("[data-act], [data-stop]")) return;
         const id = tr.dataset.id || "";
         const reg = (state.consultaRgpItens || []).find((x) => x.id === id);
         if (!reg) return;
@@ -2699,6 +2965,31 @@
         openConsultaDetalheModal(reg, { tab: "dados" });
       });
     });
+  }
+
+  function paintConsultaAuditoria() {
+    const list = $("#rgp-aud-list");
+    const hint = $("#rgp-aud-hint");
+    if (!list) return;
+    const q = String($("#rgp-aud-search")?.value || "").trim().toLowerCase();
+    let items = state.consultaRgpAuditoria || [];
+    if (q) {
+      items = items.filter((e) => {
+        const blob = `${e.em || ""} ${e.usuario || ""} ${e.acao || ""} ${e.detalhe || ""} ${e.nome || ""}`.toLowerCase();
+        return blob.includes(q);
+      });
+    }
+    if (hint) hint.textContent = `${items.length} registro(s) · aba Auditoria da planilha Consulta RGP`;
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-msg">Nenhuma alteração registrada ainda.</div>`;
+      return;
+    }
+    list.innerHTML = items.map((e) => `
+      <div class="rgp-audit-card">
+        <div class="rgp-audit-meta">${esc(e.em || "")} · ${esc(e.usuario || "(sem usuário)")}</div>
+        <div class="rgp-audit-text">${esc(e.detalhe || e.acao || "")}</div>
+      </div>
+    `).join("");
   }
 
   function applyConsultaRgpPayload(data) {
@@ -2962,6 +3253,54 @@
           refreshConsultaDetalheModalIfOpen();
         }
       } else toast(r.error);
+    });
+    AppEvents.on("consulta_rgp_lote_progress", (p) => {
+      const modal = state._rgpLoteModal;
+      if (!modal) return;
+      const total = Number(p.total || modal.total || 0) || 1;
+      const atual = Number(p.atual || 0);
+      const pct = Math.min(100, Math.round((atual / total) * 100));
+      if (modal.bar) modal.bar.style.width = `${pct}%`;
+      if (modal.statusEl) modal.statusEl.textContent = p.mensagem || `${atual}/${total}`;
+      if (p.fase === "ok" && p.registro) {
+        const idx = state.consultaRgpItens.findIndex((x) => x.id === p.registro.id);
+        if (idx >= 0) state.consultaRgpItens[idx] = p.registro;
+      }
+    });
+    AppEvents.on("consulta_rgp_consulta_lote", (r) => {
+      state.consultaRgpLoteRunning = false;
+      if (r.ok) {
+        applyConsultaRgpPayload(r.data);
+        toast(r.data?.mensagem || "Consulta em lote concluída.", 6000);
+        if (r.data?.erros?.length) toast(r.data.erros.slice(0, 3).join(" · "), 8000);
+        const modal = state._rgpLoteModal;
+        if (modal?.statusEl) {
+          modal.statusEl.textContent = r.data?.mensagem || "Concluído.";
+          if (modal.bar) modal.bar.style.width = "100%";
+        }
+        if (state.screen === "consulta_rgp") {
+          renderConsultaRgp();
+          refreshConsultaDetalheModalIfOpen();
+        }
+        setTimeout(() => {
+          if (state._rgpLoteModal?.backdrop) {
+            state._rgpLoteModal.backdrop.remove();
+            state._rgpLoteModal = null;
+          }
+        }, 1200);
+      } else {
+        toast(r.error || "Falha na consulta em lote.");
+        const modal = state._rgpLoteModal;
+        if (modal?.statusEl) modal.statusEl.textContent = r.error || "Erro.";
+      }
+    });
+    AppEvents.on("consulta_rgp_auditoria", (r) => {
+      if (r.ok) {
+        state.consultaRgpAuditoria = r.data?.itens || [];
+        if (state.screen === "consulta_rgp" && state.consultaRgpModTab === "auditoria") {
+          paintConsultaAuditoria();
+        }
+      } else toast(r.error || "Falha ao carregar auditoria.");
     });
     AppEvents.on("consulta_rgp_cadastro", (r) => {
       if (r.ok) {

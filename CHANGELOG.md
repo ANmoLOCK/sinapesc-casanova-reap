@@ -10,6 +10,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.40] — 2026-09-04 — Lote, consulta automática e auditoria RGP
+
+**Tag:** [`v1.7.40`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.40)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.40/SinapescREAP-Windows-v1.7.40.zip
+
+- Cadastro em lote na Consulta RGP (mesmo quadro do REAP)
+- Consulta automática em lote (todos ou selecionados) com estimativa de tempo (~20 min / 500)
+- Header global como nos outros módulos (sem chip ADMIN)
+- Aba Auditoria na planilha Consulta RGP (captura alterações)
+
 ## [v1.7.39] — 2026-09-04 — Rodapé global na Consulta RGP
 
 **Tag:** [`v1.7.39`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.39)  

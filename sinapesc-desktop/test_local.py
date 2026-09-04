@@ -483,11 +483,17 @@ def test_defeso_relatorio_html() -> None:
     # Rodapé de crédito permanece na UI do app
     assert "footer-legal" in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
     css = (ROOT / "web" / "css" / "app.css").read_text(encoding="utf-8")
-    # Rodapé global deve permanecer visível na Consulta RGP (status + crédito)
-    assert "body.screen-rgp .footer {" not in css
-    assert "body.screen-rgp .header" in css
+    # Header global permanece na Consulta RGP; só abas REAP ficam ocultas
+    assert "body.screen-rgp .header," not in css and "body.screen-rgp .header {" not in css
     assert "body.screen-rgp .tab-bar" in css
+    assert "body.screen-rgp .footer {" not in css
     assert 'id="status-text"' in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
+    assert "openConsultaLoteModal" in js
+    assert "openConsultaAutomaticaModal" in js
+    assert "consultar_rgp_lote" in js
+    assert "load_consulta_rgp_auditoria" in js
+    assert "rgp-mod-tab" in js
 
 
 def test_defeso_ficha_e_html() -> None:

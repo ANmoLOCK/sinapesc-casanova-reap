@@ -1063,8 +1063,7 @@ body { overflow: hidden; }
 }
 
 /* ---- Consulta RGP ---- */
-/* Header/abas ocultos; rodapé global permanece (crédito + status/planilha). */
-body.screen-rgp .header,
+/* Header global igual aos outros módulos; só esconde abas REAP. */
 body.screen-rgp .tab-bar {
   display: none !important;
 }
@@ -1091,14 +1090,59 @@ body.screen-rgp .footer-legal {
   max-width: none;
 }
 
-.rgp-shell {
+.rgp-mod-tabs {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+  gap: 4px;
+  padding: 10px 20px 0;
   background: #EEF2F6;
+  flex: 0 0 auto;
+}
+.rgp-mod-tab {
+  border: 0;
+  background: transparent;
+  color: #5A7388;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+}
+.rgp-mod-tab.active {
+  background: #fff;
+  color: #0A2F52;
+  box-shadow: 0 -1px 0 #fff;
+}
+.rgp-check-col { width: 36px; text-align: center; }
+.rgp-check-col input { width: 16px; height: 16px; cursor: pointer; }
+.rgp-lote-progress {
+  margin-top: 10px;
+  background: #E7EEF4;
+  border-radius: 8px;
+  height: 10px;
   overflow: hidden;
 }
+.rgp-lote-progress > span {
+  display: block;
+  height: 100%;
+  background: #1B6CA8;
+  width: 0%;
+  transition: width .25s ease;
+}
+.rgp-audit-list { padding: 12px 20px 24px; }
+.rgp-audit-card {
+  background: #fff;
+  border: 1px solid #E8EEF3;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.rgp-audit-meta { font-size: 12px; color: #5A7388; margin-bottom: 4px; }
+.rgp-audit-text { font-size: 13px; color: #0A2F52; }
+
+/* topbar interna só com título do módulo (sem chip ADMIN) */
+.rgp-topbar { min-height: 48px; padding: 10px 20px; }
+.rgp-topbar-user { display: none !important; }
+
 .rgp-body-scroll {
   flex: 1 1 auto;
   min-height: 0;

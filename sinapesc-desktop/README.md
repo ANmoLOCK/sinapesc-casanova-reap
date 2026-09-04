@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.40** — Lote, consulta automática e auditoria RGP.
+
 **v1.7.39** — Rodapé global na Consulta RGP (crédito + status da planilha).
 
 ## Requisitos (Windows)
