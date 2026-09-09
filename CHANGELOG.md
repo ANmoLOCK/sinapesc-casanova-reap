@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.50] — 2026-09-09 — CPF: não inventar outro ao cadastrar/editar
+
+**Tag:** [`v1.7.50`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.50)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.50/SinapescREAP-Windows-v1.7.50.zip
+
+- **Causa:** ao normalizar CPF, o app podia «corrigir» com zero à esquerda / recover de float quando o DV «batia», trocando o valor digitado por outro CPF (ex.: `106.839.195-15` → `010.683.919-52`, `915.647.605-15` → `091.564.760-51`)
+- **Correção:** 11 dígitos da máscara/digitação são preservados (mesmo com DV inválido); recover agressivo só quando o DV atual é inválido ou o valor veio como número; gravação na planilha como texto (`'…`); consulta não sobrescreve CPF da planilha por preferir zero à esquerda
+- Testes de regressão na bateria CPF (`test_cpf_consulta_battery.py`)
+
 ## [v1.7.49] — 2026-09-04 — Relatório HTML com filtros e seleção
 
 **Tag:** [`v1.7.49`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.49)  

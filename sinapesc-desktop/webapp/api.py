@@ -58,7 +58,6 @@ from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
 from sheets.consulta_rgp_service import ConsultaRgpService
 from ui.formatters import (
-    cpf_digitos_validos,
     display_nome,
     format_cpf,
     format_nome,
@@ -1751,25 +1750,17 @@ class SinapescApi:
                     "Registro não encontrado. Cadastre o sócio na Consulta RGP primeiro."
                 )
 
-            # Planilha + arg JS (ambos normalizados; arg cobre planilha corrompida)
+            # Planilha + arg JS (ambos normalizados; arg cobre planilha corrompida).
+            # NÃO trocar CPF da planilha por outro só porque o arg tem zero à esquerda
+            # e DV válido — isso inventava CPF diferente (ex. 10683919515 → 01068391952).
             sheet_cpf = normalize_cpf(reg.cpf)
             arg_cpf = normalize_cpf(cpf_digits) if cpf_digits else ""
-            if len(sheet_cpf) == 11 and cpf_digitos_validos(sheet_cpf):
+            if len(sheet_cpf) == 11:
                 alvo = sheet_cpf
-            elif len(arg_cpf) == 11 and cpf_digitos_validos(arg_cpf):
+            elif len(arg_cpf) == 11:
                 alvo = arg_cpf
             else:
                 alvo = sheet_cpf or arg_cpf
-            # Se ambos existem e diferem, preferir o que tem zero à esquerda válido
-            if (
-                len(sheet_cpf) == 11
-                and len(arg_cpf) == 11
-                and sheet_cpf != arg_cpf
-                and cpf_digitos_validos(arg_cpf)
-                and arg_cpf.startswith("0")
-                and not sheet_cpf.startswith("0")
-            ):
-                alvo = arg_cpf
             if len(alvo) != 11:
                 raise ValueError(
                     "CPF inválido para consulta. "

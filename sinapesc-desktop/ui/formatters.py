@@ -28,19 +28,43 @@ def cpf_digitos_validos(digits: str) -> bool:
     return rest == nums[10]
 
 
+def cpf_para_celula(value: Any) -> str:
+    """Valor para gravar na planilha: texto com 11 dígitos (prefixo ').
+
+    Evita o Google Sheets tratar CPF como número e corromper dígitos.
+    """
+    digits = normalize_cpf(value)
+    if len(digits) != 11:
+        digits = "".join(ch for ch in str(value or "") if ch.isdigit())[:11]
+    if not digits:
+        return ""
+    if digits.startswith("'"):
+        return digits
+    return f"'{digits}"
+
+
 def normalize_cpf(value: Any) -> str:
-    """CPF com 11 dígitos e zeros à esquerda.
+    """CPF com 11 dígitos e zeros à esquerda (quando veio de número).
 
     Casos reais que quebravam a consulta MPA («CPF inválido»):
     - planilha/JSON numérico: ``095.453.325-90`` → ``9545332590`` (10 dígitos)
     - pywebview/float: ``9545332590.0`` → dígitos ``95453325900`` (11 errados)
     - string ``"9545332590.0"`` / notação científica
-    - valor já gravado errado ``95453325900`` (recupera via dígito verificador)
+    - valor já gravado errado ``95453325900`` (recupera se DV atual inválido)
+
+    Anti-corrupção (regressão 106.839.195-15 / 915.647.605-15):
+    - 11 dígitos explícitos na máscara/digitação → **preservar** (mesmo DV inválido)
+    - NÃO dar pad em string curta só porque o DV «bate» após zfill
+      (``9156476051`` → ``09156476051`` era inventar outro CPF)
+    - NÃO preferir zero à esquerda quando atual e candidato são ambos válidos
+      (``10683919520`` → ``01068391952``)
     """
     if value is None or isinstance(value, bool):
         return ""
 
     digits = ""
+    explicit_11 = False
+    from_number = isinstance(value, (int, float)) and not isinstance(value, bool)
 
     if isinstance(value, int):
         digits = str(abs(value))
@@ -55,15 +79,22 @@ def normalize_cpf(value: Any) -> str:
         # Artefato de float/Sheets: "9545332590.0" / "09545332590.0"
         if re.fullmatch(r"\d+\.0+", raw):
             raw = raw.split(".", 1)[0]
+            from_number = True
         # Científica (ponto ou vírgula decimal)
         sci = raw.replace(",", ".")
         if re.fullmatch(r"\d+\.?\d*[eE][+-]?\d+", sci):
             try:
                 digits = str(abs(int(round(float(sci)))))
+                from_number = True
             except (TypeError, ValueError):
                 digits = ""
         if not digits:
-            digits = "".join(ch for ch in raw if ch.isdigit())
+            visible = "".join(ch for ch in raw if ch.isdigit())
+            if len(visible) >= 11:
+                explicit_11 = True
+                digits = visible
+            else:
+                digits = visible
 
     if not digits:
         return ""
@@ -75,27 +106,38 @@ def normalize_cpf(value: Any) -> str:
             cand11 = cand.zfill(11) if len(cand) < 11 else cand[:11]
             if cpf_digitos_validos(cand11) or len(cand) <= 10:
                 digits = cand
+                from_number = True
 
     if len(digits) > 11:
         digits = digits[-11:]
 
+    # 11 dígitos já explícitos na digitação/máscara → preservar o valor digitado.
+    # Exceção: artefato já gravado com DV inválido (ex. 95453325900) → recover.
+    if explicit_11 and len(digits) == 11:
+        if from_number:
+            return _recover_float_trailing_zero(digits, from_number=True)
+        if not cpf_digitos_validos(digits):
+            return _recover_float_trailing_zero(digits, from_number=False)
+        return digits
+
     if len(digits) < 11:
-        # 9–10 dígitos = zero(s) à esquerda perdidos; <9 = digitação incompleta
+        # 9–10 dígitos: zeros à esquerda perdidos (número ou texto da planilha).
+        # A UI só salva com 11 dígitos; pad aqui cobre leitura legado da Sheets.
         if len(digits) >= 9:
             digits = digits.zfill(11)
         else:
             return digits
 
     digits = digits[:11]
-    digits = _recover_float_trailing_zero(digits)
-    return digits
+    return _recover_float_trailing_zero(digits, from_number=from_number)
 
 
-def _recover_float_trailing_zero(digits: str) -> str:
-    """Recupera CPF corrompido por float ``.0`` (ex.: ``56106905010`` → ``05610690501``).
+def _recover_float_trailing_zero(digits: str, *, from_number: bool = False) -> str:
+    """Recupera CPF corrompido por float ``.0`` (ex.: ``95453325900`` → ``09545332590``).
 
-    O caso ``56106905010`` passa no dígito verificador por coincidência — por isso
-    não basta «só recuperar se inválido».
+    Se o atual é inválido e ``base.zfill(11)`` é válido → recupera.
+    Se ambos são válidos → só prefere zero à esquerda quando ``from_number``
+    (senão ``10683919520`` virava ``01068391952``).
     """
     if len(digits) != 11 or not digits.endswith("0"):
         return digits
@@ -105,11 +147,10 @@ def _recover_float_trailing_zero(digits: str) -> str:
     cand = base.zfill(11)
     if cand == digits or not cpf_digitos_validos(cand):
         return digits
-    # Inválido atual → recupera
     if not cpf_digitos_validos(digits):
         return cand
-    # Ambos "válidos": preferir zero à esquerda (artefato de número da planilha)
-    if cand.startswith("0") and not digits.startswith("0"):
+    # Ambos válidos: só troca se veio de número (artefato clássico da planilha)
+    if from_number and cand.startswith("0") and not digits.startswith("0"):
         return cand
     return digits
 
@@ -160,10 +201,10 @@ def format_nome(name: str) -> str:
     gabriel lourran da silva  — vira o certo
     GABRIEL LOURRAN DA SILVA  — vira o certo
     """
-    parts = [p for p in (name or "").split() if p]
-    if not parts:
+    text = str(name or "").strip()
+    if not text:
         return ""
-    return " ".join(_cap_word(p) for p in parts)
+    return " ".join(_cap_word(w) for w in text.split())
 
 
 def display_nome(name: str) -> str:

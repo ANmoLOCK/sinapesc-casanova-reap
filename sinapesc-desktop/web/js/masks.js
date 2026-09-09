@@ -25,7 +25,11 @@
     return r === n[10];
   }
 
-  function fixCpfDigits(d) {
+  /**
+   * Recover de float .0 — só troca se atual inválido, ou se fromNumber
+   * (nunca inventar outro CPF válido: 10683919520 → 01068391952).
+   */
+  function fixCpfDigits(d, fromNumber) {
     if (d.length !== 11) return d;
     if (d.endsWith("0")) {
       const base = d.slice(0, -1);
@@ -33,35 +37,56 @@
         const cand = base.padStart(11, "0");
         if (cand !== d && cpfDigitsOk(cand)) {
           if (!cpfDigitsOk(d)) return cand;
-          if (cand.startsWith("0") && !d.startsWith("0")) return cand;
+          if (fromNumber && cand.startsWith("0") && !d.startsWith("0")) return cand;
         }
       }
     }
     return d;
   }
 
-  /** Normaliza CPF completo (salvar/consultar) — pode pad/recover. */
+  /**
+   * Normaliza CPF completo (salvar/consultar).
+   * 11 dígitos da máscara → preservar. Pad só para number / "….0".
+   * Nunca: 9156476051 (string) → 09156476051.
+   */
   function normalizeCpf(value) {
     if (value == null || value === "") return "";
     if (typeof value === "number" && Number.isFinite(value)) {
       let d = String(Math.abs(Math.round(value)));
       if (d.length >= 9 && d.length < 11) d = d.padStart(11, "0");
-      return fixCpfDigits(d.slice(0, 11));
+      return fixCpfDigits(d.slice(0, 11), true);
     }
     let s = String(value).trim();
     if (s.startsWith("'")) s = s.slice(1).trim();
-    if (/^\d+\.0+$/.test(s)) s = s.split(".")[0];
+    let fromNumber = false;
+    if (/^\d+\.0+$/.test(s)) {
+      s = s.split(".")[0];
+      fromNumber = true;
+    }
     const sci = s.replace(",", ".");
     if (/^\d+\.?\d*[eE][+-]?\d+$/.test(sci)) {
       const n = Number(sci);
-      if (Number.isFinite(n)) s = String(Math.abs(Math.round(n)));
+      if (Number.isFinite(n)) {
+        s = String(Math.abs(Math.round(n)));
+        fromNumber = true;
+      }
     }
     let d = s.replace(/\D/g, "");
     if (!d) return "";
-    if (d.length === 12 && d.endsWith("0")) d = d.slice(0, -1);
+    const explicit11 = !fromNumber && d.length >= 11;
+    if (d.length === 12 && d.endsWith("0")) {
+      d = d.slice(0, -1);
+      fromNumber = true;
+    }
     if (d.length > 11) d = d.slice(-11);
+    if (explicit11 && d.length === 11) {
+      // Preservar digitação; só recover se DV inválido (artefato …00 gravado)
+      if (!cpfDigitsOk(d)) return fixCpfDigits(d, false);
+      return d;
+    }
+    // Pad 9–10: zeros à esquerda perdidos (planilha). UI só salva com 11.
     if (d.length >= 9 && d.length < 11) d = d.padStart(11, "0");
-    return fixCpfDigits(d.slice(0, 11));
+    return fixCpfDigits(d.slice(0, 11), fromNumber);
   }
 
   /** Formata só para digitação — NÃO dá padStart nem recover (evita bug no REAP). */

@@ -7,7 +7,14 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
-from ui.formatters import display_nome, format_cpf, format_nome, normalize_cpf, only_digits
+from ui.formatters import (
+    cpf_para_celula,
+    display_nome,
+    format_cpf,
+    format_nome,
+    normalize_cpf,
+    only_digits,
+)
 
 
 CONSULTA_RGP_TAB = "ConsultaRGP"
@@ -290,7 +297,7 @@ class RegistroConsultaRgp:
             self.id,
             self.person_id,
             self.nome,
-            normalize_cpf(self.cpf) or self.cpf,
+            cpf_para_celula(self.cpf) or normalize_cpf(self.cpf) or self.cpf,
             self.telefone,
             self.municipio,
             self.uf,
@@ -354,6 +361,8 @@ def _iniciais(nome: str) -> str:
 def row_to_registro(row: Sequence[Any] | None) -> Optional[RegistroConsultaRgp]:
     if not row or not str(row[0]).strip():
         return None
+    # CPF bruto (int/float da planilha) antes do str() — preserva from_number no normalize
+    raw_cpf = row[3] if len(row) > 3 else ""
     cells = [str(c) if c is not None else "" for c in row]
     while len(cells) < len(CONSULTA_RGP_HEADER):
         cells.append("")
@@ -361,7 +370,7 @@ def row_to_registro(row: Sequence[Any] | None) -> Optional[RegistroConsultaRgp]:
         id=cells[0].strip(),
         person_id=cells[1].strip(),
         nome=cells[2].strip(),
-        cpf=normalize_cpf(cells[3]),
+        cpf=normalize_cpf(raw_cpf),
         telefone=cells[4].strip(),
         municipio=cells[5].strip(),
         uf=cells[6].strip().upper()[:2],

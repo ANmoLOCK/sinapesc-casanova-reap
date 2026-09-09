@@ -46,8 +46,15 @@ def test_formatters() -> None:
     # only_digits sozinho AINDA erra no float — por isso cadastro/consulta usam normalize
     assert only_digits(str(9545332590.0)) == "95453325900"
     assert normalize_cpf("95453325900") == "09545332590"
-    # 56106905010 passa no DV por coincidência — ainda recupera
-    assert normalize_cpf("56106905010") == "05610690501"
+    # 56106905010 passa no DV por coincidência — como string NÃO forçamos
+    # troca (evita inventar CPF: 10683919520 → 01068391952). Float/número ok.
+    assert normalize_cpf("56106905010") == "56106905010"
+    assert normalize_cpf(5610690501.0) == "05610690501"
+    # digitação com 11 dígitos (mesmo DV inválido) — preservar
+    assert normalize_cpf("106.839.195-15") == "10683919515"
+    assert normalize_cpf("915.647.605-15") == "91564760515"
+    assert normalize_cpf("10683919515") != "01068391952"
+    assert normalize_cpf("91564760515") != "09156476051"
 
 
 def test_display_nome() -> None:
