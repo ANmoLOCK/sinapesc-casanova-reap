@@ -14,6 +14,12 @@ from controle.defeso import (
     parcelas_para_relatorio,
 )
 from controle.relatorio import logo_data_uri, pasta_relatorios
+from controle.relatorio_municipio import (
+    agrupar_por_municipio,
+    css_grupo_municipio,
+    html_cabecalho_municipio,
+    municipio_rotulo,
+)
 from ui.formatters import display_nome, format_cpf, only_digits
 
 
@@ -43,28 +49,36 @@ def montar_html_defeso(
     n_ent = sum(1 for i in itens if i.get("entrada_confirmada"))
 
     rows: List[str] = []
-    for item in itens:
-        tel = html.escape(str(item.get("telefone") or "—"))
-        mun = html.escape(str(item.get("municipio") or "—"))
-        end = html.escape(str(item.get("endereco") or "—")).replace("\n", "<br>")
-        parcelas = html.escape(str(item.get("parcelas") or "—")).replace("\n", "<br>")
-        ent = "Sim" if item.get("entrada_confirmada") else "Não"
-        ent_cls = "ok" if item.get("entrada_confirmada") else "off"
-        rows.append(
-            "<tr>"
-            f"<td>{html.escape(display_nome(str(item.get('nome') or '')))}</td>"
-            f"<td>{html.escape(format_cpf(str(item.get('cpf') or '')))}</td>"
-            f"<td>{mun}</td>"
-            f"<td>{tel}</td>"
-            f"<td class=\"addr\">{end}</td>"
-            f"<td class=\"parc\">{parcelas}</td>"
-            f'<td class="{ent_cls}">{ent}</td>'
-            "</tr>"
-        )
+    grupos = agrupar_por_municipio(
+        list(itens),
+        lambda item: item.get("municipio") or "",
+        sort_nome=lambda item: display_nome(str(item.get("nome") or "")),
+    )
+    colspan = 7
+    for mun_label, grupo in grupos:
+        rows.append(html_cabecalho_municipio(mun_label, colspan=colspan))
+        for item in grupo:
+            tel = html.escape(str(item.get("telefone") or "—"))
+            mun = html.escape(str(item.get("municipio") or "—"))
+            end = html.escape(str(item.get("endereco") or "—")).replace("\n", "<br>")
+            parcelas = html.escape(str(item.get("parcelas") or "—")).replace("\n", "<br>")
+            ent = "Sim" if item.get("entrada_confirmada") else "Não"
+            ent_cls = "ok" if item.get("entrada_confirmada") else "off"
+            rows.append(
+                "<tr>"
+                f"<td>{html.escape(display_nome(str(item.get('nome') or '')))}</td>"
+                f"<td>{html.escape(format_cpf(str(item.get('cpf') or '')))}</td>"
+                f"<td>{tel}</td>"
+                f"<td>{mun}</td>"
+                f"<td class=\"addr\">{end}</td>"
+                f"<td class=\"parc\">{parcelas}</td>"
+                f'<td class="{ent_cls}">{ent}</td>'
+                "</tr>"
+            )
 
     table = (
         "<table><thead><tr>"
-        "<th>Nome</th><th>CPF</th><th>Município (REAP)</th><th>Telefone (REAP)</th>"
+        "<th>Nome</th><th>CPF</th><th>Telefone (REAP)</th><th>Município (REAP)</th>"
         "<th>Endereço (Defeso)</th><th>Parcelas</th><th>Entrada</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -94,6 +108,7 @@ def montar_html_defeso(
     td.addr, td.parc {{ max-width: 220px; white-space: pre-line; }}
     .ok {{ color: #1B8458; font-weight: 700; }}
     .off {{ color: #5A7388; }}
+    {css_grupo_municipio()}
     .foot {{ margin-top: 18px; color: #5A7388; font-size: 12px; }}
     .disclaimer {{ margin-top: 10px; font-size: 11px; color: #5A7388; }}
     @media print {{ body {{ margin: 12px; }} .noprint {{ display: none; }} }}
@@ -191,7 +206,12 @@ def itens_defeso_para_relatorio(
                 "entrada_confirmada": ent,
             }
         )
-    out.sort(key=lambda r: str(r.get("nome") or "").lower())
+    out.sort(
+        key=lambda r: (
+            municipio_rotulo(r.get("municipio")),
+            str(r.get("nome") or "").lower(),
+        )
+    )
     return out
 
 
