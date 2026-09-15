@@ -3600,12 +3600,30 @@
           renderConsultaRgp();
           refreshConsultaDetalheModalIfOpen();
         }
-        setTimeout(() => {
-          if (state._rgpLoteModal?.backdrop) {
-            state._rgpLoteModal.backdrop.remove();
-            state._rgpLoteModal = null;
+        // Não fecha sozinho se houve erros (ex.: CPF inválido) — usuário vê o resumo.
+        const temErro = !!(r.data?.fail_count || (r.data?.erros && r.data.erros.length));
+        if (!temErro && !r.data?.pausado_por_falhas) {
+          setTimeout(() => {
+            if (state._rgpLoteModal?.backdrop) {
+              state._rgpLoteModal.backdrop.remove();
+              state._rgpLoteModal = null;
+            }
+          }, 1200);
+        } else if (modal?.backdrop) {
+          const foot = modal.backdrop.querySelector(".modal-foot");
+          if (foot && !modal.backdrop.querySelector("#rgp-lote-close")) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.id = "rgp-lote-close";
+            btn.className = "btn btn-primary";
+            btn.textContent = "Fechar";
+            btn.addEventListener("click", () => {
+              modal.backdrop.remove();
+              state._rgpLoteModal = null;
+            });
+            foot.appendChild(btn);
           }
-        }, 1200);
+        }
       } else {
         toast(r.error || "Falha na consulta em lote.");
         const modal = state._rgpLoteModal;

@@ -114,7 +114,7 @@ def test_masks_js_bind_still_safe() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.7.51"' in theme
+    assert 'APP_VERSION = "1.7.52"' in theme
 
 
 if __name__ == "__main__":

@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.52] — 2026-09-15 — Relatórios por município + consulta no HTML + vencidos
+
+**Tag:** [`v1.7.52`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.52)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.52/SinapescREAP-Windows-v1.7.52.zip
+
+- **Vencidos / lote:** CPF inválido **não pausa nem fecha** a operação — pula e segue os demais
+- **Relatório HTML Consulta RGP:** filtro «Consultados hoje» / «últimos 7 dias»
+- **REAP, Defeso e Consulta RGP:** HTML agrupado por `MUNICÍPIO — NOME` (cabeçalho + coluna na linha)
+- Modal de lote só auto-fecha quando não houve erros
+
 ## [v1.7.51] — 2026-09-15 — REAP: CPF digitação/gravação sem inventar outro
 
 **Tag:** [`v1.7.51`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.51)  

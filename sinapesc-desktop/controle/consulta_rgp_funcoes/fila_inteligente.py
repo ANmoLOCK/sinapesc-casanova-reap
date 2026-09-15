@@ -65,8 +65,12 @@ def rodar_fila_inteligente(
     on_progress: Callable[[Dict[str, Any]], None],
     max_falhas_seguidas: int = MAX_FALHAS_SEGUIDAS_PADRAO,
     exportar_erros: bool = True,
+    nao_pausar_em_cpf_invalido: bool = True,
 ) -> ResultadoFila:
     """Consulta um a um; pausa se houver ``max_falhas_seguidas`` erros seguidos.
+
+    CPF inválido (cadastro) **não** conta para a pausa e **não** encerra a fila
+    — o lote segue para o próximo sócio (vencidos / automático).
 
     ``consultar_um(reg)`` deve retornar:
       { ok, registro?, situacao_antes?, situacao?, erro? }
@@ -88,7 +92,8 @@ def rodar_fila_inteligente(
             "total": total,
             "mensagem": (
                 f"Fila inteligente: {total} sócio(s). "
-                f"Pausa automática após {max_falhas} falhas seguidas."
+                f"Pausa automática após {max_falhas} falhas seguidas "
+                "(CPF inválido não interrompe)."
             ),
             "max_falhas_seguidas": max_falhas,
         }
@@ -150,8 +155,10 @@ def rodar_fila_inteligente(
             )
         except Exception as exc:  # noqa: BLE001
             res.fail_count += 1
-            falhas_seguidas += 1
             err_txt = str(exc)
+            soft_cpf = nao_pausar_em_cpf_invalido and _erro_e_cpf_invalido(err_txt)
+            if not soft_cpf:
+                falhas_seguidas += 1
             res.erros.append(f"{nome or cpf or rid}: {err_txt}")
             res.erros_detalhe.append(
                 ItemErro(id=rid, nome=nome, cpf=cpf, erro=err_txt, indice=i)
@@ -164,12 +171,18 @@ def rodar_fila_inteligente(
                     "total": total,
                     "id": rid,
                     "error": err_txt,
+                    "cpf_invalido": soft_cpf,
                     "falhas_seguidas": falhas_seguidas,
                     "max_falhas_seguidas": max_falhas,
-                    "mensagem": f"Erro {i}/{total}: {err_txt}",
+                    "mensagem": (
+                        f"CPF inválido — pulando {i}/{total}: {nome or cpf}"
+                        if soft_cpf
+                        else f"Erro {i}/{total}: {err_txt}"
+                    ),
                 }
             )
-            if falhas_seguidas >= max_falhas:
+            # Soft CPF: continua a fila. Só pausa em falhas «duras» seguidas.
+            if not soft_cpf and falhas_seguidas >= max_falhas:
                 res.pausado_por_falhas = True
                 res.falhas_seguidas = falhas_seguidas
                 on_progress(
@@ -204,3 +217,20 @@ def rodar_fila_inteligente(
     if res.alertas:
         res.mensagem += f" · {len(res.alertas)} alerta(s) de situação."
     return res
+
+
+def _erro_e_cpf_invalido(texto: str) -> bool:
+    low = str(texto or "").strip().lower()
+    if not low:
+        return False
+    if "cpf" not in low:
+        return False
+    return any(
+        tip in low
+        for tip in (
+            "inválido",
+            "invalido",
+            "11 dígitos",
+            "11 digitos",
+        )
+    )

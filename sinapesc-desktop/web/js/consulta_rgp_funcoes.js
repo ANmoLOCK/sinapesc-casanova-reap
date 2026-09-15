@@ -194,13 +194,27 @@
     } else if (opts.com_senha === "sem") {
       list = list.filter((r) => !String(r.govbr_senha || "").trim());
     }
-    // datas: preview aproximado (só YYYY-MM-DD no campo)
-    if (opts.ultima_de || opts.ultima_ate) {
+    const periodo = opts.consulta_periodo || "";
+    if (periodo === "hoje" || periodo === "recentes") {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (periodo === "recentes") start.setDate(start.getDate() - 6);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      list = list.filter((r) => {
+        const raw = String(r.ultima_consulta_em || "").trim();
+        if (!raw) return false;
+        let iso = raw.slice(0, 10).replace(/\//g, "-");
+        const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
+        const d = new Date(`${iso}T12:00:00`);
+        if (Number.isNaN(d.getTime())) return false;
+        return d >= start && d <= end;
+      });
+    } else if (opts.ultima_de || opts.ultima_ate) {
       list = list.filter((r) => {
         const raw = String(r.ultima_consulta_em || "").trim();
         if (!raw) return false;
         const day = raw.slice(0, 10).replace(/\//g, "-");
-        // aceita DD/MM/YYYY ou YYYY-MM-DD
         let iso = day;
         const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
         if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
@@ -269,6 +283,13 @@
           <label>Busca (nome / CPF / telefone)
             <input type="search" id="rgp-rel-busca" placeholder="Opcional" />
           </label>
+          <label>Consulta (última consulta)
+            <select id="rgp-rel-periodo">
+              <option value="">Todas</option>
+              <option value="hoje">Consultados hoje</option>
+              <option value="recentes">Consultados nos últimos 7 dias</option>
+            </select>
+          </label>
           <label>Senha Gov.br
             <select id="rgp-rel-senha">
               <option value="">Todas</option>
@@ -334,6 +355,7 @@
         escopo,
         ids,
         busca: (backdrop.querySelector("#rgp-rel-busca").value || "").trim(),
+        consulta_periodo: backdrop.querySelector("#rgp-rel-periodo")?.value || "",
         com_senha: backdrop.querySelector("#rgp-rel-senha").value || "",
         ultima_de: backdrop.querySelector("#rgp-rel-de").value || "",
         ultima_ate: backdrop.querySelector("#rgp-rel-ate").value || "",
@@ -402,10 +424,11 @@
         escopo: o.escopo,
         ids: o.ids.length ? o.ids : undefined,
         busca: o.busca || undefined,
+        consulta_periodo: o.consulta_periodo || undefined,
         municipios: o.municipios.length ? o.municipios : undefined,
         situacoes: o.situacoes.length ? o.situacoes : undefined,
-        ultima_de: o.ultima_de || undefined,
-        ultima_ate: o.ultima_ate || undefined,
+        ultima_de: o.consulta_periodo ? undefined : (o.ultima_de || undefined),
+        ultima_ate: o.consulta_periodo ? undefined : (o.ultima_ate || undefined),
         com_senha: o.com_senha || undefined,
         colunas: o.colunas,
         auto_print: o.auto_print,

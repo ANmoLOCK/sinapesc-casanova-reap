@@ -12,6 +12,12 @@ from controle.auditoria import parse_em
 from controle.backup import backup_root
 from controle.consulta_rgp import normalize_situacao, situacao_match_filtro
 from controle.relatorio import logo_data_uri
+from controle.relatorio_municipio import (
+    agrupar_por_municipio,
+    css_grupo_municipio,
+    html_cabecalho_municipio,
+    municipio_rotulo,
+)
 from ui.formatters import format_cpf, format_nome, only_digits
 
 
@@ -112,10 +118,12 @@ def filtrar_registros_export(
     municipios: Optional[Sequence[str]] = None,
     situacoes: Optional[Sequence[str]] = None,
     com_senha: str = "",
+    consulta_periodo: str = "",
 ) -> List[Any]:
     """Filtra registros para export/relatório.
 
     ``com_senha``: "" | "any" | "com" | "sem"
+    ``consulta_periodo``: "" | "hoje" | "recentes" (últimos 7 dias com consulta)
     """
     mun_q = (municipio or "").strip().lower()
     munis = [m.lower() for m in _norm_list(municipios)]
@@ -128,8 +136,19 @@ def filtrar_registros_export(
     if senha_mode in ("", "any", "todas", "todos"):
         senha_mode = ""
 
-    dt_de = _parse_data_filtro(ultima_de, fim_do_dia=False)
-    dt_ate = _parse_data_filtro(ultima_ate, fim_do_dia=True)
+    periodo = (consulta_periodo or "").strip().lower()
+    hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo in ("hoje", "do_dia", "dia"):
+        dt_de = hoje
+        dt_ate = hoje.replace(hour=23, minute=59, second=59)
+    elif periodo in ("recentes", "recente", "mais_recentes"):
+        from datetime import timedelta
+
+        dt_de = hoje - timedelta(days=6)  # últimos 7 dias incluindo hoje
+        dt_ate = hoje.replace(hour=23, minute=59, second=59)
+    else:
+        dt_de = _parse_data_filtro(ultima_de, fim_do_dia=False)
+        dt_ate = _parse_data_filtro(ultima_ate, fim_do_dia=True)
 
     out: List[Any] = []
     for r in registros:
@@ -155,6 +174,10 @@ def filtrar_registros_export(
             continue
 
         ultima = _parse_stamp_registro(str(getattr(r, "ultima_consulta_em", "") or ""))
+        if periodo in ("hoje", "do_dia", "dia", "recentes", "recente", "mais_recentes"):
+            # só quem já foi consultado no período
+            if ultima is None:
+                continue
         if dt_de and (ultima is None or ultima < dt_de):
             continue
         if dt_ate and (ultima is None or ultima > dt_ate):
@@ -180,14 +203,15 @@ def filtrar_registros_export(
 
         out.append(r)
 
+    # Ordenação final fica a cargo do HTML (grupo município); aqui ordena estável
     out.sort(
         key=lambda r: (
+            municipio_rotulo(getattr(r, "municipio", "")),
             format_nome(str(getattr(r, "nome", "") or "")).lower(),
             str(getattr(r, "cpf", "") or ""),
         )
     )
     return out
-
 
 def _celula(reg: Any, col: str, *, senha_fallback: str = "") -> str:
     if col == "nome":
@@ -280,6 +304,7 @@ def _html_export(
     filtro_bits: List[str] = []
     for k, label in (
         ("escopo", "Escopo"),
+        ("consulta_periodo", "Consulta"),
         ("municipio", "Município"),
         ("municipios", "Municípios"),
         ("situacao", "Situação"),
@@ -301,6 +326,13 @@ def _html_export(
             continue
         if k == "com_senha":
             text = {"com": "somente com senha", "sem": "somente sem senha"}.get(text, text)
+        if k == "consulta_periodo":
+            text = {
+                "hoje": "consultados hoje",
+                "do_dia": "consultados hoje",
+                "recentes": "consultados nos últimos 7 dias",
+                "mais_recentes": "consultados nos últimos 7 dias",
+            }.get(text, text)
         if k == "ids_count":
             text = f"{text} registro(s)"
         filtro_bits.append(f"{label}: {text}")
@@ -316,13 +348,20 @@ def _html_export(
         )
 
     thead = "".join(f"<th>{html.escape(labels.get(c, c))}</th>" for c in cols)
-    trs = []
-    for r in regs:
-        cells = "".join(
-            f"<td>{html.escape(_celula(r, c, senha_fallback=senha_modulo))}</td>" for c in cols
-        )
-        trs.append(f"<tr>{cells}</tr>")
     colspan = max(1, len(cols))
+    trs: List[str] = []
+    grupos = agrupar_por_municipio(
+        list(regs),
+        lambda r: getattr(r, "municipio", ""),
+        sort_nome=lambda r: format_nome(str(getattr(r, "nome", "") or "")),
+    )
+    for mun_label, grupo in grupos:
+        trs.append(html_cabecalho_municipio(mun_label, colspan=colspan))
+        for r in grupo:
+            cells = "".join(
+                f"<td>{html.escape(_celula(r, c, senha_fallback=senha_modulo))}</td>" for c in cols
+            )
+            trs.append(f"<tr>{cells}</tr>")
     body = "\n".join(trs) if trs else f'<tr><td colspan="{colspan}">Nenhum registro com os filtros escolhidos.</td></tr>'
     gerado = datetime.now().strftime("%d/%m/%Y %H:%M")
     titulo = "Relatório geral" if modo_geral else "exportação"
@@ -347,6 +386,7 @@ def _html_export(
   th, td {{ border: 1px solid #D5E4EE; padding: 6px 8px; text-align: left; vertical-align: top; }}
   th {{ background: #E7F1F7; }}
   tr:nth-child(even) td {{ background: #F8FBFD; }}
+  {css_grupo_municipio()}
   @media print {{
     body {{ margin: 12px; }}
     .gov {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
@@ -383,6 +423,7 @@ def exportar_consulta_rgp(
     municipios: Optional[Sequence[str]] = None,
     situacoes: Optional[Sequence[str]] = None,
     com_senha: str = "",
+    consulta_periodo: str = "",
     colunas: Optional[Sequence[str]] = None,
     auto_print: bool = True,
     org_short: str = "Sinapesc",
@@ -407,6 +448,7 @@ def exportar_consulta_rgp(
         municipios=municipios,
         situacoes=situacoes,
         com_senha=com_senha,
+        consulta_periodo=consulta_periodo,
     )
     cols = _resolver_colunas(colunas, modo_geral=modo_geral)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
@@ -422,6 +464,7 @@ def exportar_consulta_rgp(
         "colunas": cols,
         "filtros": {
             "escopo": (escopo or "").strip(),
+            "consulta_periodo": (consulta_periodo or "").strip(),
             "municipio": municipio or "",
             "municipios": munis,
             "situacao": situacao or "",
