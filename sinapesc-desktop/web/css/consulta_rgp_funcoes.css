@@ -1,0 +1,146 @@
+/* Estilos das funções extras Consulta RGP (arquivo separado) */
+.rgp-alerta-sit {
+  outline: 2px solid #A82E26;
+  outline-offset: -2px;
+  background: #FDF2F0 !important;
+}
+.rgp-alerta-sit td:first-child::before {
+  content: "⚠ ";
+  color: #A82E26;
+}
+
+.modal-rgp-edit-lote .modal,
+.modal.modal-rgp-edit-lote {
+  max-width: min(1280px, 98vw);
+}
+.rgp-edit-lote-body {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+.rgp-edit-lote-head,
+.rgp-edit-lote-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.85fr 0.85fr 0.8fr 1fr 0.9fr;
+  gap: 6px;
+  align-items: center;
+}
+.rgp-edit-lote-head {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #5A7388;
+  padding: 4px 0;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.rgp-edit-lote-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+.rgp-edit-lote-row input {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #C9D6E3;
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .rgp-edit-lote-head,
+  .rgp-edit-lote-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .rgp-edit-lote-head span:nth-child(n+3) { display: none; }
+}
+
+/* Relatório HTML — filtros / seleção */
+.modal-rgp-relatorio .modal,
+.modal.modal-rgp-relatorio {
+  max-width: min(820px, 96vw);
+}
+.rgp-relatorio-body {
+  max-height: min(72vh, 700px);
+  overflow: auto;
+}
+.rgp-rel-section {
+  margin: 12px 0;
+}
+.rgp-rel-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0A2F52;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rgp-rel-radios,
+.rgp-rel-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.rgp-rel-radios label,
+.rgp-rel-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #0A2F52;
+}
+.rgp-rel-munis {
+  max-height: 120px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #D5E0EA;
+  border-radius: 8px;
+  background: #F8FBFD;
+}
+.rgp-rel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 10px 0;
+}
+.rgp-rel-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5A7388;
+}
+.rgp-rel-grid input,
+.rgp-rel-grid select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #C9D6E3;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #0A2F52;
+}
+.rgp-rel-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 8px;
+  color: #0A2F52;
+}
+.rgp-rel-preview {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #1B6CA8;
+}
+@media (max-width: 640px) {
+  .rgp-rel-grid { grid-template-columns: 1fr; }
+}
