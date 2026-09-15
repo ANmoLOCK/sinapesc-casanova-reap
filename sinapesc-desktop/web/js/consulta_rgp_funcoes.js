@@ -513,7 +513,7 @@
       row.dataset.id = r.id;
       row.innerHTML = `
         <input class="el-nome" value="${esc(formatNome(r.nome || ""))}" placeholder="Nome" />
-        <input class="el-cpf" value="${esc(formatCpf(r.cpf_formatado || r.cpf || ""))}" placeholder="000.000.000-00" maxlength="14" />
+        <input class="el-cpf" value="${esc(formatCpfInput(r.cpf_formatado || r.cpf || ""))}" placeholder="000.000.000-00" maxlength="14" />
         <input class="el-mun" value="${esc(r.municipio || "")}" placeholder="Município" />
         <input class="el-tel" value="${esc(r.telefone || "")}" placeholder="Número" />
         <input class="el-obs" value="${esc(r.observacao || "")}" placeholder="Observação" />

@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.51] — 2026-09-15 — REAP: CPF digitação/gravação sem inventar outro
+
+**Tag:** [`v1.7.51`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.51)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.51/SinapescREAP-Windows-v1.7.51.zip
+
+- **Bug:** no REAP (Tk lote e valor inicial de inputs), `format_cpf`/`normalize` no meio da digitação completava com zero à esquerda no 9º/10º dígito — trava no `maxlength` e grava CPF errado (ex.: `106.839.195-15` → `010.683.919-5x`)
+- **Correção:** `format_cpf_input` (Python) + inputs web com `formatCpfInput`; máscara Tk sem pad; gravação REAP na planilha como texto (`'…`); Defeso ganha máscara segura
+- Consulta RGP normalize (v1.7.50) mantido; testes em `test_reap_cpf_digitacao.py`
+
 ## [v1.7.50] — 2026-09-09 — CPF: não inventar outro ao cadastrar/editar
 
 **Tag:** [`v1.7.50`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.50)  

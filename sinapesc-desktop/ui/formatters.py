@@ -170,6 +170,25 @@ def format_cpf(digits: str) -> str:
     return result
 
 
+def format_cpf_input(value: Any) -> str:
+    """Máscara só para digitação — SEM pad/recover (espelha JS formatCpfInput).
+
+    Usar em Entry/input enquanto o usuário digita. Nunca chamar format_cpf
+    no meio da digitação: com 9–10 dígitos o normalize inventa outro CPF
+    (ex.: 1068391951 → 010.683.919-51) e o maxlength impede terminar.
+    """
+    clean = only_digits(str(value or ""), 11)
+    part1, part2, part3, part4 = clean[:3], clean[3:6], clean[6:9], clean[9:11]
+    result = part1
+    if part2:
+        result += f".{part2}"
+    if part3:
+        result += f".{part3}"
+    if part4:
+        result += f"-{part4}"
+    return result
+
+
 def format_cpf_masked(digits: str) -> str:
     clean = normalize_cpf(digits)
     if len(clean) != 11:

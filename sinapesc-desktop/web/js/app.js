@@ -1041,7 +1041,7 @@
         <label>Nome completo</label>
         <input id="m-nome" value="${esc(formatNome(pessoa?.nome || ""))}" />
         <label>CPF</label>
-        <input id="m-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" value="${esc(formatCpf(pessoa?.cpf_raw || pessoa?.cpf || ""))}" />
+        <input id="m-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" value="${esc(formatCpfInput(pessoa?.cpf_raw || pessoa?.cpf || ""))}" />
         <label>Município</label>
         <input id="m-mun" placeholder="Ex.: Casa Nova" value="${esc(pessoa?.municipio || "")}" />
         <label>Número (telefone)</label>
@@ -1055,10 +1055,15 @@
     bindNomeMask(backdrop.querySelector("#m-nome"));
     bindCpfMask(backdrop.querySelector("#m-cpf"));
     backdrop.querySelector("#m-save").addEventListener("click", async () => {
+      const cpfDigits = (window.SinapescMasks?.onlyDigits
+        || ((v, max) => String(v || "").replace(/\D/g, "").slice(0, max || 11)))(
+        backdrop.querySelector("#m-cpf").value,
+        11
+      );
       const r = await api("save_pessoa", {
         id: pessoa?.id || "",
         nome: formatNome(backdrop.querySelector("#m-nome").value),
-        cpf: backdrop.querySelector("#m-cpf").value,
+        cpf: cpfDigits,
         municipio: backdrop.querySelector("#m-mun")?.value || "",
         telefone: backdrop.querySelector("#m-tel")?.value || "",
       });
@@ -1148,7 +1153,9 @@
     function collectRows() {
       return [...host.querySelectorAll(".lote-row")].map((r) => ({
         nome: formatNome(r.querySelector(".l-nome").value),
-        cpf: r.querySelector(".l-cpf").value,
+        cpf: (window.SinapescMasks && window.SinapescMasks.onlyDigits
+          ? window.SinapescMasks.onlyDigits(r.querySelector(".l-cpf").value, 11)
+          : String(r.querySelector(".l-cpf").value || "").replace(/\D/g, "").slice(0, 11)),
         municipio: (r.querySelector(".l-mun")?.value || "").trim(),
         telefone: (r.querySelector(".l-tel")?.value || "").trim(),
       })).filter((r) => r.nome.trim() || r.cpf.trim());
@@ -1165,7 +1172,7 @@
       row.className = "lote-row";
       row.innerHTML = `
         <input class="l-nome" value="${esc(formatNome(nome))}" placeholder="Nome completo" />
-        <input class="l-cpf" value="${esc(formatCpf(cpf))}" placeholder="000.000.000-00" maxlength="14" />
+        <input class="l-cpf" value="${esc(formatCpfInput(cpf))}" placeholder="000.000.000-00" maxlength="14" />
         <input class="l-mun" value="${esc(municipio)}" placeholder="Município" />
         <input class="l-tel" value="${esc(telefone)}" placeholder="Número" />
         <button type="button" class="icon-btn danger l-del">🗑</button>
@@ -1390,7 +1397,9 @@
     function collectRows() {
       return [...host.querySelectorAll(".lote-row")].map((r) => ({
         nome: formatNome(r.querySelector(".l-nome").value),
-        cpf: r.querySelector(".l-cpf").value,
+        cpf: (window.SinapescMasks && window.SinapescMasks.onlyDigits
+          ? window.SinapescMasks.onlyDigits(r.querySelector(".l-cpf").value, 11)
+          : String(r.querySelector(".l-cpf").value || "").replace(/\D/g, "").slice(0, 11)),
         municipio: (r.querySelector(".l-mun")?.value || "").trim(),
         telefone: (r.querySelector(".l-tel")?.value || "").trim(),
       })).filter((r) => r.nome.trim() || r.cpf.trim());
@@ -1410,7 +1419,7 @@
       row.className = "lote-row";
       row.innerHTML = `
         <input class="l-nome" value="${esc(formatNome(nome))}" placeholder="Nome completo" />
-        <input class="l-cpf" value="${esc(formatCpf(cpf))}" placeholder="000.000.000-00" maxlength="14" />
+        <input class="l-cpf" value="${esc(formatCpfInput(cpf))}" placeholder="000.000.000-00" maxlength="14" />
         <input class="l-mun" value="${esc(municipio)}" placeholder="Município" />
         <input class="l-tel" value="${esc(telefone)}" placeholder="Número" />
         <button type="button" class="icon-btn danger l-del">🗑</button>
@@ -2316,7 +2325,9 @@
       id: $("#df-id")?.value || "",
       person_id: $("#df-person")?.value || "",
       nome: $("#df-nome")?.value || "",
-      cpf: $("#df-cpf")?.value || "",
+      cpf: (window.SinapescMasks && window.SinapescMasks.onlyDigits
+        ? window.SinapescMasks.onlyDigits($("#df-cpf")?.value || "", 11)
+        : String($("#df-cpf")?.value || "").replace(/\D/g, "").slice(0, 11)),
       rg: $("#df-rg")?.value || "",
       nacionalidade: $("#df-nac")?.value || "",
       profissao: $("#df-prof")?.value || "",
@@ -2348,7 +2359,8 @@
     set("#df-id", d.id);
     set("#df-person", d.person_id);
     set("#df-nome", d.nome_display || d.nome);
-    set("#df-cpf", d.cpf_formatado || d.cpf);
+    set("#df-cpf", formatCpfInput(d.cpf_raw || d.cpf_formatado || d.cpf || ""));
+    bindCpfMask($("#df-cpf"));
     set("#df-rg", d.rg);
     set("#df-nac", d.nacionalidade || "Brasileira");
     set("#df-prof", d.profissao || "Pescador profissional");
