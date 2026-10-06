@@ -739,9 +739,14 @@ class SinapescApi:
         somente_entrada: bool = False,
         somente_parcela: bool = False,
         colunas: Any = None,
+        filtros: Any = None,
     ) -> Dict[str, Any]:
         """Relatório HTML Defeso com filtros de quem entra e quais colunas saem."""
-        from controle.defeso_relatorio import normalize_colunas_defeso
+        from controle.defeso_relatorio import (
+            normalize_colunas_defeso,
+            normalize_filtros_defeso,
+            resumo_filtros_defeso,
+        )
 
         raw_cols: Any = colunas
         if isinstance(colunas, str) and colunas.strip()[:1] in "{[":
@@ -755,6 +760,26 @@ class SinapescApi:
             except ValueError:
                 raw_cols = None
         cols = normalize_colunas_defeso(raw_cols)
+
+        raw_filtros: Any = filtros
+        if isinstance(filtros, str) and filtros.strip()[:1] in "{[":
+            try:
+                raw_filtros = json.loads(filtros)
+            except json.JSONDecodeError:
+                raw_filtros = {}
+        elif filtros is not None and not isinstance(filtros, (str, dict)):
+            try:
+                raw_filtros = _js_payload_to_dict(filtros)
+            except ValueError:
+                raw_filtros = {}
+        if isinstance(raw_filtros, dict) and raw_filtros.get("colunas") and not raw_cols:
+            cols = normalize_colunas_defeso(raw_filtros.get("colunas"))
+        fcfg = normalize_filtros_defeso(
+            raw_filtros if isinstance(raw_filtros, dict) else None,
+            localidade=str(localidade or ""),
+            somente_entrada=bool(somente_entrada),
+            somente_parcela=bool(somente_parcela),
+        )
 
         def work():
             reap = self._ensure_service()
@@ -776,26 +801,21 @@ class SinapescApi:
                 if mun:
                     municipios[cpf] = mun
             fichas = defeso.listar()
-            loc = str(localidade or "").strip()
+            loc = str(fcfg.get("localidade") or "").strip()
             itens = itens_defeso_para_relatorio(
                 fichas,
                 telefones_reap=telefones,
                 municipios_reap=municipios,
                 nomes_reap=nomes,
                 cpfs_reap=cpfs,
-                localidade=loc,
-                somente_entrada=bool(somente_entrada),
-                somente_parcela=bool(somente_parcela),
+                filtros=fcfg,
             )
             if not itens:
                 raise ValueError("Nenhuma ficha encontrada com os filtros escolhidos.")
+            resumo = resumo_filtros_defeso(fcfg)
             titulo = "Relatório Defeso Fácil"
-            if loc:
-                titulo += f" — {loc}"
-            if somente_entrada:
-                titulo += " · entrada confirmada"
-            if somente_parcela:
-                titulo += " · com parcela"
+            if resumo:
+                titulo += f" — {resumo}"
             html_txt = montar_html_defeso(
                 org_short=ORG_SHORT,
                 org_full=ORG_FULL,
@@ -803,11 +823,18 @@ class SinapescApi:
                 titulo=titulo,
                 localidade=loc,
                 colunas=cols,
+                filtros_resumo=resumo,
             )
             nome_arq = nome_arquivo_defeso_relatorio(localidade=loc)
             path = salvar_html_defeso(html_txt, nome_arquivo=nome_arq)
             reap.registrar_evento("relatorio_defeso", f"gerou {path.name}")
-            return {"path": str(path), "html": html_txt, "total": len(itens), "colunas": cols}
+            return {
+                "path": str(path),
+                "html": html_txt,
+                "total": len(itens),
+                "colunas": cols,
+                "filtros": fcfg,
+            }
 
         return self._run_async("defeso_relatorio", work, "Gerando relatório Defeso…")
 

@@ -6,6 +6,14 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.28] — 2026-10-06 — Relatório Defeso com diversos filtros
+
+**Tag:** `v1.7.28`  
+**Download:** (após publish) https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.28/SinapescREAP-Windows-v1.7.28.zip
+
+- Relatório Defeso: localidade, UF, entrada (sim/não), parcelas (com/sem/1ª–4ª), telefone, endereço completo/incompleto, status, busca, documentos (ID/pesca/CAF), ordenação + colunas
+- Inclui login único da v1.7.27
+
 ## [v1.7.27] — 2026-10-06 — Login único + colunas no relatório Defeso
 
 **Tag:** `v1.7.27`  

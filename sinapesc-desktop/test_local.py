@@ -1106,12 +1106,16 @@ if __name__ == "__main__":
     test_qr_selo_usa_logo()
     from test_login_unico_defeso_colunas import (
         test_normalize_colunas_defeso,
+        test_normalize_filtros_defeso,
+        test_filtros_aplicam_nos_itens,
         test_montar_html_respeita_colunas,
         test_js_login_unico_e_modal_relatorio,
         test_api_assinatura_colunas,
         test_version_bump,
     )
     test_normalize_colunas_defeso()
+    test_normalize_filtros_defeso()
+    test_filtros_aplicam_nos_itens()
     test_montar_html_respeita_colunas()
     test_js_login_unico_e_modal_relatorio()
     test_api_assinatura_colunas()
