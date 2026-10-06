@@ -1,6 +1,9 @@
 {
   "spreadsheet_id": "1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4",
   "defeso_spreadsheet_id": "1UxDjb78h7tYUnKXPcLVniuqAfWwrbvyf",
+  "consulta_rgp_spreadsheet_id": "",
+  "consulta_rgp_importar_auto": true,
+  "consulta_rgp_govbr_opcional": false,
   "defeso_anexos_dir": "D:\\Meu Drive\\Sinapesc-Defeso",
   "defeso_declaracao_fonte": "allura",
   "defeso_drive_folder_id": "",

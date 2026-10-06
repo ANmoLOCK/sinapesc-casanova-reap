@@ -6,7 +6,51 @@ Formato: mais recente primeiro.
 
 ---
 
----
+## [v1.7.28] — 2026-10-06 — Relatório Defeso com diversos filtros
+
+**Tag:** `v1.7.28`  
+**Download:** (após publish) https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.28/SinapescREAP-Windows-v1.7.28.zip
+
+- Relatório Defeso: localidade, UF, entrada (sim/não), parcelas (com/sem/1ª–4ª), telefone, endereço completo/incompleto, status, busca, documentos (ID/pesca/CAF), ordenação + colunas
+- Inclui login único da v1.7.27
+
+## [v1.7.27] — 2026-10-06 — Login único + colunas no relatório Defeso
+
+**Tag:** `v1.7.27`  
+**Download:** (após publish) https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.27/SinapescREAP-Windows-v1.7.27.zip
+
+- **Login único:** uma sessão libera REAP, Defeso Fácil e Consulta RGP; home vira hub após entrar; botão **← Módulos**
+- **Relatório Defeso:** modal para escolher localidade/filtros e **quais colunas** saem no HTML
+- Testes: `test_login_unico_defeso_colunas.py`
+
+## [v1.7.26] — 2026-09-04 — Consulta RGP cadastro local (sem sync REAP)
+
+**Tag:** [`v1.7.26`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.26)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.26/SinapescREAP-Windows-v1.7.26.zip
+
+- Corrige erro de cota (quota 60) ao abrir o módulo (loop de leitura da planilha)
+- Botão **Cadastrar sócio** (nome, CPF, município, telefone, observação)
+- Sem importação Consulta ↔ REAP nesta etapa
+- UI fiel ao mockup (header navy, KPIs, tabela, sidebar)
+
+## [v1.7.25] — 2026-09-04 — Consulta RGP independente
+
+**Tag:** [`v1.7.25`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.25)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.25/SinapescREAP-Windows-v1.7.25.zip
+
+- Módulo Consulta opera sozinho: importação manual de registros
+- UI alinhada ao mockup
+
+## [v1.7.24] — 2026-09-04 — Módulo Consulta RGP
+## [v1.7.24] — 2026-09-04 — Módulo Consulta RGP
+
+**Tag:** [`v1.7.24`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.24)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.24/SinapescREAP-Windows-v1.7.24.zip
+
+- Home: 4º card **Módulo Consulta** (Consulta RGP)
+- Planilha/aba `ConsultaRGP` + sync a partir do REAP
+- Consulta no site MPA em processo/janela isolada (não derruba o EXE)
+- Importação REAP (município+telefone) e Defeso (CPF+nome) **somente se Ativo**
 
 ## [v1.7.23] — 2026-08-31 — Município REAP isolado na tela
 
