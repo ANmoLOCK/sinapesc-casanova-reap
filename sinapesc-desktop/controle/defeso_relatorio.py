@@ -16,6 +16,58 @@ from controle.defeso import (
 from controle.relatorio import logo_data_uri, pasta_relatorios
 from ui.formatters import display_nome, format_cpf, only_digits
 
+# Colunas opcionais do relatório HTML (nome sempre entra).
+COLUNAS_DEFESO_TODAS = (
+    "nome",
+    "cpf",
+    "municipio",
+    "telefone",
+    "endereco",
+    "parcelas",
+    "entrada",
+)
+COLUNA_DEFESO_OBRIGATORIA = "nome"
+
+
+def normalize_colunas_defeso(colunas: Any = None) -> List[str]:
+    """
+    Normaliza a seleção de colunas do relatório.
+
+    Aceita lista, dict {coluna: bool} ou string CSV. Nome é sempre mantido.
+    Se nada válido vier, devolve todas as colunas.
+    """
+    allowed = set(COLUNAS_DEFESO_TODAS)
+    selected: List[str] = []
+
+    if colunas is None or colunas == "" or colunas is False:
+        return list(COLUNAS_DEFESO_TODAS)
+
+    if isinstance(colunas, str):
+        parts = [p.strip().lower() for p in colunas.replace(";", ",").split(",") if p.strip()]
+        selected = [p for p in parts if p in allowed]
+    elif isinstance(colunas, dict):
+        for key in COLUNAS_DEFESO_TODAS:
+            raw = colunas.get(key)
+            if raw is None and key != COLUNA_DEFESO_OBRIGATORIA:
+                continue
+            on = True if raw is None and key == COLUNA_DEFESO_OBRIGATORIA else bool(raw)
+            if on and key in allowed:
+                selected.append(key)
+    elif isinstance(colunas, (list, tuple, set)):
+        for item in colunas:
+            key = str(item or "").strip().lower()
+            if key in allowed and key not in selected:
+                selected.append(key)
+    else:
+        return list(COLUNAS_DEFESO_TODAS)
+
+    if COLUNA_DEFESO_OBRIGATORIA not in selected:
+        selected.insert(0, COLUNA_DEFESO_OBRIGATORIA)
+    # Ordem canônica
+    order = {k: i for i, k in enumerate(COLUNAS_DEFESO_TODAS)}
+    selected = sorted(set(selected), key=lambda k: order.get(k, 99))
+    return selected or list(COLUNAS_DEFESO_TODAS)
+
 
 def telefone_relatorio(f: FichaDefeso | None, tel_reap: str = "") -> str:
     """Telefone do relatório: só REAP (planilha Pessoas)."""
@@ -34,42 +86,52 @@ def montar_html_defeso(
     titulo: str,
     localidade: str = "",
     gerado_em: datetime | None = None,
+    colunas: Any = None,
 ) -> str:
     gerado_em = gerado_em or datetime.now()
+    cols = normalize_colunas_defeso(colunas)
     logo = logo_data_uri()
     logo_tag = f'<img class="logo" src="{logo}" alt="{html.escape(org_short)}">' if logo else ""
     loc_txt = f" · Localidade: {html.escape(localidade)}" if localidade else ""
     n = len(itens)
     n_ent = sum(1 for i in itens if i.get("entrada_confirmada"))
 
+    headers = {
+        "nome": "Nome",
+        "cpf": "CPF",
+        "municipio": "Município (REAP)",
+        "telefone": "Telefone (REAP)",
+        "endereco": "Endereço (Defeso)",
+        "parcelas": "Parcelas",
+        "entrada": "Entrada",
+    }
+
     rows: List[str] = []
     for item in itens:
-        tel = html.escape(str(item.get("telefone") or "—"))
-        mun = html.escape(str(item.get("municipio") or "—"))
-        end = html.escape(str(item.get("endereco") or "—")).replace("\n", "<br>")
-        parcelas = html.escape(str(item.get("parcelas") or "—")).replace("\n", "<br>")
-        ent = "Sim" if item.get("entrada_confirmada") else "Não"
-        ent_cls = "ok" if item.get("entrada_confirmada") else "off"
-        rows.append(
-            "<tr>"
-            f"<td>{html.escape(display_nome(str(item.get('nome') or '')))}</td>"
-            f"<td>{html.escape(format_cpf(str(item.get('cpf') or '')))}</td>"
-            f"<td>{mun}</td>"
-            f"<td>{tel}</td>"
-            f"<td class=\"addr\">{end}</td>"
-            f"<td class=\"parc\">{parcelas}</td>"
-            f'<td class="{ent_cls}">{ent}</td>'
-            "</tr>"
-        )
+        cells: List[str] = []
+        for col in cols:
+            if col == "nome":
+                cells.append(f"<td>{html.escape(display_nome(str(item.get('nome') or '')))}</td>")
+            elif col == "cpf":
+                cells.append(f"<td>{html.escape(format_cpf(str(item.get('cpf') or '')))}</td>")
+            elif col == "municipio":
+                cells.append(f"<td>{html.escape(str(item.get('municipio') or '—'))}</td>")
+            elif col == "telefone":
+                cells.append(f"<td>{html.escape(str(item.get('telefone') or '—'))}</td>")
+            elif col == "endereco":
+                end = html.escape(str(item.get("endereco") or "—")).replace("\n", "<br>")
+                cells.append(f'<td class="addr">{end}</td>')
+            elif col == "parcelas":
+                parcelas = html.escape(str(item.get("parcelas") or "—")).replace("\n", "<br>")
+                cells.append(f'<td class="parc">{parcelas}</td>')
+            elif col == "entrada":
+                ent = "Sim" if item.get("entrada_confirmada") else "Não"
+                ent_cls = "ok" if item.get("entrada_confirmada") else "off"
+                cells.append(f'<td class="{ent_cls}">{ent}</td>')
+        rows.append("<tr>" + "".join(cells) + "</tr>")
 
-    table = (
-        "<table><thead><tr>"
-        "<th>Nome</th><th>CPF</th><th>Município (REAP)</th><th>Telefone (REAP)</th>"
-        "<th>Endereço (Defeso)</th><th>Parcelas</th><th>Entrada</th>"
-        "</tr></thead><tbody>"
-        + "".join(rows)
-        + "</tbody></table>"
-    )
+    ths = "".join(f"<th>{html.escape(headers[c])}</th>" for c in cols if c in headers)
+    table = "<table><thead><tr>" + ths + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
 
     aviso = (
         "Uso interno. Só entram sócios cadastrados na planilha REAP (Pessoas). "

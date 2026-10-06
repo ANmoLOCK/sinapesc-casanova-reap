@@ -738,8 +738,23 @@ class SinapescApi:
         localidade: str = "",
         somente_entrada: bool = False,
         somente_parcela: bool = False,
+        colunas: Any = None,
     ) -> Dict[str, Any]:
-        """Relatório HTML Defeso: nome, CPF, tel REAP, endereço Defeso, parcelas."""
+        """Relatório HTML Defeso com filtros de quem entra e quais colunas saem."""
+        from controle.defeso_relatorio import normalize_colunas_defeso
+
+        raw_cols: Any = colunas
+        if isinstance(colunas, str) and colunas.strip()[:1] in "{[":
+            try:
+                raw_cols = json.loads(colunas)
+            except json.JSONDecodeError:
+                raw_cols = colunas
+        elif colunas is not None and not isinstance(colunas, (str, list, tuple, dict, bool)):
+            try:
+                raw_cols = _js_payload_to_dict(colunas)
+            except ValueError:
+                raw_cols = None
+        cols = normalize_colunas_defeso(raw_cols)
 
         def work():
             reap = self._ensure_service()
@@ -787,11 +802,12 @@ class SinapescApi:
                 itens=itens,
                 titulo=titulo,
                 localidade=loc,
+                colunas=cols,
             )
             nome_arq = nome_arquivo_defeso_relatorio(localidade=loc)
             path = salvar_html_defeso(html_txt, nome_arquivo=nome_arq)
             reap.registrar_evento("relatorio_defeso", f"gerou {path.name}")
-            return {"path": str(path), "html": html_txt, "total": len(itens)}
+            return {"path": str(path), "html": html_txt, "total": len(itens), "colunas": cols}
 
         return self._run_async("defeso_relatorio", work, "Gerando relatório Defeso…")
 

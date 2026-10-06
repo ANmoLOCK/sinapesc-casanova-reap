@@ -6,7 +6,14 @@ Formato: mais recente primeiro.
 
 ---
 
----
+## [v1.7.27] — 2026-10-06 — Login único + colunas no relatório Defeso
+
+**Tag:** `v1.7.27`  
+**Download:** (após publish) https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.27/SinapescREAP-Windows-v1.7.27.zip
+
+- **Login único:** uma sessão libera REAP, Defeso Fácil e Consulta RGP; home vira hub após entrar; botão **← Módulos**
+- **Relatório Defeso:** modal para escolher localidade/filtros e **quais colunas** saem no HTML
+- Testes: `test_login_unico_defeso_colunas.py`
 
 ## [v1.7.26] — 2026-09-04 — Consulta RGP cadastro local (sem sync REAP)
 
