@@ -60,7 +60,7 @@ class DefesoService:
             ).execute()
             self.client.update_values(f"{DEFESO_TAB}!A1", [DEFESO_HEADER])
         else:
-            header = self.client.get_values(f"{DEFESO_TAB}!A1:X1")
+            header = self.client.get_values(f"{DEFESO_TAB}!A1:Y1")
             if not header:
                 self.client.update_values(f"{DEFESO_TAB}!A1", [DEFESO_HEADER])
             elif header and header[0]:
@@ -69,6 +69,7 @@ class DefesoService:
                     (21, "telefoneReap"),
                     (22, "parcelasRecebidas"),
                     (23, "entradaConfirmada"),
+                    (24, "observacao"),
                 ]
                 changed = False
                 for idx, label in extras:
@@ -79,12 +80,12 @@ class DefesoService:
                         row[idx] = label
                         changed = True
                 if changed:
-                    self.client.update_values(f"{DEFESO_TAB}!A1:X1", [row[: len(DEFESO_HEADER)]])
+                    self.client.update_values(f"{DEFESO_TAB}!A1:Y1", [row[: len(DEFESO_HEADER)]])
         self._ready = True
 
     def listar(self) -> List[FichaDefeso]:
         self.ensure()
-        rows = self.client.get_values(f"{DEFESO_TAB}!A2:X")
+        rows = self.client.get_values(f"{DEFESO_TAB}!A2:Y")
         out: List[FichaDefeso] = []
         for r in rows:
             f = row_to_ficha(r)
@@ -142,6 +143,8 @@ class DefesoService:
             ficha.tem_identidade = existing.tem_identidade
             ficha.tem_carteira_pesca = existing.tem_carteira_pesca
             ficha.tem_caf = existing.tem_caf
+            if "observacao" not in payload:
+                ficha.observacao = existing.observacao
             row_idx = self._row_index(ficha.id)
 
         if row_idx > 0:
