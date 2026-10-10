@@ -455,6 +455,9 @@
     };
 
     if (state.screen === "home") {
+      if (state.loggedIn) {
+        headerActions.appendChild(mkBtn("Sair", "btn-outline", doLogout));
+      }
       headerActions.appendChild(mkBtn("⚙ Configurações", "btn-outline", () => navigate("settings")));
       return;
     }
@@ -481,6 +484,7 @@
     }
 
     if (state.loggedIn) {
+      headerActions.appendChild(mkBtn("← Módulos", "btn-outline", () => navigate("home", { push: false })));
       if (state.navHistory.length) {
         headerActions.appendChild(mkBtn("← Voltar", "btn-outline", goBack));
       }
@@ -550,18 +554,36 @@
     navigate("login");
   }
 
+  function goReap() {
+    if (state.loggedIn) {
+      navigate("admin", { tab: "socies" });
+      loadPessoas();
+      return;
+    }
+    state.afterLogin = "admin";
+    navigate("login");
+  }
+
+  function goLoginUnico() {
+    state.afterLogin = "home";
+    navigate("login");
+  }
+
   function renderHome() {
+    const logged = !!state.loggedIn;
     setPage(`
       <div class="hero">
         <div class="hero-title">${esc(state.bootstrap?.org_short || "Sinapesc")}</div>
         <div class="hero-sub">${esc(state.bootstrap?.org_full || "")}</div>
-        <div class="hero-tag">Controle REAP · Defeso Fácil · Consulta RGP · consulta online</div>
+        <div class="hero-tag">${logged
+          ? "Sessão unificada · escolha o módulo"
+          : "Controle REAP · Defeso Fácil · Consulta RGP · consulta online"}</div>
       </div>
       <div class="home-cards">
         <div class="home-card">
           <h3>Secretaria</h3>
           <p>Cadastre sócios, marque REAPs e importe lotes na planilha Google.</p>
-          <button type="button" class="btn btn-primary" id="go-login">Entrar como administrador</button>
+          <button type="button" class="btn btn-primary" id="go-reap">${logged ? "Abrir REAP" : "Entrar"}</button>
         </div>
         <div class="home-card">
           <h3>Defeso Fácil</h3>
@@ -579,11 +601,13 @@
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
-      <div class="tip-box">Site gratuito: compartilhe a planilha como Leitor, publique site-publico/, cole a URL em Configurações e gere o QR Consulta.</div>
+      <div class="tip-box">${logged
+        ? "Login único ativo: REAP, Defeso Fácil e Consulta RGP usam a mesma sessão. Use Sair no cabeçalho para encerrar."
+        : "Um único login libera REAP, Defeso Fácil e Consulta RGP. Entre uma vez e troque de módulo sem digitar a senha de novo."}</div>
     `);
-    $("#go-login").addEventListener("click", () => {
-      state.afterLogin = "admin";
-      navigate("login");
+    $("#go-reap").addEventListener("click", () => {
+      if (logged) goReap();
+      else goLoginUnico();
     });
     $("#go-defeso").addEventListener("click", goDefeso);
     $("#go-lista").addEventListener("click", () => navigate("lista"));
@@ -594,13 +618,15 @@
     const email = state.bootstrap?.admin_email || "";
     setPage(`
       <div class="form-panel" style="max-width:400px;margin:28px auto">
-        <h2 style="margin:0 0 2px;font-size:16px">Acesso administrativo</h2>
-        <p class="page-sub">${esc(state.bootstrap?.org_full || "")}</p>
+        <h2 style="margin:0 0 2px;font-size:16px">Acesso unificado</h2>
+        <p class="page-sub">Uma entrada para REAP, Defeso Fácil e Consulta RGP.</p>
+        <p class="page-sub" style="margin-top:6px">${esc(state.bootstrap?.org_full || "")}</p>
         <label>E-mail</label>
         <input type="email" id="login-email" value="${esc(email)}" />
         <label>Senha</label>
         <input type="password" id="login-pass" />
         <div class="form-actions" style="justify-content:flex-end">
+          <button type="button" class="btn btn-outline-dark" id="login-cancel">Cancelar</button>
           <button type="button" class="btn btn-primary" id="login-btn">Entrar</button>
         </div>
       </div>
@@ -617,21 +643,27 @@
       state.connLabel = "Conectado";
       setFooter();
       state.navHistory = [];
-      const dest = state.afterLogin || "admin";
+      const dest = state.afterLogin || "home";
       state.afterLogin = "";
       if (dest === "defeso") navigate("defeso", { push: false });
       else if (dest === "consulta_rgp") {
         state.consultaRgpLoaded = false;
         navigate("consulta_rgp", { push: false });
         loadConsultaRgp(true);
-      }
-      else {
+      } else if (dest === "admin") {
         navigate("admin", { push: false, tab: "socies" });
         loadPessoas();
+        maybeBackupReminder();
+      } else {
+        navigate("home", { push: false });
         maybeBackupReminder();
       }
     };
     $("#login-btn").addEventListener("click", tryLogin);
+    $("#login-cancel")?.addEventListener("click", () => {
+      state.afterLogin = "";
+      navigate("home", { push: false });
+    });
     $("#login-pass").addEventListener("keydown", (e) => { if (e.key === "Enter") tryLogin(); });
   }
 

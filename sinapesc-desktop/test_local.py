@@ -1390,4 +1390,22 @@ if __name__ == "__main__":
     test_lote_50_socios_e_ponte_json()
     test_licenca_proprietaria()
     test_qr_selo_usa_logo()
+    from test_login_unico import (  # noqa: WPS433
+        test_js_login_unico,
+        test_tk_labels_login_unico,
+        test_version_bump as test_login_unico_version,
+    )
+    from test_defeso_observacao import (  # noqa: WPS433
+        test_observacao_modelo_e_planilha,
+        test_observacao_filtros_e_html,
+        test_js_e_servico_observacao,
+        test_version_bump as test_obs_version,
+    )
+    test_js_login_unico()
+    test_tk_labels_login_unico()
+    test_login_unico_version()
+    test_observacao_modelo_e_planilha()
+    test_observacao_filtros_e_html()
+    test_js_e_servico_observacao()
+    test_obs_version()
     print("OK — testes locais passaram.")

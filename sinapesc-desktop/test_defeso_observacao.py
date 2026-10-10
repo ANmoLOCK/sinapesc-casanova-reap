@@ -97,7 +97,7 @@ def test_js_e_servico_observacao() -> None:
 def test_version() -> None:
     from ui.theme import APP_VERSION
 
-    assert APP_VERSION == "1.7.53"
+    assert APP_VERSION == "1.7.54"
 
 
 if __name__ == "__main__":

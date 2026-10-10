@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.54] — 2026-10-10 — Login único + observação Defeso + filtros relatório
+
+**Tag:** [`v1.7.54`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.54)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.54/SinapescREAP-Windows-v1.7.54.zip
+
+- **Login único:** uma sessão libera REAP, Defeso Fácil e Consulta RGP; home vira hub após entrar; botão ← Módulos; Sair na home quando logado
+- Mantém **Observação** na ficha Defeso (planilha + relatório/filtros) da v1.7.53
+- Mantém modal de relatório Defeso com filtros e colunas
+
 ## [v1.7.53] — 2026-10-10 — Observação na ficha Defeso + filtros no relatório
 
 **Tag:** [`v1.7.53`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.53)  
