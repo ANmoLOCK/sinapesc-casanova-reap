@@ -15,6 +15,10 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.7.53** — Observação na ficha Defeso (planilha + relatório/filtros).
+
+**Download:** [SinapescREAP-Windows-v1.7.53.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.53/SinapescREAP-Windows-v1.7.53.zip)
+
 **v1.7.52** — Relatórios por município + filtro consultados + vencidos não param em CPF.
 
 **v1.7.51** — REAP: CPF na digitação/gravação sem inventar outro (igual RGP).
@@ -86,7 +90,7 @@ Gera `dist\SinapescREAP.exe` e pasta `release\` pronta para zipar.
 
 Ou dispare o workflow [build-windows-exe.yml](../.github/workflows/build-windows-exe.yml) (branch `main` ou tag `v*`).
 
-**Download pronto:** [SinapescREAP-Windows-v1.7.52.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.52/SinapescREAP-Windows-v1.7.52.zip)
+**Download pronto:** [SinapescREAP-Windows-v1.7.53.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.53/SinapescREAP-Windows-v1.7.53.zip)
 
 ## Estrutura
 

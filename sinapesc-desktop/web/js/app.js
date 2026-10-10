@@ -1957,16 +1957,129 @@
       paintDefesoLista();
     });
     $("#defeso-refresh").addEventListener("click", () => api("load_defeso_lista"));
-    $("#defeso-relatorio")?.addEventListener("click", () => {
-      api(
-        "generate_defeso_relatorio",
-        state.defesoLocalidade || "",
-        !!state.defesoSomenteConfirmadas,
-        !!state.defesoSomenteParcelas
-      );
-    });
+    $("#defeso-relatorio")?.addEventListener("click", openDefesoRelatorioModal);
     paintDefesoLista();
     api("load_defeso_lista");
+  }
+
+  function openDefesoRelatorioModal() {
+    const locs = state.defesoLocalidades || [];
+    const sel = (id, opts, cur) => `
+      <select id="${id}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:#fff">
+        ${opts.map(([v, lab]) => `<option value="${esc(v)}" ${String(cur) === String(v) ? "selected" : ""}>${esc(lab)}</option>`).join("")}
+      </select>`;
+    const colOpts = [
+      { id: "nome", label: "Nome", locked: true },
+      { id: "cpf", label: "CPF" },
+      { id: "telefone", label: "Telefone (REAP)" },
+      { id: "municipio", label: "Município (REAP)" },
+      { id: "endereco", label: "Endereço (Defeso)" },
+      { id: "parcelas", label: "Parcelas" },
+      { id: "entrada", label: "Entrada confirmada" },
+      { id: "observacao", label: "Observação" },
+    ];
+    const entradaCur = state.defesoSomenteConfirmadas ? "sim" : "todas";
+    const parcelaCur = state.defesoSomenteParcelas ? "com" : "todas";
+    const backdrop = createModal(`
+      <div class="modal-head">Relatório Defeso Fácil</div>
+      <div class="modal-body" style="max-height:min(70vh,560px);overflow:auto">
+        <p class="page-sub" style="margin:0 0 10px">Monte o relatório: filtros de quem entra + colunas que saem.</p>
+        <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:var(--muted)">Quem entra</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px">
+          <div>
+            <label>Localidade (município REAP)</label>
+            ${sel("dr-localidade", [["", "Todas"], ...locs.map((l) => [l, l])], state.defesoLocalidade || "")}
+          </div>
+          <div>
+            <label>UF (ficha Defeso)</label>
+            <input id="dr-uf" maxlength="2" placeholder="BA" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-transform:uppercase" />
+          </div>
+          <div>
+            <label>Entrada</label>
+            ${sel("dr-entrada", [["todas", "Todas"], ["sim", "Só confirmadas"], ["nao", "Só pendentes"]], entradaCur)}
+          </div>
+          <div>
+            <label>Parcelas</label>
+            ${sel("dr-parcela", [
+              ["todas", "Todas"], ["com", "Com alguma parcela"], ["sem", "Sem nenhuma parcela"],
+              ["1", "1ª parcela"], ["2", "2ª parcela"], ["3", "3ª parcela"], ["4", "4ª parcela"],
+            ], parcelaCur)}
+          </div>
+          <div>
+            <label>Telefone (REAP)</label>
+            ${sel("dr-telefone", [["todos", "Todos"], ["com", "Com telefone"], ["sem", "Sem telefone"]], "todos")}
+          </div>
+          <div>
+            <label>Endereço Defeso</label>
+            ${sel("dr-endereco", [["todos", "Todos"], ["completo", "Completo"], ["incompleto", "Incompleto"]], "todos")}
+          </div>
+          <div>
+            <label>Observação</label>
+            ${sel("dr-observacao", [["todos", "Todas"], ["com", "Com observação"], ["sem", "Sem observação"]], "todos")}
+          </div>
+          <div>
+            <label>Status da ficha</label>
+            ${sel("dr-status", [["", "Todos"], ["rascunho", "Rascunho"], ["salvo", "Salvo"]], "")}
+          </div>
+          <div>
+            <label>Ordenar por</label>
+            ${sel("dr-ordenar", [["nome", "Nome (A–Z)"], ["recente", "Mais recente"]], "nome")}
+          </div>
+        </div>
+        <label style="margin-top:10px">Busca (nome, CPF ou observação)</label>
+        <input id="dr-busca" type="search" placeholder="Opcional" value="${esc(state.defesoSearch || "")}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px" />
+        <p style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--muted)">Documentos anexos (exige ter)</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <label class="pacote-check filter-check"><input type="checkbox" id="dr-doc-id" /> Identidade</label>
+          <label class="pacote-check filter-check"><input type="checkbox" id="dr-doc-pesca" /> Carteira de pesca</label>
+          <label class="pacote-check filter-check"><input type="checkbox" id="dr-doc-caf" /> CAF</label>
+        </div>
+        <p style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--muted)">Colunas no relatório</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px">
+          ${colOpts.map((c) => `
+            <label class="pacote-check filter-check">
+              <input type="checkbox" class="dr-col" value="${c.id}" ${c.locked ? "checked disabled" : "checked"} />
+              ${esc(c.label)}${c.locked ? " (obrigatório)" : ""}
+            </label>
+          `).join("")}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="dr-gerar">Gerar relatório</button>
+      </div>
+    `, "modal-wide");
+    backdrop.querySelector("#dr-gerar")?.addEventListener("click", () => {
+      const colunas = {};
+      backdrop.querySelectorAll(".dr-col").forEach((cb) => {
+        colunas[cb.value] = !!cb.checked || cb.value === "nome";
+      });
+      colunas.nome = true;
+      const filtros = {
+        localidade: backdrop.querySelector("#dr-localidade")?.value || "",
+        uf: (backdrop.querySelector("#dr-uf")?.value || "").trim().toUpperCase(),
+        entrada: backdrop.querySelector("#dr-entrada")?.value || "todas",
+        parcela: backdrop.querySelector("#dr-parcela")?.value || "todas",
+        telefone: backdrop.querySelector("#dr-telefone")?.value || "todos",
+        endereco: backdrop.querySelector("#dr-endereco")?.value || "todos",
+        observacao: backdrop.querySelector("#dr-observacao")?.value || "todos",
+        status: backdrop.querySelector("#dr-status")?.value || "",
+        ordenar: backdrop.querySelector("#dr-ordenar")?.value || "nome",
+        busca: backdrop.querySelector("#dr-busca")?.value || "",
+        doc_identidade: !!backdrop.querySelector("#dr-doc-id")?.checked,
+        doc_carteira: !!backdrop.querySelector("#dr-doc-pesca")?.checked,
+        doc_caf: !!backdrop.querySelector("#dr-doc-caf")?.checked,
+      };
+      backdrop._close(false);
+      api(
+        "generate_defeso_relatorio",
+        filtros.localidade,
+        filtros.entrada === "sim",
+        filtros.parcela === "com",
+        JSON.stringify(colunas),
+        JSON.stringify(filtros)
+      );
+    });
   }
 
   function refreshDefesoLocalidadeSelect() {
@@ -1998,6 +2111,7 @@
     if (q) {
       itens = itens.filter((x) =>
         String(x.nome || "").toLowerCase().includes(q)
+        || String(x.observacao || "").toLowerCase().includes(q)
         || (digits && String(x.cpf || "").includes(digits))
       );
     }
@@ -2014,6 +2128,10 @@
         x.tem_carteira_pesca ? "Pesca" : null,
         x.tem_caf ? "CAF" : null,
       ].filter(Boolean).join(" · ") || "sem anexos";
+      const obs = String(x.observacao || "").trim();
+      const obsLine = obs
+        ? `<p class="card-cpf" title="${esc(obs)}">Obs.: ${esc(obs.length > 90 ? obs.slice(0, 90) + "…" : obs)}</p>`
+        : "";
       return `
         <div class="card">
           <div class="card-head">
@@ -2021,6 +2139,7 @@
               <p class="card-name">${esc(x.nome_display || x.nome)}</p>
               <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio_reap ? ` · REAP: ${esc(x.municipio_reap)}` : ""}${x.municipio_defeso ? ` · Defeso: ${esc(x.municipio_defeso)}` : ""}${x.telefone_reap ? ` · ${esc(x.telefone_reap)}` : ""}</p>
               <p class="card-cpf">${esc(docs)}</p>
+              ${obsLine}
             </div>
             <div class="card-actions">
               <button type="button" class="btn btn-primary btn-sm" data-defeso-open="${esc(x.person_id || "")}" data-cpf="${esc(x.cpf || "")}" data-ficha="${esc(x.ficha_id || "")}">Abrir ficha</button>
@@ -2123,6 +2242,11 @@
             <input type="checkbox" id="df-entrada" />
             <span>Entrada confirmada</span>
           </label>
+          <div class="defeso-obs-box" style="margin-top:12px">
+            <label for="df-obs">Observação</label>
+            <textarea id="df-obs" rows="3" placeholder="Anotação interna da secretaria (aparece no relatório)" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;font-family:var(--font);resize:vertical"></textarea>
+            <p class="page-sub" style="margin:4px 0 0">Salva na planilha Defeso e pode sair no relatório HTML.</p>
+          </div>
         </div>
         <div class="form-actions defeso-actions" style="margin-top:14px">
           <button type="button" class="btn btn-outline-dark" id="df-back">← Lista</button>
@@ -2342,6 +2466,7 @@
       telefone_reap: ($("#df-tel-reap")?.value || "").trim(),
       parcelas,
       entrada_confirmada: !!($("#df-entrada") && $("#df-entrada").checked),
+      observacao: ($("#df-obs")?.value || "").trim(),
       status: "salvo",
     };
   }
@@ -2379,6 +2504,7 @@
       set("#df-parcela-" + (i + 1), parcelas[i] || "");
     }
     setChk("#df-entrada", d.entrada_confirmada);
+    set("#df-obs", d.observacao || "");
     const meta = $("#defeso-ficha-meta");
     if (meta) meta.textContent = d.atualizado_em ? `Atualizado ${d.atualizado_em}` : "Nova ficha";
     const hint = $("#df-drive-hint");

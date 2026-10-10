@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.53] — 2026-10-10 — Observação na ficha Defeso + filtros no relatório
+
+**Tag:** [`v1.7.53`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.53)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.53/SinapescREAP-Windows-v1.7.53.zip
+
+- Campo **Observação** na ficha de cada sócio (Defeso Fácil), gravado na planilha (coluna `observacao`)
+- Relatório HTML: coluna Observação + modal com filtros (entrada, parcelas, telefone, endereço, observação, docs, busca, colunas)
+- Mantém agrupamento por município do relatório
+
 ## [v1.7.52] — 2026-09-15 — Relatórios por município + consulta no HTML + vencidos
 
 **Tag:** [`v1.7.52`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.52)  
