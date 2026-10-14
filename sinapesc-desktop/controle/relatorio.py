@@ -8,6 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+from controle.relatorio_municipio import (
+    agrupar_por_municipio,
+    css_grupo_municipio,
+    html_cabecalho_municipio,
+    municipio_rotulo,
+)
 from sheets.models import MESES
 from ui.brand import asset_path
 from ui.formatters import format_cpf, format_nome
@@ -80,25 +86,38 @@ def montar_html(
             """
         )
     else:
-        body_rows = []
-        for s in itens:
-            sit = "Regular" if s.regular else "Pendente"
-            sit_cls = "ok" if s.regular else "warn"
-            marks = meses_marcados(s.pessoa, ano)
-            tds = "".join(
-                f'<td class="{"on" if marks[m] else "off"}">{"✓" if marks[m] else "·"}</td>'
-                for m in MESES
-            )
-            body_rows.append(
-                "<tr>"
-                f"<td>{html.escape(format_nome(s.pessoa.nome))}</td>"
-                f"<td>{html.escape(format_cpf(s.pessoa.cpf))}</td>"
-                f'<td class="{sit_cls}">{html.escape(sit)}</td>'
-                f"{tds}"
-                "</tr>"
-            )
+        body_rows: List[str] = []
+        grupos = agrupar_por_municipio(
+            list(itens),
+            lambda s: getattr(s.pessoa, "municipio", "") or "",
+            sort_nome=lambda s: format_nome(s.pessoa.nome),
+        )
+        # Sócio | CPF | Telefone | Município | Situação | meses…
+        colspan = 5 + len(MESES)
+        for mun_label, grupo in grupos:
+            body_rows.append(html_cabecalho_municipio(mun_label, colspan=colspan))
+            for s in grupo:
+                sit = "Regular" if s.regular else "Pendente"
+                sit_cls = "ok" if s.regular else "warn"
+                marks = meses_marcados(s.pessoa, ano)
+                tds = "".join(
+                    f'<td class="{"on" if marks[m] else "off"}">{"✓" if marks[m] else "·"}</td>'
+                    for m in MESES
+                )
+                tel = str(getattr(s.pessoa, "telefone", "") or "") or "—"
+                mun = str(getattr(s.pessoa, "municipio", "") or "") or "—"
+                body_rows.append(
+                    "<tr>"
+                    f"<td>{html.escape(format_nome(s.pessoa.nome))}</td>"
+                    f"<td>{html.escape(format_cpf(s.pessoa.cpf))}</td>"
+                    f"<td>{html.escape(tel)}</td>"
+                    f"<td>{html.escape(mun)}</td>"
+                    f'<td class="{sit_cls}">{html.escape(sit)}</td>'
+                    f"{tds}"
+                    "</tr>"
+                )
         thead = (
-            "<tr><th>Sócio</th><th>CPF</th><th>Situação</th>"
+            "<tr><th>Sócio</th><th>CPF</th><th>Telefone</th><th>Município</th><th>Situação</th>"
             + "".join(f"<th>{m.upper()}</th>" for m in MESES)
             + "</tr>"
         )
@@ -133,7 +152,8 @@ def montar_html(
     table {{ border-collapse: collapse; width: 100%; font-size: 12px; }}
     th, td {{ border: 1px solid #B7CDDD; padding: 6px 8px; text-align: center; }}
     th {{ background: #0A2F52; color: #EAF6FC; }}
-    td:first-child {{ text-align: left; }}
+    td:first-child, td:nth-child(4) {{ text-align: left; }}
+    {css_grupo_municipio()}
     .foot {{ margin-top: 18px; color: #5A7388; font-size: 12px; }}
     .disclaimer {{ margin-top: 10px; font-size: 11px; color: #5A7388; }}
     @media print {{
@@ -179,5 +199,10 @@ def itens_para_relatorio(
     regulares: Iterable[SituacaoReap],
 ) -> List[SituacaoReap]:
     todos = list(pendentes) + list(regulares)
-    todos.sort(key=lambda s: s.pessoa.nome.lower())
+    todos.sort(
+        key=lambda s: (
+            municipio_rotulo(getattr(s.pessoa, "municipio", "")),
+            s.pessoa.nome.lower(),
+        )
+    )
     return todos

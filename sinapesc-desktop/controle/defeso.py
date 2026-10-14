@@ -39,6 +39,7 @@ DEFESO_HEADER = [
     "telefoneReap",
     "parcelasRecebidas",
     "entradaConfirmada",
+    "observacao",
 ]
 
 MESES_PT = (
@@ -83,6 +84,7 @@ class FichaDefeso:
     telefone_reap: str = ""
     parcelas_recebidas: str = ""
     entrada_confirmada: str = ""
+    observacao: str = ""
 
     def to_row(self) -> List[str]:
         return [
@@ -110,6 +112,7 @@ class FichaDefeso:
             self.telefone_reap,
             self.parcelas_recebidas,
             self.entrada_confirmada,
+            self.observacao,
         ]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -159,6 +162,7 @@ def row_to_ficha(row: List[str] | None) -> Optional[FichaDefeso]:
         telefone_reap=cells[21].strip() if len(cells) > 21 else "",
         parcelas_recebidas=cells[22].strip() if len(cells) > 22 else "",
         entrada_confirmada=cells[23].strip() if len(cells) > 23 else "",
+        observacao=cells[24].strip() if len(cells) > 24 else "",
     )
 
 
@@ -196,6 +200,11 @@ def payload_to_ficha(payload: Dict[str, Any], *, existing: Optional[FichaDefeso]
             _flag_sim(payload.get("entrada_confirmada"))
             if "entrada_confirmada" in payload
             else base.entrada_confirmada
+        ),
+        observacao=(
+            str(payload.get("observacao") or "").strip()
+            if "observacao" in payload
+            else str(base.observacao or "").strip()
         ),
     )
 
