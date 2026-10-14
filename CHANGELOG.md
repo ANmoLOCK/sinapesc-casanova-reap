@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.56] — 2026-10-14 — Relatórios: aviso/CSV respeitam colunas
+
+**Tag:** [`v1.7.56`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.56)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.56/SinapescREAP-Windows-v1.7.56.zip
+
+- Aviso do HTML Defeso só cita município/telefone/endereço/obs se a coluna estiver ligada
+- Export CSV da Consulta RGP usa as mesmas colunas do modal (não força município)
+- Lista explícita de colunas vazia/inválida cai em «nome» (não restaura o padrão completo)
+- Mantém login único primário e filtros de verificação da v1.7.55
+
 ## [v1.7.55] — 2026-10-14 — Login único primário + filtros relatório + verificação RGP
 
 **Tag:** [`v1.7.55`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.55)  

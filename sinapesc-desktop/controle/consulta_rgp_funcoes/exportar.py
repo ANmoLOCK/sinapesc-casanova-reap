@@ -262,47 +262,77 @@ def _celula(reg: Any, col: str, *, senha_fallback: str = "") -> str:
 
 
 def _resolver_colunas(colunas: Optional[Sequence[str]], *, modo_geral: bool) -> List[str]:
+    """Resolve colunas do HTML/CSV.
+
+    - ``None`` / omitido → padrão do modo
+    - lista explícita (mesmo vazia/inválida) → nunca expande de volta ao padrão completo;
+      cai em ``["nome"]`` se nada válido restar
+    """
     allowed = {k for k, _ in COLUNAS_HTML}
+    if colunas is None:
+        return list(COLUNAS_PADRAO_GERAL if modo_geral else COLUNAS_PADRAO_EXPORT)
     raw = _norm_list(colunas)
     if not raw:
-        return list(COLUNAS_PADRAO_GERAL if modo_geral else COLUNAS_PADRAO_EXPORT)
+        return ["nome"]
     out = [c for c in raw if c in allowed]
-    return out or list(COLUNAS_PADRAO_GERAL if modo_geral else COLUNAS_PADRAO_EXPORT)
+    return out or ["nome"]
 
 
-def _rows_csv(regs: Sequence[Any]) -> List[List[str]]:
-    header = [
-        "nome",
-        "cpf",
-        "telefone",
-        "municipio",
-        "uf",
-        "situacaoRgp",
-        "ultimaConsultaEm",
-        "observacao",
-        "codigoRgp",
-        "categoria",
-        "email",
-        "govbrSenha",
-    ]
-    rows: List[List[str]] = [header]
+# id UI → cabeçalho CSV
+_CSV_COL_SPECS: List[tuple[str, str]] = [
+    ("nome", "nome"),
+    ("cpf", "cpf"),
+    ("telefone", "telefone"),
+    ("municipio", "municipio"),
+    ("uf", "uf"),
+    ("situacao", "situacaoRgp"),
+    ("ultima_consulta", "ultimaConsultaEm"),
+    ("observacao", "observacao"),
+    ("codigo_rgp", "codigoRgp"),
+    ("email", "email"),
+    ("govbr_senha", "govbrSenha"),
+]
+
+
+def _rows_csv(regs: Sequence[Any], colunas: Optional[Sequence[str]] = None) -> List[List[str]]:
+    """CSV respeita as mesmas colunas escolhidas no modal (quando informadas)."""
+    if colunas is None:
+        keys = [k for k, _ in _CSV_COL_SPECS]
+        # legado: inclui categoria mesmo sem checkbox no HTML
+        header = [h for _, h in _CSV_COL_SPECS] + ["categoria"]
+        rows: List[List[str]] = [header]
+        for r in regs:
+            rows.append(
+                [
+                    format_nome(str(getattr(r, "nome", "") or "")),
+                    format_cpf(str(getattr(r, "cpf", "") or "")),
+                    str(getattr(r, "telefone", "") or ""),
+                    str(getattr(r, "municipio", "") or ""),
+                    str(getattr(r, "uf", "") or ""),
+                    normalize_situacao(getattr(r, "situacao_rgp", "") or ""),
+                    str(getattr(r, "ultima_consulta_em", "") or ""),
+                    str(getattr(r, "observacao", "") or ""),
+                    str(getattr(r, "codigo_rgp", "") or ""),
+                    str(getattr(r, "email", "") or ""),
+                    str(getattr(r, "govbr_senha", "") or ""),
+                    str(getattr(r, "categoria", "") or ""),
+                ]
+            )
+        return rows
+
+    cols = _resolver_colunas(colunas, modo_geral=False)
+    specs = [(k, h) for k, h in _CSV_COL_SPECS if k in cols]
+    if not specs:
+        specs = [("nome", "nome")]
+    header = [h for _, h in specs]
+    rows = [header]
     for r in regs:
-        rows.append(
-            [
-                format_nome(str(getattr(r, "nome", "") or "")),
-                format_cpf(str(getattr(r, "cpf", "") or "")),
-                str(getattr(r, "telefone", "") or ""),
-                str(getattr(r, "municipio", "") or ""),
-                str(getattr(r, "uf", "") or ""),
-                normalize_situacao(getattr(r, "situacao_rgp", "") or ""),
-                str(getattr(r, "ultima_consulta_em", "") or ""),
-                str(getattr(r, "observacao", "") or ""),
-                str(getattr(r, "codigo_rgp", "") or ""),
-                str(getattr(r, "categoria", "") or ""),
-                str(getattr(r, "email", "") or ""),
-                str(getattr(r, "govbr_senha", "") or ""),
-            ]
-        )
+        # CSV: vazio em vez de "—" do HTML
+        cells = []
+        for k, _ in specs:
+            val = _celula(r, k)
+            cells.append("" if val == "—" else val)
+        rows.append(cells)
     return rows
 
 
@@ -518,7 +548,7 @@ def exportar_consulta_rgp(
         csv_path = pasta / f"consulta-rgp-{stamp}.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as fh:
             writer = csv.writer(fh)
-            for row in _rows_csv(filtrados):
+            for row in _rows_csv(filtrados, colunas=cols):
                 writer.writerow(row)
         out["csv_path"] = str(csv_path)
     if "html" in formatos:

@@ -21,7 +21,6 @@ from controle.relatorio_municipio import (
     agrupar_por_municipio,
     css_grupo_municipio,
     html_cabecalho_municipio,
-    municipio_rotulo,
 )
 from ui.formatters import display_nome, format_cpf, only_digits
 
@@ -285,11 +284,19 @@ def montar_html_defeso(
     ths = "".join(f"<th>{html.escape(headers[c])}</th>" for c in cols if c in headers)
     table = "<table><thead><tr>" + ths + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
 
-    aviso = (
-        "Uso interno. Só entram sócios cadastrados na planilha REAP (Pessoas). "
-        "Município e telefone vêm do REAP. Endereço: rua, nº, bairro, UF e CEP da ficha Defeso. "
-        "Observação: anotação interna da secretaria na ficha Defeso."
-    )
+    aviso_bits = ["Uso interno. Só entram sócios cadastrados na planilha REAP (Pessoas)."]
+    if "municipio" in cols or "telefone" in cols:
+        partes = []
+        if "municipio" in cols:
+            partes.append("município")
+        if "telefone" in cols:
+            partes.append("telefone")
+        aviso_bits.append((" e ".join(partes)).capitalize() + " vêm do REAP.")
+    if "endereco" in cols:
+        aviso_bits.append("Endereço: rua, nº, bairro, UF e CEP da ficha Defeso.")
+    if "observacao" in cols:
+        aviso_bits.append("Observação: anotação interna da secretaria na ficha Defeso.")
+    aviso = " ".join(aviso_bits)
     css_grupo = css_grupo_municipio() if agrupar else ""
 
     return f"""<!DOCTYPE html>
@@ -470,22 +477,18 @@ def itens_defeso_para_relatorio(
             }
         )
 
+    # Ordenação base por nome; município só como desempate secundário
+    # (o HTML agrupa por município só se a coluna estiver ativa).
     if fcfg["ordenar"] == "recente":
         out.sort(
             key=lambda r: (
                 str(r.get("atualizado_em") or ""),
-                municipio_rotulo(r.get("municipio")),
                 str(r.get("nome") or "").lower(),
             ),
             reverse=True,
         )
     else:
-        out.sort(
-            key=lambda r: (
-                municipio_rotulo(r.get("municipio")),
-                str(r.get("nome") or "").lower(),
-            )
-        )
+        out.sort(key=lambda r: str(r.get("nome") or "").lower())
     return out
 
 

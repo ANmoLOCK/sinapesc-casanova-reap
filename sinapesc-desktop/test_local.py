@@ -1406,6 +1406,8 @@ if __name__ == "__main__":
         test_consulta_rgp_sem_municipio_nao_agrupa,
         test_filtro_nao_consultados_e_recentes,
         test_ui_tem_filtros_verificacao,
+        test_aviso_defeso_respeita_colunas,
+        test_csv_respeita_colunas,
     )
     test_js_login_unico()
     test_tk_labels_login_unico()
@@ -1418,4 +1420,6 @@ if __name__ == "__main__":
     test_consulta_rgp_sem_municipio_nao_agrupa()
     test_filtro_nao_consultados_e_recentes()
     test_ui_tem_filtros_verificacao()
+    test_aviso_defeso_respeita_colunas()
+    test_csv_respeita_colunas()
     print("OK — testes locais passaram.")

@@ -117,11 +117,60 @@ def test_ui_tem_filtros_verificacao() -> None:
     fun = (ROOT / "web" / "js" / "consulta_rgp_funcoes.js").read_text(encoding="utf-8")
     assert 'value="nao_consultados"' in fun
     assert "matchPeriodoLocal" in fun
+    assert "CSV e HTML" in fun or "mesmas colunas" in fun
+
+
+def test_aviso_defeso_respeita_colunas() -> None:
+    from controle.defeso import FichaDefeso
+    from controle.defeso_relatorio import itens_defeso_para_relatorio, montar_html_defeso
+
+    f = FichaDefeso(nome="Ana", cpf="12345678901", observacao="x")
+    itens = itens_defeso_para_relatorio(
+        [f],
+        telefones_reap={},
+        municipios_reap={"12345678901": "Casa Nova"},
+        nomes_reap={"12345678901": "Ana"},
+        cpfs_reap=["12345678901"],
+    )
+    html = montar_html_defeso(
+        org_short="S",
+        org_full="T",
+        itens=itens,
+        titulo="R",
+        colunas=["nome", "observacao"],
+    )
+    # texto do aviso não cita município/telefone quando colunas estão off
+    start = html.find('class="disclaimer"')
+    disc = html[start: start + 500].lower()
+    assert "município" not in disc and "municipio" not in disc
+    assert "telefone" not in disc
+    assert "observa" in disc
+
+
+def test_csv_respeita_colunas() -> None:
+    from controle.consulta_rgp_funcoes.exportar import _resolver_colunas, _rows_csv
+
+    assert _resolver_colunas(None, modo_geral=True)[0] == "nome"
+    assert _resolver_colunas([], modo_geral=True) == ["nome"]
+    assert _resolver_colunas(["foo", "bar"], modo_geral=False) == ["nome"]
+    assert "municipio" not in _resolver_colunas(["nome", "cpf"], modo_geral=False)
+
+    class _R:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    regs = [_R(nome="Ana", cpf="09545332590", municipio="Remanso", telefone="1",
+               situacao_rgp="Ativo", ultima_consulta_em="", observacao="", email="",
+               uf="BA", codigo_rgp="", govbr_senha="")]
+    rows = _rows_csv(regs, colunas=["nome", "cpf"])
+    assert rows[0] == ["nome", "cpf"]
+    assert "municipio" not in rows[0]
+    assert len(rows[1]) == 2
 
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.7.55"' in theme
+    assert 'APP_VERSION = "1.7.56"' in theme
 
 
 if __name__ == "__main__":
@@ -129,5 +178,7 @@ if __name__ == "__main__":
     test_consulta_rgp_sem_municipio_nao_agrupa()
     test_filtro_nao_consultados_e_recentes()
     test_ui_tem_filtros_verificacao()
+    test_aviso_defeso_respeita_colunas()
+    test_csv_respeita_colunas()
     test_version()
     print("OK filtros_relatorio_bugs")

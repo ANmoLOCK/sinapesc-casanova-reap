@@ -342,7 +342,8 @@
         </div>
 
         <div class="rgp-rel-section">
-          <div class="rgp-rel-label">Colunas do relatório</div>
+          <div class="rgp-rel-label">Colunas ${modoExport ? "(CSV e HTML)" : "do relatório HTML"}</div>
+          <p class="page-sub" style="margin:0 0 6px">Desmarcar Município remove a coluna e o agrupamento «MUNICÍPIO — …». ${modoExport ? "O CSV usa as mesmas colunas." : ""}</p>
           <div class="rgp-rel-checks" id="rgp-rel-cols">
             ${colDefs.map(([k, lab]) => `
               <label><input type="checkbox" class="rgp-rel-col" value="${k}" ${colsDefault.includes(k) ? "checked" : ""} /> ${esc(lab)}</label>
