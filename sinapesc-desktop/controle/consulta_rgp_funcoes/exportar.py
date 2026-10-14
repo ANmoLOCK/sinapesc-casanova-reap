@@ -123,7 +123,7 @@ def filtrar_registros_export(
     """Filtra registros para export/relatório.
 
     ``com_senha``: "" | "any" | "com" | "sem"
-    ``consulta_periodo``: "" | "hoje" | "recentes" (últimos 7 dias com consulta)
+    ``consulta_periodo``: "" | "hoje" | "recentes" | "nao_consultados"
     """
     mun_q = (municipio or "").strip().lower()
     munis = [m.lower() for m in _norm_list(municipios)]
@@ -138,6 +138,14 @@ def filtrar_registros_export(
 
     periodo = (consulta_periodo or "").strip().lower()
     hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    so_nao_consultados = periodo in (
+        "nao_consultados",
+        "nao_consultado",
+        "não consultados",
+        "não consultado",
+        "nunca",
+        "sem_consulta",
+    )
     if periodo in ("hoje", "do_dia", "dia"):
         dt_de = hoje
         dt_ate = hoje.replace(hour=23, minute=59, second=59)
@@ -146,6 +154,9 @@ def filtrar_registros_export(
 
         dt_de = hoje - timedelta(days=6)  # últimos 7 dias incluindo hoje
         dt_ate = hoje.replace(hour=23, minute=59, second=59)
+    elif so_nao_consultados:
+        dt_de = None
+        dt_ate = None
     else:
         dt_de = _parse_data_filtro(ultima_de, fim_do_dia=False)
         dt_ate = _parse_data_filtro(ultima_ate, fim_do_dia=True)
@@ -174,14 +185,24 @@ def filtrar_registros_export(
             continue
 
         ultima = _parse_stamp_registro(str(getattr(r, "ultima_consulta_em", "") or ""))
-        if periodo in ("hoje", "do_dia", "dia", "recentes", "recente", "mais_recentes"):
+        if so_nao_consultados:
+            # Sem data de consulta OU situação «Não consultado»
+            sit_val = getattr(r, "situacao_rgp", "") or ""
+            if ultima is not None and not situacao_match_filtro(sit_val, "Não consultado"):
+                continue
+        elif periodo in ("hoje", "do_dia", "dia", "recentes", "recente", "mais_recentes"):
             # só quem já foi consultado no período
             if ultima is None:
                 continue
-        if dt_de and (ultima is None or ultima < dt_de):
-            continue
-        if dt_ate and (ultima is None or ultima > dt_ate):
-            continue
+            if dt_de and ultima < dt_de:
+                continue
+            if dt_ate and ultima > dt_ate:
+                continue
+        else:
+            if dt_de and (ultima is None or ultima < dt_de):
+                continue
+            if dt_ate and (ultima is None or ultima > dt_ate):
+                continue
 
         if q or (digits and len(digits) >= 3):
             blob = " ".join(
@@ -332,6 +353,10 @@ def _html_export(
                 "do_dia": "consultados hoje",
                 "recentes": "consultados nos últimos 7 dias",
                 "mais_recentes": "consultados nos últimos 7 dias",
+                "nao_consultados": "não consultados",
+                "nao_consultado": "não consultados",
+                "nunca": "não consultados",
+                "sem_consulta": "não consultados",
             }.get(text, text)
         if k == "ids_count":
             text = f"{text} registro(s)"
@@ -350,14 +375,27 @@ def _html_export(
     thead = "".join(f"<th>{html.escape(labels.get(c, c))}</th>" for c in cols)
     colspan = max(1, len(cols))
     trs: List[str] = []
-    grupos = agrupar_por_municipio(
-        list(regs),
-        lambda r: getattr(r, "municipio", ""),
-        sort_nome=lambda r: format_nome(str(getattr(r, "nome", "") or "")),
-    )
-    for mun_label, grupo in grupos:
-        trs.append(html_cabecalho_municipio(mun_label, colspan=colspan))
-        for r in grupo:
+    # Agrupa por município só quando a coluna município está ativa
+    agrupar = "municipio" in cols
+    regs_list = list(regs)
+    if agrupar:
+        grupos = agrupar_por_municipio(
+            regs_list,
+            lambda r: getattr(r, "municipio", ""),
+            sort_nome=lambda r: format_nome(str(getattr(r, "nome", "") or "")),
+        )
+        for mun_label, grupo in grupos:
+            trs.append(html_cabecalho_municipio(mun_label, colspan=colspan))
+            for r in grupo:
+                cells = "".join(
+                    f"<td>{html.escape(_celula(r, c, senha_fallback=senha_modulo))}</td>" for c in cols
+                )
+                trs.append(f"<tr>{cells}</tr>")
+    else:
+        regs_list.sort(
+            key=lambda r: format_nome(str(getattr(r, "nome", "") or "")).casefold()
+        )
+        for r in regs_list:
             cells = "".join(
                 f"<td>{html.escape(_celula(r, c, senha_fallback=senha_modulo))}</td>" for c in cols
             )
@@ -386,7 +424,7 @@ def _html_export(
   th, td {{ border: 1px solid #D5E4EE; padding: 6px 8px; text-align: left; vertical-align: top; }}
   th {{ background: #E7F1F7; }}
   tr:nth-child(even) td {{ background: #F8FBFD; }}
-  {css_grupo_municipio()}
+  {css_grupo_municipio() if agrupar else ""}
   @media print {{
     body {{ margin: 12px; }}
     .gov {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}

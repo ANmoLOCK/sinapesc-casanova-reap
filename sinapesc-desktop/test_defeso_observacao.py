@@ -80,7 +80,9 @@ def test_observacao_filtros_e_html() -> None:
     )
     assert "<th>Observação</th>" in html
     assert "Falta CAF" in html
-    assert "MUNICÍPIO" in html.upper() or "Casa Nova" in html
+    # Sem coluna município → sem cabeçalho de agrupamento
+    assert "MUNICÍPIO —" not in html
+    assert "<th>Município" not in html
 
 
 def test_js_e_servico_observacao() -> None:
@@ -95,9 +97,8 @@ def test_js_e_servico_observacao() -> None:
 
 
 def test_version() -> None:
-    from ui.theme import APP_VERSION
-
-    assert APP_VERSION == "1.7.54"
+    theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
+    assert 'APP_VERSION = "1.7.55"' in theme
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ from webapp import consulta_rgp_ext as ext  # noqa: E402
 
 def test_filtros_ui_oficiais():
     assert SITUACOES_FILTRO_UI == (
+        "Não consultado",
         "Ativo",
         "Aguardando análise",
         "Finalizada",
@@ -35,7 +36,7 @@ def test_filtros_ui_oficiais():
         "Aguardando atualização",
     )
     assert "Suspenso" not in SITUACOES_FILTRO_UI
-    assert "Não consultado" not in SITUACOES_FILTRO_UI
+    assert "Não consultado" in SITUACOES_FILTRO_UI
 
 
 def test_normalize_aguardando_atualizacao_curta():

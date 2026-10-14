@@ -130,19 +130,49 @@
     );
   }
 
+  function matchPeriodoLocal(r, periodo) {
+    const p = String(periodo || "").trim().toLowerCase();
+    if (!p) return true;
+    const raw = String(r.ultima_consulta_em || "").trim();
+    let d = null;
+    if (raw) {
+      let iso = raw.slice(0, 10).replace(/\//g, "-");
+      const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
+      d = new Date(`${iso}T12:00:00`);
+      if (Number.isNaN(d.getTime())) d = null;
+    }
+    if (p === "nao_consultados" || p === "nao_consultado") {
+      if (!d) return true;
+      const sit = String(r.situacao_rgp || "").trim().toLowerCase();
+      return !sit || sit === "não consultado" || sit === "nao consultado";
+    }
+    if (!d) return false;
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (p === "recentes" || p === "recente") start.setDate(start.getDate() - 6);
+    else if (p !== "hoje") return true;
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return d >= start && d <= end;
+  }
+
   function filteredIdsFromState(st) {
     const q = String((st && st.consultaRgpSearch) || "").trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     const filtro = (st && st.consultaRgpFiltro) || "";
+    const periodo = (st && st.consultaRgpPeriodo) || "";
     return ((st && st.consultaRgpItens) || [])
       .filter((r) => {
         if (filtro) {
-          const a = String(r.situacao_rgp || "").trim().toLowerCase();
+          const a = String(r.situacao_rgp || "").trim().toLowerCase() || "não consultado";
           const b = filtro.toLowerCase();
           if (a !== b && !(b.startsWith("aguardando atualiza") && a.startsWith("aguardando atualiza"))) {
-            return false;
+            if (!((b === "não consultado" || b === "nao consultado") && (!String(r.situacao_rgp || "").trim()))) {
+              return false;
+            }
           }
         }
+        if (periodo && !matchPeriodoLocal(r, periodo)) return false;
         if (!q) return true;
         const blob = [r.nome, r.cpf, r.telefone, r.municipio, r.observacao]
           .map((x) => String(x || "").toLowerCase()).join(" ");
@@ -195,21 +225,10 @@
       list = list.filter((r) => !String(r.govbr_senha || "").trim());
     }
     const periodo = opts.consulta_periodo || "";
-    if (periodo === "hoje" || periodo === "recentes") {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      if (periodo === "recentes") start.setDate(start.getDate() - 6);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      list = list.filter((r) => {
-        const raw = String(r.ultima_consulta_em || "").trim();
-        if (!raw) return false;
-        let iso = raw.slice(0, 10).replace(/\//g, "-");
-        const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-        if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
-        const d = new Date(`${iso}T12:00:00`);
-        if (Number.isNaN(d.getTime())) return false;
-        return d >= start && d <= end;
-      });
+    if (periodo === "nao_consultados" || periodo === "nao_consultado") {
+      list = list.filter((r) => matchPeriodoLocal(r, "nao_consultados"));
+    } else if (periodo === "hoje" || periodo === "recentes") {
+      list = list.filter((r) => matchPeriodoLocal(r, periodo));
     } else if (opts.ultima_de || opts.ultima_ate) {
       list = list.filter((r) => {
         const raw = String(r.ultima_consulta_em || "").trim();
@@ -286,8 +305,9 @@
           <label>Consulta (última consulta)
             <select id="rgp-rel-periodo">
               <option value="">Todas</option>
+              <option value="nao_consultados">Não consultados</option>
               <option value="hoje">Consultados hoje</option>
-              <option value="recentes">Consultados nos últimos 7 dias</option>
+              <option value="recentes">Consultados recentes (últimos 7 dias)</option>
             </select>
           </label>
           <label>Senha Gov.br

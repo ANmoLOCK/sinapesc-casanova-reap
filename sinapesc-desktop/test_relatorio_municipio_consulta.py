@@ -11,13 +11,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-# stub tkinter (ambiente cloud)
+# stub tkinter (ambiente cloud) — só se ainda não houver módulo real/stub
 if "tkinter" not in sys.modules:
-    tk = types.ModuleType("tkinter")
-    tk.TclError = Exception
-    sys.modules["tkinter"] = tk
-    for name in ("ttk", "messagebox", "filedialog", "font"):
-        sys.modules[f"tkinter.{name}"] = types.ModuleType(name)
+    try:
+        import tkinter as _tk  # noqa: F401
+    except Exception:
+        tk = types.ModuleType("tkinter")
+        tk.TclError = Exception
+
+        class _Canvas:  # mínimo para ui.widgets
+            pass
+
+        tk.Canvas = _Canvas
+        tk.Tk = type("Tk", (), {})
+        tk.Frame = type("Frame", (), {})
+        tk.Label = type("Label", (), {})
+        tk.Button = type("Button", (), {})
+        sys.modules["tkinter"] = tk
+        for name in ("ttk", "messagebox", "filedialog", "font"):
+            sys.modules[f"tkinter.{name}"] = types.ModuleType(name)
 
 
 from controle.consulta_rgp_funcoes.exportar import (  # noqa: E402
@@ -154,7 +166,7 @@ def test_agrupar_helper():
 
 def test_version():
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.7.52"' in theme
+    assert 'APP_VERSION = "1.7.55"' in theme
 
 
 def test_ui_has_periodo_filter():
@@ -162,8 +174,10 @@ def test_ui_has_periodo_filter():
     assert 'id="rgp-rel-periodo"' in js
     assert "Consultados hoje" in js
     assert "consulta_periodo" in js
+    assert "nao_consultados" in js
     app = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
     assert "temErro" in app or "fail_count" in app
+    assert "nao_consultados" in app
 
 
 if __name__ == "__main__":

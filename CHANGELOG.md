@@ -6,6 +6,15 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.7.55] — 2026-10-14 — Login único primário + filtros relatório + verificação RGP
+
+**Tag:** [`v1.7.55`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.55)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.55/SinapescREAP-Windows-v1.7.55.zip
+
+- **Login único primário:** app abre na tela de entrada; após autenticar, hub de módulos; ← Módulos troca sem pedir senha de novo; Sair volta ao login
+- **Bug relatório:** desmarcar Município remove a coluna e o agrupamento «MUNICÍPIO — …» (Defeso e Consulta RGP)
+- **Consulta RGP:** filtros de verificação — Não consultados, Consultados hoje, Consultados recentes (7 dias)
+
 ## [v1.7.54] — 2026-10-10 — Login único + observação Defeso + filtros relatório
 
 **Tag:** [`v1.7.54`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.54)  

@@ -44,6 +44,7 @@
     consultaRgpKpis: null,
     consultaRgpSearch: "",
     consultaRgpFiltro: "",
+    consultaRgpPeriodo: "", // "" | nao_consultados | recentes | hoje
     consultaRgpSelectedId: "",
     consultaRgpEditMode: false,
     consultaRgpSideTab: "resumo",
@@ -387,7 +388,40 @@
     return !["home", "login", "settings", "defeso", "defeso_ficha", "consulta_rgp"].includes(screen || "");
   }
 
+  function isPublicScreen(screen) {
+    return screen === "login" || screen === "settings";
+  }
+
+  function requireLogin(dest) {
+    if (state.loggedIn) return true;
+    state.afterLogin = dest || "home";
+    navigate("login", { push: false });
+    return false;
+  }
+
+  function sessionExpired(msg) {
+    const text = String(msg || "");
+    if (!/faça login|faca login|não autenticado|nao autenticado|administrador/i.test(text)) {
+      return false;
+    }
+    if (!/login/i.test(text)) return false;
+    state.loggedIn = false;
+    state.adminUser = "";
+    state.connLabel = "";
+    state.navHistory = [];
+    setFooter();
+    toast("Sessão encerrada. Entre de novo (login único).");
+    navigate("login", { push: false });
+    return true;
+  }
+
   function navigate(screen, { push = true, tab = null } = {}) {
+    // Gate: módulos só depois do login único
+    if (!state.loggedIn && !isPublicScreen(screen)) {
+      state.afterLogin = screen === "home" ? "home" : screen;
+      screen = "login";
+      push = false;
+    }
     const leavingSecretaria =
       state.loggedIn && isSecretariaScreen(state.screen) && !isSecretariaScreen(screen);
     if (push && state.screen && state.screen !== screen) {
@@ -404,7 +438,7 @@
 
   function goBack() {
     const prev = state.navHistory.pop();
-    navigate(prev || (state.loggedIn ? "admin" : "home"), { push: false });
+    navigate(prev || (state.loggedIn ? "home" : "login"), { push: false });
   }
 
   function tabForScreen(screen) {
@@ -454,6 +488,11 @@
       return b;
     };
 
+    if (state.screen === "login") {
+      headerActions.appendChild(mkBtn("⚙ Configurações", "btn-outline", () => navigate("settings")));
+      return;
+    }
+
     if (state.screen === "home") {
       if (state.loggedIn) {
         headerActions.appendChild(mkBtn("Sair", "btn-outline", doLogout));
@@ -463,10 +502,14 @@
     }
 
     if (state.screen === "defeso" || state.screen === "defeso_ficha") {
-      headerActions.appendChild(mkBtn("← Voltar", "btn-outline", () => {
-        if (state.screen === "defeso_ficha") navigate("defeso", { push: false });
-        else navigate("home", { push: false });
-      }));
+      headerActions.appendChild(mkBtn(
+        state.screen === "defeso_ficha" ? "← Voltar" : "← Módulos",
+        "btn-outline",
+        () => {
+          if (state.screen === "defeso_ficha") navigate("defeso", { push: false });
+          else navigate("home", { push: false });
+        }
+      ));
       if (state.loggedIn) {
         headerActions.appendChild(mkBtn("Sair", "btn-outline", doLogout));
       }
@@ -475,7 +518,7 @@
     }
 
     if (state.screen === "consulta_rgp") {
-      headerActions.appendChild(mkBtn("← Voltar", "btn-outline", () => navigate("home", { push: false })));
+      headerActions.appendChild(mkBtn("← Módulos", "btn-outline", () => navigate("home", { push: false })));
       if (state.loggedIn) {
         headerActions.appendChild(mkBtn("Sair", "btn-outline", doLogout));
       }
@@ -504,15 +547,15 @@
   }
 
   async function doLogout() {
-    await api("logout");
+    try { await api("logout"); } catch (_e) { /* ignore */ }
     state.loggedIn = false;
     state.adminUser = "";
     state.navHistory = [];
     state.expanded.clear();
     state.connLabel = "";
+    state.afterLogin = "home";
     setFooter();
-    loadPessoas();
-    navigate("home", { push: false });
+    navigate("login", { push: false });
   }
 
   function renderScreen() {
@@ -535,55 +578,39 @@
   }
 
   function goDefeso() {
-    if (state.loggedIn) {
-      navigate("defeso");
-      return;
-    }
-    state.afterLogin = "defeso";
-    navigate("login");
+    if (!requireLogin("defeso")) return;
+    navigate("defeso");
   }
 
   function goConsultaRgp() {
-    if (state.loggedIn) {
-      state.consultaRgpLoaded = false;
-      navigate("consulta_rgp");
-      loadConsultaRgp(true);
-      return;
-    }
-    state.afterLogin = "consulta_rgp";
-    navigate("login");
+    if (!requireLogin("consulta_rgp")) return;
+    state.consultaRgpLoaded = false;
+    navigate("consulta_rgp");
+    loadConsultaRgp(true);
   }
 
   function goReap() {
-    if (state.loggedIn) {
-      navigate("admin", { tab: "socies" });
-      loadPessoas();
-      return;
-    }
-    state.afterLogin = "admin";
-    navigate("login");
-  }
-
-  function goLoginUnico() {
-    state.afterLogin = "home";
-    navigate("login");
+    if (!requireLogin("admin")) return;
+    navigate("admin", { tab: "socies" });
+    loadPessoas();
   }
 
   function renderHome() {
-    const logged = !!state.loggedIn;
+    if (!state.loggedIn) {
+      navigate("login", { push: false });
+      return;
+    }
     setPage(`
       <div class="hero">
         <div class="hero-title">${esc(state.bootstrap?.org_short || "Sinapesc")}</div>
         <div class="hero-sub">${esc(state.bootstrap?.org_full || "")}</div>
-        <div class="hero-tag">${logged
-          ? "Sessão unificada · escolha o módulo"
-          : "Controle REAP · Defeso Fácil · Consulta RGP · consulta online"}</div>
+        <div class="hero-tag">Sessão unificada · escolha o módulo</div>
       </div>
       <div class="home-cards">
         <div class="home-card">
           <h3>Secretaria</h3>
           <p>Cadastre sócios, marque REAPs e importe lotes na planilha Google.</p>
-          <button type="button" class="btn btn-primary" id="go-reap">${logged ? "Abrir REAP" : "Entrar"}</button>
+          <button type="button" class="btn btn-primary" id="go-reap">Abrir REAP</button>
         </div>
         <div class="home-card">
           <h3>Defeso Fácil</h3>
@@ -601,32 +628,34 @@
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
-      <div class="tip-box">${logged
-        ? "Login único ativo: REAP, Defeso Fácil e Consulta RGP usam a mesma sessão. Use Sair no cabeçalho para encerrar."
-        : "Um único login libera REAP, Defeso Fácil e Consulta RGP. Entre uma vez e troque de módulo sem digitar a senha de novo."}</div>
+      <div class="tip-box">Login único ativo: troque de módulo com ← Módulos sem digitar a senha de novo. Use Sair só para encerrar a sessão.</div>
     `);
-    $("#go-reap").addEventListener("click", () => {
-      if (logged) goReap();
-      else goLoginUnico();
-    });
+    $("#go-reap").addEventListener("click", goReap);
     $("#go-defeso").addEventListener("click", goDefeso);
-    $("#go-lista").addEventListener("click", () => navigate("lista"));
+    $("#go-lista").addEventListener("click", () => {
+      if (!requireLogin("lista")) return;
+      navigate("lista");
+    });
     $("#go-consulta-rgp").addEventListener("click", goConsultaRgp);
   }
 
   function renderLogin() {
+    if (state.loggedIn) {
+      navigate("home", { push: false });
+      return;
+    }
     const email = state.bootstrap?.admin_email || "";
     setPage(`
       <div class="form-panel" style="max-width:400px;margin:28px auto">
         <h2 style="margin:0 0 2px;font-size:16px">Acesso unificado</h2>
-        <p class="page-sub">Uma entrada para REAP, Defeso Fácil e Consulta RGP.</p>
+        <p class="page-sub">Login único no início. Depois escolha REAP, Defeso Fácil ou Consulta RGP sem entrar de novo.</p>
         <p class="page-sub" style="margin-top:6px">${esc(state.bootstrap?.org_full || "")}</p>
         <label>E-mail</label>
         <input type="email" id="login-email" value="${esc(email)}" />
         <label>Senha</label>
-        <input type="password" id="login-pass" />
+        <input type="password" id="login-pass" autofocus />
         <div class="form-actions" style="justify-content:flex-end">
-          <button type="button" class="btn btn-outline-dark" id="login-cancel">Cancelar</button>
+          <button type="button" class="btn btn-outline-dark" id="login-settings">Configurações</button>
           <button type="button" class="btn btn-primary" id="login-btn">Entrar</button>
         </div>
       </div>
@@ -645,6 +674,7 @@
       state.navHistory = [];
       const dest = state.afterLogin || "home";
       state.afterLogin = "";
+      // Sempre volta ao hub de módulos após o login único (exceto destino explícito)
       if (dest === "defeso") navigate("defeso", { push: false });
       else if (dest === "consulta_rgp") {
         state.consultaRgpLoaded = false;
@@ -654,15 +684,16 @@
         navigate("admin", { push: false, tab: "socies" });
         loadPessoas();
         maybeBackupReminder();
+      } else if (dest === "lista") {
+        navigate("lista", { push: false });
       } else {
         navigate("home", { push: false });
         maybeBackupReminder();
       }
     };
     $("#login-btn").addEventListener("click", tryLogin);
-    $("#login-cancel")?.addEventListener("click", () => {
-      state.afterLogin = "";
-      navigate("home", { push: false });
+    $("#login-settings")?.addEventListener("click", () => {
+      navigate("settings", { push: false });
     });
     $("#login-pass").addEventListener("keydown", (e) => { if (e.key === "Enter") tryLogin(); });
   }
@@ -1925,6 +1956,13 @@
       state.bootstrap = r.data;
       $("#org-short").textContent = r.data.org_short;
       $("#org-full").textContent = r.data.org_full;
+      // Restaura sessão Python ↔ JS (evita pedir login de novo ao trocar de módulo)
+      if (r.data.logged_in) {
+        state.loggedIn = true;
+        state.adminUser = r.data.admin_user || r.data.admin_email || state.adminUser || "";
+        state.connLabel = state.connLabel || "Conectado";
+        setFooter();
+      }
     }
   }
 
@@ -1938,6 +1976,7 @@
   }
 
   function renderDefesoLista() {
+    if (!requireLogin("defeso")) return;
     setPage(`
       <div>
         <span class="page-title">Defeso Fácil</span>
@@ -2067,6 +2106,7 @@
           <label class="pacote-check filter-check"><input type="checkbox" id="dr-doc-caf" /> CAF</label>
         </div>
         <p style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--muted)">Colunas no relatório</p>
+        <p class="page-sub" style="margin:0 0 8px">Desmarcar Município remove a coluna e o agrupamento «MUNICÍPIO — …» do HTML.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px">
           ${colOpts.map((c) => `
             <label class="pacote-check filter-check">
@@ -2622,12 +2662,41 @@
     return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
 
+  function parseConsultaStamp(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return null;
+    let iso = s.slice(0, 10).replace(/\//g, "-");
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) iso = `${m[3]}-${m[2]}-${m[1]}`;
+    const d = new Date(`${iso}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function matchConsultaPeriodo(r, periodo) {
+    const p = String(periodo || "").trim().toLowerCase();
+    if (!p) return true;
+    const ultima = parseConsultaStamp(r.ultima_consulta_em);
+    if (p === "nao_consultados" || p === "nao_consultado") {
+      if (!ultima) return true;
+      return situacaoMatchFiltro(r.situacao_rgp, "Não consultado");
+    }
+    if (!ultima) return false;
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (p === "recentes" || p === "recente") start.setDate(start.getDate() - 6);
+    else if (p !== "hoje") return true;
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return ultima >= start && ultima <= end;
+  }
+
   function filtrarConsultaRgp() {
     const q = (state.consultaRgpSearch || "").trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     const filtro = state.consultaRgpFiltro || "";
+    const periodo = state.consultaRgpPeriodo || "";
     return (state.consultaRgpItens || []).filter((r) => {
       if (filtro && !situacaoMatchFiltro(r.situacao_rgp, filtro)) return false;
+      if (periodo && !matchConsultaPeriodo(r, periodo)) return false;
       if (!q) return true;
       const blob = [
         r.nome, r.nome_display, r.cpf, r.cpf_formatado, r.telefone, r.municipio, r.observacao,
@@ -2786,6 +2855,7 @@
 
   /** Filtros oficiais da UI (o robô MPA grava a situação verdadeira, não só estes). */
   const RGP_CHIP_SITUACOES = [
+    "Não consultado",
     "Ativo",
     "Aguardando análise",
     "Finalizada",
@@ -2793,12 +2863,23 @@
     "Aguardando atualização",
   ];
 
+  const RGP_CHIP_PERIODOS = [
+    { id: "nao_consultados", label: "Não consultados" },
+    { id: "hoje", label: "Consultados hoje" },
+    { id: "recentes", label: "Consultados recentes (7d)" },
+  ];
+
   function situacaoMatchFiltro(sit, filtro) {
     if (!filtro) return true;
     const a = String(sit || "").trim().toLowerCase();
     const b = String(filtro || "").trim().toLowerCase();
     if (!b) return true;
-    if (a === b) return true;
+    // Vazio na planilha = Não consultado
+    const aNorm = a || "não consultado";
+    if (aNorm === b || a === b) return true;
+    if (b === "não consultado" || b === "nao consultado") {
+      if (!a || aNorm === "não consultado" || aNorm === "nao consultado") return true;
+    }
     // Texto longo antigo do MPA ↔ filtro curto
     if (b.startsWith("aguardando atualiza") && a.startsWith("aguardando atualiza")) return true;
     if (b === "aguardando análise" || b === "aguardando analise") {
@@ -3152,6 +3233,7 @@
   }
 
   function renderConsultaRgp() {
+    if (!requireLogin("consulta_rgp")) return;
     const kpis = state.consultaRgpKpis || {
       total: 0, ativos: 0, ativos_pct: 0,
       aguardando_analise: 0, aguardando_analise_pct: 0,
@@ -3278,8 +3360,16 @@
                 </div>
                 <div class="rgp-filtro-wrap">
                   <select id="rgp-filtro" class="rgp-filtro-select" aria-label="Filtros">
-                    <option value="">▾ Filtros</option>
+                    <option value="">▾ Situação</option>
                     ${situacoesFiltro.map((s) => `<option value="${esc(s)}" ${s === state.consultaRgpFiltro ? "selected" : ""}>${esc(s)}</option>`).join("")}
+                  </select>
+                </div>
+                <div class="rgp-filtro-wrap">
+                  <select id="rgp-periodo" class="rgp-filtro-select" aria-label="Consulta">
+                    <option value="">▾ Consulta</option>
+                    ${RGP_CHIP_PERIODOS.map((p) => `
+                      <option value="${esc(p.id)}" ${state.consultaRgpPeriodo === p.id ? "selected" : ""}>${esc(p.label)}</option>
+                    `).join("")}
                   </select>
                 </div>
                 <button type="button" class="rgp-link" id="rgp-clear">Limpar filtros</button>
@@ -3287,8 +3377,14 @@
                 <button type="button" class="rgp-link" id="rgp-sel-clear">Limpar seleção</button>
                 <button type="button" class="rgp-link rgp-link-danger" id="rgp-excluir-sel-2">Excluir selecionados</button>
               </div>
-              <div class="rgp-chips" role="group" aria-label="Filtros rápidos">
-                <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todos</button>
+              <div class="rgp-chips" role="group" aria-label="Verificação de consulta">
+                <button type="button" class="rgp-chip ${!state.consultaRgpPeriodo ? "active" : ""}" data-periodo="">Todas as consultas</button>
+                ${RGP_CHIP_PERIODOS.map((p) => `
+                  <button type="button" class="rgp-chip ${state.consultaRgpPeriodo === p.id ? "active" : ""}" data-periodo="${esc(p.id)}">${esc(p.label)}</button>
+                `).join("")}
+              </div>
+              <div class="rgp-chips" role="group" aria-label="Filtros de situação">
+                <button type="button" class="rgp-chip ${!state.consultaRgpFiltro ? "active" : ""}" data-chip="">Todas situações</button>
                 ${RGP_CHIP_SITUACOES.map((s) => `
                   <button type="button" class="rgp-chip ${state.consultaRgpFiltro === s ? "active" : ""}" data-chip="${esc(s)}">${esc(s)}</button>
                 `).join("")}
@@ -3367,13 +3463,23 @@
       state.consultaRgpPage = 1;
       renderConsultaRgp();
     };
+    const setPeriodo = (val) => {
+      state.consultaRgpPeriodo = val || "";
+      state.consultaRgpPage = 1;
+      renderConsultaRgp();
+    };
     $("#rgp-filtro")?.addEventListener("change", (e) => setFiltro(e.target.value || ""));
+    $("#rgp-periodo")?.addEventListener("change", (e) => setPeriodo(e.target.value || ""));
     document.querySelectorAll(".rgp-chip[data-chip]").forEach((chip) => {
       chip.addEventListener("click", () => setFiltro(chip.dataset.chip || ""));
+    });
+    document.querySelectorAll(".rgp-chip[data-periodo]").forEach((chip) => {
+      chip.addEventListener("click", () => setPeriodo(chip.dataset.periodo || ""));
     });
     $("#rgp-clear")?.addEventListener("click", () => {
       state.consultaRgpSearch = "";
       state.consultaRgpFiltro = "";
+      state.consultaRgpPeriodo = "";
       state.consultaRgpPage = 1;
       renderConsultaRgp();
     });
@@ -3604,13 +3710,13 @@
           paintDefesoLista();
         }
         if (r.data?.aviso) toast(r.data.aviso, 6000);
-      } else toast(r.error);
+      } else if (!sessionExpired(r.error)) toast(r.error);
     });
     AppEvents.on("defeso_ficha", (r) => {
       if (r.ok) {
         state.defesoFicha = { ...(state.defesoFicha || {}), ...r.data };
         if (state.screen === "defeso_ficha") fillDefesoForm(r.data);
-      } else toast(r.error || "Erro ao abrir ficha.");
+      } else if (!sessionExpired(r.error)) toast(r.error || "Erro ao abrir ficha.");
     });
     AppEvents.on("defeso_saved", (r) => {
       if (r.ok) {
@@ -3667,7 +3773,7 @@
         }
       } else {
         state.consultaRgpLoaded = true; // evita loop de retry
-        toast(r.error || "Falha ao carregar Consulta RGP.");
+        if (!sessionExpired(r.error)) toast(r.error || "Falha ao carregar Consulta RGP.");
         if (state.screen === "consulta_rgp") renderConsultaRgp();
       }
     });
@@ -3891,7 +3997,14 @@
     }
     await refreshBootstrap();
     $("#app").classList.remove("hidden");
-    navigate("home", { push: false });
+    // Login único primário: começa na tela de entrada; hub só após autenticar
+    if (state.loggedIn) {
+      state.afterLogin = "";
+      navigate("home", { push: false });
+    } else {
+      state.afterLogin = "home";
+      navigate("login", { push: false });
+    }
   }
 
   window.addEventListener("pywebviewready", init);

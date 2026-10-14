@@ -1399,7 +1399,13 @@ if __name__ == "__main__":
         test_observacao_modelo_e_planilha,
         test_observacao_filtros_e_html,
         test_js_e_servico_observacao,
-        test_version_bump as test_obs_version,
+        test_version as test_obs_version,
+    )
+    from test_filtros_relatorio_bugs import (  # noqa: WPS433
+        test_defeso_sem_municipio_nao_agrupa,
+        test_consulta_rgp_sem_municipio_nao_agrupa,
+        test_filtro_nao_consultados_e_recentes,
+        test_ui_tem_filtros_verificacao,
     )
     test_js_login_unico()
     test_tk_labels_login_unico()
@@ -1408,4 +1414,8 @@ if __name__ == "__main__":
     test_observacao_filtros_e_html()
     test_js_e_servico_observacao()
     test_obs_version()
+    test_defeso_sem_municipio_nao_agrupa()
+    test_consulta_rgp_sem_municipio_nao_agrupa()
+    test_filtro_nao_consultados_e_recentes()
+    test_ui_tem_filtros_verificacao()
     print("OK — testes locais passaram.")

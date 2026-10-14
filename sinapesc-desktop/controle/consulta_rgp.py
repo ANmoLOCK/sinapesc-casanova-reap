@@ -70,6 +70,7 @@ SITUACAO_NAO_ENCONTRADO = "Não encontrado"
 
 # Filtro da tela Consulta RGP (chips + select) — só estes; o robô grava o que o MPA devolver
 SITUACOES_FILTRO_UI = (
+    SITUACAO_NAO_CONSULTADO,
     SITUACAO_ATIVO,
     SITUACAO_AGUARDANDO_ANALISE,
     SITUACAO_FINALIZADA,

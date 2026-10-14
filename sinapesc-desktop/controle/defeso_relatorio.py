@@ -262,15 +262,24 @@ def montar_html_defeso(
         return "<td>—</td>"
 
     rows: List[str] = []
-    grupos = agrupar_por_municipio(
-        list(itens),
-        lambda item: item.get("municipio") or "",
-        sort_nome=lambda item: display_nome(str(item.get("nome") or "")),
-    )
     colspan = max(1, len(cols))
-    for mun_label, grupo in grupos:
-        rows.append(html_cabecalho_municipio(mun_label, colspan=colspan))
-        for item in grupo:
+    # Agrupa por município SÓ se a coluna município estiver selecionada.
+    # Caso contrário o cabeçalho «MUNICÍPIO — …» vazava no HTML mesmo com a coluna desligada.
+    agrupar = "municipio" in cols
+    itens_ord = list(itens)
+    if agrupar:
+        grupos = agrupar_por_municipio(
+            itens_ord,
+            lambda item: item.get("municipio") or "",
+            sort_nome=lambda item: display_nome(str(item.get("nome") or "")),
+        )
+        for mun_label, grupo in grupos:
+            rows.append(html_cabecalho_municipio(mun_label, colspan=colspan))
+            for item in grupo:
+                rows.append("<tr>" + "".join(cell_for(item, c) for c in cols) + "</tr>")
+    else:
+        itens_ord.sort(key=lambda item: display_nome(str(item.get("nome") or "")).casefold())
+        for item in itens_ord:
             rows.append("<tr>" + "".join(cell_for(item, c) for c in cols) + "</tr>")
 
     ths = "".join(f"<th>{html.escape(headers[c])}</th>" for c in cols if c in headers)
@@ -281,6 +290,7 @@ def montar_html_defeso(
         "Município e telefone vêm do REAP. Endereço: rua, nº, bairro, UF e CEP da ficha Defeso. "
         "Observação: anotação interna da secretaria na ficha Defeso."
     )
+    css_grupo = css_grupo_municipio() if agrupar else ""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -300,7 +310,7 @@ def montar_html_defeso(
     td.addr, td.parc, td.obs {{ max-width: 240px; white-space: pre-line; }}
     .ok {{ color: #1B8458; font-weight: 700; }}
     .off {{ color: #5A7388; }}
-    {css_grupo_municipio()}
+    {css_grupo}
     .foot {{ margin-top: 18px; color: #5A7388; font-size: 12px; }}
     .disclaimer {{ margin-top: 10px; font-size: 11px; color: #5A7388; }}
     @media print {{ body {{ margin: 12px; }} .noprint {{ display: none; }} }}

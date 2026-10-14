@@ -15,9 +15,11 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.54** — Login único + observação Defeso + filtros no relatório.
+**v1.7.55** — Login único primário + correção filtros relatório + verificação RGP.
 
-**Download:** [SinapescREAP-Windows-v1.7.54.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.54/SinapescREAP-Windows-v1.7.54.zip)
+**Download:** [SinapescREAP-Windows-v1.7.55.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.55/SinapescREAP-Windows-v1.7.55.zip)
+
+**v1.7.54** — Login único + observação Defeso + filtros no relatório.
 
 **v1.7.53** — Observação na ficha Defeso (planilha + relatório/filtros).
 

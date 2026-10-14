@@ -348,7 +348,7 @@ class SinapescApp(tk.Tk):
         box = tk.Frame(wrap, bg=COLORS["surface"], padx=32, pady=28, highlightbackground=COLORS["border"], highlightthickness=1)
         box.pack(anchor="n", pady=40)
         tk.Label(box, text="Acesso unificado", bg=COLORS["surface"], fg=COLORS["primary"], font=(FONT_DISPLAY, 15, "bold")).pack(anchor="w")
-        tk.Label(box, text="Uma entrada para REAP, Defeso Fácil e Consulta RGP.", bg=COLORS["surface"], fg=COLORS["muted"], font=(FONT_FAMILY, 9)).pack(anchor="w", pady=(2, 2))
+        tk.Label(box, text="Login único no início. Depois escolha o módulo sem entrar de novo.", bg=COLORS["surface"], fg=COLORS["muted"], font=(FONT_FAMILY, 9)).pack(anchor="w", pady=(2, 2))
         tk.Label(box, text=ORG_FULL, bg=COLORS["surface"], fg=COLORS["muted"], font=(FONT_FAMILY, 9)).pack(anchor="w", pady=(2, 16))
 
         tk.Label(box, text="E-mail", bg=COLORS["surface"], fg=COLORS["muted"]).pack(anchor="w")
