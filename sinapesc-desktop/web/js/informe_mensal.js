@@ -26,6 +26,7 @@
     edit: null,
     busy: false,
     modal: null,
+    showProb: false,
   };
   window.SinapescInformeState = S;
 
@@ -77,6 +78,58 @@
     return (S.meta.meses_pesca || []).length || 8;
   }
 
+  function previsto(s, m) {
+    const i = (S.meta.meses_pesca || []).indexOf(m);
+    const plano = (s.resumo && s.resumo.plano) || [];
+    return i >= 0 && plano[i] ? Number(plano[i]) : 0;
+  }
+
+  function probMes(m, n) {
+    const p = S.meta.probabilidades && S.meta.probabilidades.por_mes && S.meta.probabilidades.por_mes[m];
+    return p ? Number(p[String(n)] || 0) : 0;
+  }
+
+  function pct(v) {
+    return `${(Number(v || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  }
+
+  function planoChipsHtml(s) {
+    const pesca = S.meta.meses_pesca || [];
+    const plano = (s.resumo && s.resumo.plano) || [];
+    if (!plano.length) return `<span class="im-plano-vazio">sorteado ao gerar o 1º mês</span>`;
+    return pesca.map((m, i) => {
+      const n = Number(plano[i] || 0);
+      const feito = !!(s.meses && s.meses[m]);
+      return `<span class="im-chip ${n === 8 ? "im-chip-8" : ""} ${feito ? "im-chip-ok" : ""}" title="${esc(titulo(m))}: ${n} espécies${feito ? " (gerado)" : " (previsto)"} · chance geral ${pct(probMes(m, n))}">${esc(titulo(m).slice(0, 3))} <strong>${n}</strong></span>`;
+    }).join("");
+  }
+
+  function probTabelaHtml() {
+    const p = S.meta.probabilidades || {};
+    const regras = S.meta.regras_probabilidade || {};
+    const conts = (S.meta.contagens || [4, 5, 6, 8]).map(String);
+    const pesca = S.meta.meses_pesca || [];
+    if (!p.por_mes) return "";
+    const linhas = conts.map((c) => `
+      <tr><th>${c} espécies</th>${pesca.map((m) => `<td class="${c === "8" ? "im-prob-8" : ""}">${pct(p.por_mes[m] && p.por_mes[m][c])}</td>`).join("")}</tr>`).join("");
+    const pesos = Object.entries(regras.peso_quantidade || {}).map(([k, v]) => `${k} → ${pct(v)}`).join(" · ");
+    return `
+      <div class="im-prob">
+        <div class="im-prob-head">Cálculo de probabilidade (${esc(p.amostras || 0)} simulações do sorteio)</div>
+        <div class="im-prob-text">
+          Peso base: ${esc(pesos)}. Cada vez que uma quantidade já apareceu no ano, o peso dela é multiplicado por
+          ${esc(regras.fator_repeticao ?? 0.45)} — por isso o cérebro tenta não repetir. Meses vizinhos nunca têm a mesma quantidade;
+          4, 5 e 6 aparecem no ano; 8 espécies no máximo 1 mês e só para ~${pct(regras.chance_socio_ter_8 ?? 0.35)} dos sócios
+          (mais provável no meio da safra). O plano de cada sócio é sorteado para não repetir o plano de outro sócio.
+        </div>
+        <div class="im-table-wrap"><table class="im-table im-prob-table">
+          <thead><tr><th></th>${pesca.map((m) => `<th>${esc(titulo(m).slice(0, 3))}</th>`).join("")}</tr></thead>
+          <tbody>${linhas}</tbody>
+        </table></div>
+        <div class="im-prob-text">Chance de o sócio ter um mês com 8: <strong>${pct(p.chance_ter_8)}</strong> · média ${esc(p.media_especies_ano || "—")} espécies-mês no ano.</div>
+      </div>`;
+  }
+
   function socioById(id) {
     return S.socios.find((s) => s.id === id) || null;
   }
@@ -108,6 +161,7 @@
     if (S.filtro === "completos") return g >= totalPesca();
     if (S.filtro === "nenhum") return g === 0;
     if (S.filtro === "avisos") return (s.resumo?.avisos || []).length > 0;
+    if (S.filtro === "iguais") return (s.padrao_igual || []).length > 0;
     return true;
   }
 
@@ -206,6 +260,7 @@
             <option value="nenhum" ${S.filtro === "nenhum" ? "selected" : ""}>Nenhum mês gerado</option>
             <option value="completos" ${S.filtro === "completos" ? "selected" : ""}>Completos (Mar–Out)</option>
             <option value="avisos" ${S.filtro === "avisos" ? "selected" : ""}>Com avisos do cérebro</option>
+            <option value="iguais" ${S.filtro === "iguais" ? "selected" : ""}>Com padrão igual a outro sócio</option>
           </select>
           <span class="im-legend">
             <span class="im-dot im-dot-ok"></span> gerado
@@ -213,6 +268,7 @@
             <span class="im-dot im-dot-pir"></span> piracema
           </span>
         </div>
+        <div id="im-iguais"></div>
         <div class="im-table-wrap">
           <table class="im-table">
             <thead>
@@ -258,6 +314,7 @@
       if (hint) hint.textContent = "Carregando…";
       return;
     }
+    paintIguais();
     const lista = filtrados();
     const completos = S.socios.filter((s) => (s.resumo?.gerados || 0) >= totalPesca()).length;
     if (hint) {
@@ -270,9 +327,10 @@
     tbody.innerHTML = lista.map((s) => {
       const g = s.resumo?.gerados || 0;
       const avisos = (s.resumo?.avisos || []).length;
+      const iguais = s.padrao_igual || [];
       return `
         <tr data-im-open="${esc(s.id)}" class="${g >= totalPesca() ? "im-row-ok" : ""}">
-          <td class="im-nome">${esc(s.nome)}${avisos ? ` <span class="im-badge-warn" title="${esc((s.resumo.avisos || []).join(" · "))}">!</span>` : ""}</td>
+          <td class="im-nome">${esc(s.nome)}${avisos ? ` <span class="im-badge-warn" title="${esc((s.resumo.avisos || []).join(" · "))}">!</span>` : ""}${iguais.length ? ` <span class="im-badge-igual" title="${esc(iguais.join(" · "))}">=</span>` : ""}</td>
           <td class="im-mono">${esc(s.cpf)}</td>
           <td>${esc(s.telefone || "—")}</td>
           <td>${esc(s.municipio || "—")}</td>
@@ -285,6 +343,21 @@
     tbody.querySelectorAll("tr[data-im-open]").forEach((tr) => {
       tr.addEventListener("click", () => openSocio(tr.dataset.imOpen));
     });
+  }
+
+  function paintIguais() {
+    const el = document.querySelector("#im-iguais");
+    if (!el) return;
+    const grupos = S.meta.padroes_iguais || [];
+    if (!grupos.length) {
+      el.innerHTML = S.loaded ? `<div class="im-iguais im-iguais-ok">Nenhum padrão igual entre sócios em ${esc(S.ano)}.</div>` : "";
+      return;
+    }
+    el.innerHTML = `
+      <details class="im-iguais">
+        <summary>⚠ ${grupos.length} padrão(ões) igual(is) entre sócios — clique para ver</summary>
+        ${grupos.map((g) => `<div class="im-iguais-item"><strong>${esc(g.descricao)}</strong><br>${esc((g.nomes || g.socios || []).join(", "))}</div>`).join("")}
+      </details>`;
   }
 
   // ---------------------------------------------------------- box do sócio
@@ -327,10 +400,11 @@
           <div class="im-mes-status">${r.dias} dias · ${r.n_especies} spp · ${r.peso_mes} kg</div>
         </button>`;
     }
+    const n = previsto(s, m);
     return `
-      <button type="button" class="im-mes im-mes-pend ${sel}" data-im-mes="${m}">
+      <button type="button" class="im-mes im-mes-pend ${sel} ${n === 8 ? "im-mes-oito" : ""}" data-im-mes="${m}">
         <div class="im-mes-nome">${esc(titulo(m))}</div>
-        <div class="im-mes-status">Pendente — gerar REAP</div>
+        <div class="im-mes-status">${n ? `Pendente — previsto ${n} spp` : "Pendente — gerar REAP"}</div>
       </button>`;
   }
 
@@ -340,6 +414,8 @@
     if (!box || !s) return;
     const resumo = s.resumo || {};
     const avisos = resumo.avisos || [];
+    const iguais = s.padrao_igual || [];
+    const perfil = resumo.perfil || {};
     box.innerHTML = `
       <div class="modal-head im-head">
         <div>
@@ -355,13 +431,24 @@
         <div class="im-resumo">
           <span><strong>${resumo.gerados || 0}/${resumo.total || totalPesca()}</strong> meses gerados</span>
           <span>Peso acumulado <strong>${resumo.peso_anual || 0} kg</strong> (alvo do ano ${resumo.alvo_peso_anual || "—"} kg · faixa ${S.meta.kg_ano_min || 540}–${S.meta.kg_ano_max || 650})</span>
-          <span>Espécies/mês: ${(resumo.contagens || []).join(", ") || "—"}</span>
         </div>
+        <div class="im-plano">
+          <span class="im-plano-label">Plano de espécies (Mar → Out)</span>
+          <span class="im-chips">${planoChipsHtml(s)}</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="im-prob-toggle">${S.showProb ? "Ocultar cálculo" : "Ver cálculo de probabilidade"}</button>
+        </div>
+        ${perfil.favoritas ? `<div class="im-perfil">Perfil do pescador: pesca mais ${esc(perfil.favoritas.join(", "))} · menos ${esc((perfil.menos || []).join(", "))} · melhor fase em ${esc(titulo(perfil.pico))}</div>` : ""}
+        ${S.showProb ? probTabelaHtml() : ""}
+        ${iguais.length ? `<div class="im-avisos im-avisos-igual">${iguais.map((a) => `<div>= ${esc(a)}</div>`).join("")}</div>` : ""}
         ${avisos.length ? `<div class="im-avisos">${avisos.map((a) => `<div>⚠ ${esc(a)}</div>`).join("")}</div>` : ""}
         <div class="im-detalhe" id="im-detalhe"></div>
       </div>
     `;
     box.querySelector("#im-close")?.addEventListener("click", closeSocio);
+    box.querySelector("#im-prob-toggle")?.addEventListener("click", () => {
+      S.showProb = !S.showProb;
+      paintSocio();
+    });
     box.querySelectorAll("[data-im-mes]").forEach((b) => {
       b.addEventListener("click", () => {
         if (S.busy) return;
@@ -390,8 +477,9 @@
         <div class="im-det-head">
           <div class="im-det-title">${esc(titulo(m))}/${esc(S.ano)} — ainda não gerado</div>
         </div>
-        <p class="im-det-help">O cérebro escolhe dias (${S.meta.dias_min || 16}–${S.meta.dias_max || 21}), quantidade de espécies (4/5/6/8),
-        peixes da época e kg sem repetir os meses já salvos deste sócio. Valor = preço varejo.</p>
+        <p class="im-det-help">${previsto(s, m) ? `Pelo plano deste sócio, ${esc(titulo(m))} terá <strong>${previsto(s, m)} espécies</strong> (chance geral ${pct(probMes(m, previsto(s, m)))}). ` : "O 1º mês gerado sorteia o plano de quantidades do ano (4/5/6, e 8 só para alguns sócios). "}
+        O cérebro escolhe dias (${S.meta.dias_min || 16}–${S.meta.dias_max || 21}), peixes da época e kg no ritmo próprio do pescador,
+        sem repetir os meses já salvos nem o padrão de outros sócios. Valor = preço varejo.</p>
         <div class="im-det-actions">
           <label class="im-inline">Município
             <select id="im-mun">${municipiosOpts(s.municipio_reap)}</select>
@@ -663,6 +751,13 @@
       return;
     }
     const d = r.data || {};
+    if (d.socio && Array.isArray(d.padroes_iguais)) {
+      d.socio.padrao_igual = d.padroes_iguais.map((g) => g.descricao);
+      d.padroes_iguais.forEach((g) => toast(`Padrão igual: ${g.descricao}`, 5200));
+    } else if (d.socio) {
+      const atual = socioById(d.socio.id);
+      d.socio.padrao_igual = (atual && atual.padrao_igual) || [];
+    }
     if (Number(d.ano) === Number(S.ano)) aplicarSocio(d.socio);
     S.edit = null;
     if (okMsg) toast(okMsg);

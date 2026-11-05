@@ -17,15 +17,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import lru_cache
 from itertools import combinations
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-MOTOR = "cerebro_reformulacao/v4-mensal"
+MOTOR = "cerebro_reformulacao/v5-plano"
 
 INFORME_TAB = "InformeMensal"
 INFORME_AUDITORIA_TAB = "InformeAuditoria"
@@ -68,9 +70,17 @@ ALVOS_KG_ANO = [540, 548, 555, 565, 575, 585, 595, 605, 615, 625, 635, 645, 650]
 DIAS_MIN = 16
 DIAS_MAX = 21
 CONTAGENS = (4, 5, 6, 8)
-# máximo de meses por contagem no ano (evita "4,4,4,4,4,4,6,8")
-CONTAGEM_MAX_ANO = {4: 3, 5: 3, 6: 3, 8: 2}
-CONTAGEM_PESO = {4: 3.0, 5: 2.2, 6: 2.2, 8: 1.3}
+CONTAGENS_OBRIGATORIAS = (4, 5, 6)
+# máximo de meses por quantidade no ano; 8 espécies = no máximo um mês
+CONTAGEM_MAX_ANO = {4: 3, 5: 3, 6: 3, 8: 1}
+# Sorteio do plano anual de quantidades (Mar → Out) de cada sócio
+PESO_QUANTIDADE = {4: 0.40, 5: 0.33, 6: 0.27}
+# cada repetição da mesma quantidade no ano multiplica o peso por este fator
+FATOR_REPETICAO = 0.45
+CHANCE_SOCIO_TER_8 = 0.35
+# mês com 8 espécies cai mais no meio da safra do que nas pontas
+PESO_POSICAO_8 = [0.55, 0.8, 1.0, 1.25, 1.25, 1.0, 0.8, 0.55]
+AMOSTRAS_PROBABILIDADE = 4000
 MUNICIPIOS = ("Casa Nova", "Remanso")
 
 LOCAL_PADRAO = {
@@ -125,9 +135,10 @@ INFORME_HEADER = [
     "atualizadoEm",
     "atualizadoPor",
     "motor",
+    "planoContagens",
 ]
-INFORME_HEADER_RANGE = "A1:X1"
-INFORME_DATA_RANGE = "A2:X"
+INFORME_HEADER_RANGE = "A1:Y1"
+INFORME_DATA_RANGE = "A2:Y"
 
 
 def now_stamp() -> str:
@@ -189,6 +200,7 @@ class InformeMes:
     atualizado_em: str = ""
     atualizado_por: str = ""
     motor: str = MOTOR
+    plano: str = ""
 
     @property
     def peso_mes(self) -> int:
@@ -230,6 +242,7 @@ class InformeMes:
             self.atualizado_em,
             self.atualizado_por,
             self.motor,
+            self.plano,
         ]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -259,6 +272,7 @@ class InformeMes:
             "atualizado_em": self.atualizado_em,
             "atualizado_por": self.atualizado_por,
             "motor": self.motor,
+            "plano": self.plano,
         }
 
 
@@ -330,6 +344,7 @@ def row_to_informe(row: Sequence[Any] | None) -> Optional[InformeMes]:
         atualizado_em=cells[21].strip(),
         atualizado_por=cells[22].strip(),
         motor=cells[23].strip() or MOTOR,
+        plano=cells[24].strip(),
     )
 
 
@@ -360,12 +375,217 @@ def assinatura_mes(mes: str, especies: Sequence[Especie], dias: int) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
 
+def _hash_int(texto: str) -> int:
+    return int(hashlib.sha256(texto.encode("utf-8")).hexdigest(), 16)
+
+
 def alvo_peso_anual(cpf: str, ano: int) -> int:
     """Alvo próprio (estável) do sócio no ano — cada sócio fecha num total diferente."""
-    h = int(hashlib.sha256(f"{cpf}|{ano}|alvo".encode("utf-8")).hexdigest(), 16)
+    h = _hash_int(f"{cpf}|{ano}|alvo")
     base = ALVOS_KG_ANO[h % len(ALVOS_KG_ANO)]
     jitter = (-6, -3, 0, 2, 5)[(h >> 8) % 5]
     return max(KG_ANO_MIN, min(KG_ANO_MAX, base + jitter))
+
+
+# --------------------------------------------------------------------------
+# Perfil humanizado do sócio (kg e espécies variam por pessoa)
+# --------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=4096)
+def _perfil_cache(chave: str) -> Tuple[Tuple[Tuple[str, float], ...], Tuple[Tuple[str, float], ...], int]:
+    rng = random.Random(_hash_int(f"{chave}|perfil"))
+    pref = tuple((n, round(rng.uniform(0.8, 1.25), 3)) for n in PRECOS_VAREJO)
+    pico = rng.randrange(len(MESES_PESCA))
+    amp = rng.uniform(0.08, 0.22)
+    ritmo = tuple(
+        (
+            m,
+            round(1 + amp * math.cos(2 * math.pi * (i - pico) / len(MESES_PESCA)) + rng.uniform(-0.04, 0.04), 3),
+        )
+        for i, m in enumerate(MESES_PESCA)
+    )
+    return pref, ritmo, pico
+
+
+def perfil_socio(cpf: str, ano: int) -> Dict[str, Any]:
+    """Preferência de cada sócio por espécie (0,80–1,25) e ritmo de produção por mês.
+
+    Estável por CPF + ano: o mesmo pescador tem sempre o mesmo "jeito" de pescar,
+    e dois pescadores nunca pescam igual.
+    """
+    pref, ritmo, pico = _perfil_cache(f"{cpf}|{ano}")
+    return {"pref": dict(pref), "ritmo": dict(ritmo), "pico": MESES_PESCA[pico]}
+
+
+def _fator(mes: str, nome: str, perfil: Dict[str, Any]) -> float:
+    return (ATIVIDADE.get(mes) or {}).get(nome, 1.0) * perfil["pref"].get(nome, 1.0)
+
+
+# --------------------------------------------------------------------------
+# Plano anual de quantidades de espécies (probabilístico, único por sócio)
+# --------------------------------------------------------------------------
+
+
+def plano_str(seq: Sequence[int]) -> str:
+    return "-".join(str(int(c)) for c in seq)
+
+
+def plano_parse(texto: str) -> Optional[List[int]]:
+    partes = [p for p in str(texto or "").replace(",", "-").split("-") if p.strip()]
+    try:
+        seq = [int(p) for p in partes]
+    except ValueError:
+        return None
+    if len(seq) != len(MESES_PESCA) or any(c not in CONTAGENS for c in seq):
+        return None
+    return seq
+
+
+def plano_valido(seq: Sequence[int]) -> bool:
+    if len(seq) != len(MESES_PESCA):
+        return False
+    if any(a == b for a, b in zip(seq, seq[1:])):
+        return False
+    if not set(CONTAGENS_OBRIGATORIAS).issubset(set(seq)):
+        return False
+    return all(list(seq).count(c) <= lim for c, lim in CONTAGEM_MAX_ANO.items())
+
+
+def _decidir_8(rng: random.Random, fixos: Dict[int, int]) -> bool:
+    """Sorteio único por sócio: terá (ou não) um mês com 8 espécies."""
+    if 8 in fixos.values():
+        return True
+    return rng.random() < CHANCE_SOCIO_TER_8
+
+
+def _sortear_sequencia(rng: random.Random, fixos: Dict[int, int], quer8: bool) -> List[int]:
+    n = len(MESES_PESCA)
+    livres = [i for i in range(n) if i not in fixos]
+    pos8 = None
+    if quer8 and 8 not in fixos.values() and livres:
+        pos8 = rng.choices(livres, weights=[PESO_POSICAO_8[i] for i in livres], k=1)[0]
+    seq: List[int] = []
+    for i in range(n):
+        if i in fixos:
+            seq.append(fixos[i])
+            continue
+        if i == pos8:
+            seq.append(8)
+            continue
+        prev = seq[-1] if seq else None
+        nxt = fixos.get(i + 1, 8 if pos8 == i + 1 else None)
+        usados = seq + [fixos[j] for j in fixos if j > i]
+        opcoes = [c for c in PESO_QUANTIDADE if c != prev and c != nxt] or [
+            c for c in PESO_QUANTIDADE if c != prev
+        ] or list(PESO_QUANTIDADE)
+        pesos = [PESO_QUANTIDADE[c] * (FATOR_REPETICAO ** usados.count(c)) for c in opcoes]
+        seq.append(rng.choices(opcoes, weights=pesos, k=1)[0])
+    return seq
+
+
+def sortear_plano(
+    rng: random.Random,
+    fixos: Optional[Dict[int, int]] = None,
+    evitar: Optional[Any] = None,
+    tentativas: int = 600,
+) -> List[int]:
+    """Sorteia Mar → Out respeitando os meses já salvos (``fixos``: índice → quantidade).
+
+    Regras: nunca a mesma quantidade em meses vizinhos, 4/5/6 aparecem no ano,
+    no máximo 3 meses com 4/5/6 e no máximo 1 mês com 8 (só ~35% dos sócios).
+    ``evitar`` = planos de outros sócios (set ou dict plano → nº de sócios); tenta
+    não repetir nenhum e, se o espaço esgotar, repete o plano menos usado.
+    """
+    fixos = dict(fixos or {})
+    uso: Dict[str, int] = dict(evitar) if isinstance(evitar, dict) else {k: 1 for k in (evitar or ())}
+    quer8 = _decidir_8(rng, fixos)
+    reserva: Optional[List[int]] = None
+    ultimo: List[int] = []
+    for i in range(tentativas):
+        # Só troca a decisão do 8 se não houver plano válido possível sem ela.
+        seq = _sortear_sequencia(rng, fixos, quer8 if i < tentativas // 2 or reserva else not quer8)
+        ultimo = seq
+        if not plano_valido(seq):
+            continue
+        txt = plano_str(seq)
+        if txt in uso:
+            if reserva is None or uso[txt] < uso[plano_str(reserva)]:
+                reserva = seq
+            continue
+        return seq
+    return reserva or ultimo
+
+
+@lru_cache(maxsize=512)
+def _probabilidades_cache(fixos_key: Tuple[Tuple[int, int], ...], amostras: int) -> Dict[str, Any]:
+    rng = random.Random(20260308)
+    fixos = dict(fixos_key)
+    cont = [{c: 0 for c in CONTAGENS} for _ in MESES_PESCA]
+    com8 = 0
+    validos = 0
+    soma = 0
+    for _ in range(amostras):
+        quer8 = _decidir_8(rng, fixos)
+        seq = None
+        for _t in range(200):
+            cand = _sortear_sequencia(rng, fixos, quer8)
+            if plano_valido(cand):
+                seq = cand
+                break
+        if seq is None:
+            continue
+        validos += 1
+        soma += sum(seq)
+        if 8 in seq:
+            com8 += 1
+        for i, c in enumerate(seq):
+            cont[i][c] += 1
+    total = max(1, validos)
+    return {
+        "por_mes": {
+            m: {str(c): round(cont[i][c] / total, 4) for c in CONTAGENS}
+            for i, m in enumerate(MESES_PESCA)
+        },
+        "chance_ter_8": round(com8 / total, 4),
+        "media_especies_ano": round(soma / total, 2),
+        "amostras": validos,
+    }
+
+
+def probabilidades_plano(
+    fixos: Optional[Dict[int, int]] = None, amostras: int = AMOSTRAS_PROBABILIDADE
+) -> Dict[str, Any]:
+    """Cálculo (Monte Carlo do próprio sorteio) da chance de cada quantidade por mês."""
+    key = tuple(sorted((int(i), int(c)) for i, c in (fixos or {}).items()))
+    return _probabilidades_cache(key, int(amostras))
+
+
+def regras_probabilidade() -> Dict[str, Any]:
+    return {
+        "peso_quantidade": {str(c): p for c, p in PESO_QUANTIDADE.items()},
+        "fator_repeticao": FATOR_REPETICAO,
+        "chance_socio_ter_8": CHANCE_SOCIO_TER_8,
+        "peso_posicao_8": dict(zip(MESES_PESCA, PESO_POSICAO_8)),
+        "max_por_ano": {str(c): v for c, v in CONTAGEM_MAX_ANO.items()},
+    }
+
+
+def plano_do_socio(salvos: Dict[str, "InformeMes"]) -> Optional[List[int]]:
+    """Plano gravado nas linhas do sócio (o mais recente), com os meses salvos por cima."""
+    linhas = sorted(
+        (r for r in salvos.values() if plano_parse(r.plano)),
+        key=lambda r: r.atualizado_em or r.gerado_em or "",
+        reverse=True,
+    )
+    if not linhas:
+        return None
+    seq = list(plano_parse(linhas[0].plano) or [])
+    for i, m in enumerate(MESES_PESCA):
+        r = salvos.get(m)
+        if r and r.houve_pesca:
+            seq[i] = len(r.especies)
+    return seq
 
 
 def _vizinhos(mes: str, salvos: Dict[str, InformeMes]) -> List[InformeMes]:
@@ -379,27 +599,28 @@ def _vizinhos(mes: str, salvos: Dict[str, InformeMes]) -> List[InformeMes]:
     return out
 
 
-def _escolher_contagem(rng: random.Random, mes: str, salvos: Dict[str, InformeMes]) -> int:
-    usados = [len(r.especies) for m, r in salvos.items() if m != mes and r.houve_pesca]
-    faltam = [c for c in CONTAGENS if c not in usados]
-    slots = len([m for m in MESES_PESCA if m not in salvos or m == mes])
-    vizinhos = {len(v.especies) for v in _vizinhos(mes, salvos)}
-
-    candidatos = [c for c in CONTAGENS if usados.count(c) < CONTAGEM_MAX_ANO[c]]
-    if faltam and len(faltam) >= slots:
-        candidatos = [c for c in faltam] or candidatos
-    if not candidatos:
-        candidatos = list(CONTAGENS)
-
-    pesos = []
-    for c in candidatos:
-        w = CONTAGEM_PESO[c]
-        if c in faltam:
-            w *= 1.7
-        if c in vizinhos:
-            w *= 0.15
-        pesos.append(w)
-    return rng.choices(candidatos, weights=pesos, k=1)[0]
+def _plano_para_mes(
+    cpf: str,
+    ano: int,
+    mes: str,
+    salvos: Dict[str, InformeMes],
+    outros_planos: Any,
+) -> List[int]:
+    fixos = {
+        MESES_PESCA.index(m): len(r.especies)
+        for m, r in salvos.items()
+        if m != mes and m in MESES_PESCA and r.houve_pesca
+    }
+    existente = plano_do_socio(salvos)
+    if existente:
+        candidato = list(existente)
+        for i, c in fixos.items():
+            candidato[i] = c
+        if plano_valido(candidato):
+            return candidato
+    fixos_txt = ",".join(f"{i}:{c}" for i, c in sorted(fixos.items()))
+    rng = random.Random(_hash_int(f"{cpf}|{ano}|plano|{fixos_txt}"))
+    return sortear_plano(rng, fixos=fixos, evitar=outros_planos)
 
 
 def _escolher_combo(
@@ -408,11 +629,11 @@ def _escolher_combo(
     n_esp: int,
     salvos: Dict[str, InformeMes],
     nomes_outros_socios: set,
+    perfil: Dict[str, Any],
 ) -> Tuple[str, ...]:
     nomes = list(PRECOS_VAREJO.keys())
     if n_esp >= len(nomes):
         return tuple(nomes)
-    atv = ATIVIDADE.get(mes) or {}
     usados_ano = {
         assinatura_nomes(e.nome for e in r.especies)
         for m, r in salvos.items()
@@ -423,7 +644,7 @@ def _escolher_combo(
     def score(cand: Tuple[str, ...]) -> float:
         fs = frozenset(cand)
         key = assinatura_nomes(cand)
-        s = sum(atv.get(n, 1.0) for n in cand) * 1.8
+        s = sum(_fator(mes, n, perfil) for n in cand) * 1.8
         s += rng.uniform(0, 1.5)
         if key in usados_ano:
             s -= 8.0
@@ -453,9 +674,8 @@ def _escolher_dias(rng: random.Random, mes: str, salvos: Dict[str, InformeMes]) 
     return rng.choice(opcoes)
 
 
-def _kg_base(rng: random.Random, mes: str, nome: str) -> int:
-    atv = (ATIVIDADE.get(mes) or {}).get(nome, 1.0)
-    centro = 11 + int(round((atv - 1.0) * 6))
+def _kg_base(rng: random.Random, mes: str, nome: str, perfil: Dict[str, Any]) -> int:
+    centro = 11 + int(round((_fator(mes, nome, perfil) - 1.0) * 6))
     centro += rng.choice([-2, -1, 0, 0, 1, 2])
     return max(KG_MIN, min(KG_MAX, centro))
 
@@ -463,23 +683,28 @@ def _kg_base(rng: random.Random, mes: str, nome: str) -> int:
 def _alvo_mes(
     rng: random.Random,
     mes: str,
-    n_esp: int,
+    plano: Sequence[int],
     salvos: Dict[str, InformeMes],
     alvo_ano: int,
+    perfil: Dict[str, Any],
 ) -> int:
+    idx = MESES_PESCA.index(mes)
+    n_esp = plano[idx]
     outros = [r for m, r in salvos.items() if m != mes and r.houve_pesca and m in MESES_PESCA]
-    acumulado = sum(r.peso_mes for r in outros)
-    restante = alvo_ano - acumulado
-    slots_depois = len([m for m in MESES_PESCA if m != mes and m not in salvos])
-    media_n = 5.6
-    if slots_depois == 0:
+    restante = alvo_ano - sum(r.peso_mes for r in outros)
+    pendentes = [
+        (i, m) for i, m in enumerate(MESES_PESCA) if m != mes and not (m in salvos and salvos[m].houve_pesca)
+    ]
+    ritmo = perfil["ritmo"]
+    if not pendentes:
         alvo = restante
     else:
-        share = n_esp / (n_esp + media_n * slots_depois)
-        alvo = int(round(restante * share * rng.uniform(0.9, 1.1)))
-        # deixa espaço viável para os meses que faltam (4–8 spp × 5–22 kg)
-        min_depois = slots_depois * 4 * KG_MIN
-        max_depois = slots_depois * 8 * KG_MAX
+        peso_aqui = n_esp * ritmo[mes]
+        peso_depois = sum(plano[i] * ritmo[m] for i, m in pendentes)
+        share = peso_aqui / (peso_aqui + peso_depois)
+        alvo = int(round(restante * share * rng.uniform(0.92, 1.08)))
+        min_depois = sum(plano[i] * KG_MIN for i, _ in pendentes)
+        max_depois = sum(plano[i] * KG_MAX for i, _ in pendentes)
         alvo = max(restante - max_depois, min(alvo, restante - min_depois))
     return max(n_esp * KG_MIN + 1, min(n_esp * KG_MAX - 1, alvo))
 
@@ -489,9 +714,9 @@ def _distribuir_kg(
     mes: str,
     combo: Sequence[str],
     alvo: int,
+    perfil: Dict[str, Any],
 ) -> Dict[str, int]:
-    kgs = {n: _kg_base(rng, mes, n) for n in combo}
-    atv = ATIVIDADE.get(mes) or {}
+    kgs = {n: _kg_base(rng, mes, n, perfil) for n in combo}
     for _ in range(600):
         total = sum(kgs.values())
         if total == alvo:
@@ -500,16 +725,16 @@ def _distribuir_kg(
             cands = [n for n in combo if kgs[n] < KG_MAX]
             if not cands:
                 break
-            cands.sort(key=lambda n: (-atv.get(n, 1.0) + rng.uniform(0, 0.35), kgs[n]))
+            cands.sort(key=lambda n: (-_fator(mes, n, perfil) + rng.uniform(0, 0.35), kgs[n]))
             kgs[cands[0]] += 1
         else:
             cands = [n for n in combo if kgs[n] > KG_MIN]
             if not cands:
                 break
-            cands.sort(key=lambda n: (atv.get(n, 1.0) + rng.uniform(0, 0.35), -kgs[n]))
+            cands.sort(key=lambda n: (_fator(mes, n, perfil) + rng.uniform(0, 0.35), -kgs[n]))
             kgs[cands[0]] -= 1
     if len(set(kgs.values())) < 2 and len(combo) >= 2:
-        ranked = sorted(combo, key=lambda n: atv.get(n, 1.0), reverse=True)
+        ranked = sorted(combo, key=lambda n: _fator(mes, n, perfil), reverse=True)
         hi, lo = ranked[0], ranked[-1]
         if kgs[hi] < KG_MAX and kgs[lo] > KG_MIN:
             kgs[hi] += 1
@@ -546,6 +771,7 @@ class ResultadoGeracao:
     alvo_ano: int
     avisos: List[str]
     tentativas: int
+    plano: List[int] = field(default_factory=list)
 
 
 def gerar_mes(
@@ -559,6 +785,7 @@ def gerar_mes(
     salvos: Dict[str, InformeMes],
     assinaturas_globais: Optional[set] = None,
     nomes_outros_socios: Optional[set] = None,
+    outros_planos: Optional[Any] = None,
     municipio: str = "Casa Nova",
     seed: Optional[int] = None,
     ator: str = "",
@@ -568,6 +795,8 @@ def gerar_mes(
     ``salvos`` = meses já gravados do mesmo sócio/ano (chave = mes curto).
     ``assinaturas_globais`` = assinaturas de todos os meses de todos os sócios
     (evita gerar um mês idêntico ao de outro pescador).
+    ``outros_planos`` = planos de quantidades dos outros sócios no ano
+    (o plano deste sócio é sorteado para não repetir nenhum).
     """
     mes = normalizar_mes(mes)
     if mes in MESES_PIRACEMA:
@@ -575,6 +804,7 @@ def gerar_mes(
     ano = int(ano)
     if seed is None:
         seed = secrets.randbits(48)
+    chave = cpf or person_id
     globais = set(assinaturas_globais or set())
     outros_nomes = set(nomes_outros_socios or set())
     anteriores = dict(salvos or {})
@@ -586,17 +816,19 @@ def gerar_mes(
         for m, r in anteriores.items()
         if m != mes and r.houve_pesca
     }
-    alvo_ano = alvo_peso_anual(cpf or person_id, ano)
+    alvo_ano = alvo_peso_anual(chave, ano)
+    perfil = perfil_socio(chave, ano)
+    plano = _plano_para_mes(chave, ano, mes, anteriores, outros_planos or {})
+    n_esp = plano[MESES_PESCA.index(mes)]
 
     escolhido: Optional[InformeMes] = None
     tentativa = 0
     for tentativa in range(1, 121):
         rng = random.Random(seed + tentativa * 97)
-        n_esp = _escolher_contagem(rng, mes, anteriores)
-        combo = _escolher_combo(rng, mes, n_esp, anteriores, outros_nomes)
+        combo = _escolher_combo(rng, mes, n_esp, anteriores, outros_nomes, perfil)
         dias = _escolher_dias(rng, mes, anteriores)
-        alvo = _alvo_mes(rng, mes, n_esp, anteriores, alvo_ano)
-        kgs = _distribuir_kg(rng, mes, combo, alvo)
+        alvo = _alvo_mes(rng, mes, plano, anteriores, alvo_ano, perfil)
+        kgs = _distribuir_kg(rng, mes, combo, alvo, perfil)
         ordem = _ordenar(rng, combo, mes, anteriores)
         especies = [Especie(n, int(kgs[n]), float(PRECOS_VAREJO[n])) for n in ordem]
         if len({e.kg for e in especies}) < 2:
@@ -624,6 +856,7 @@ def gerar_mes(
             gerado_por=ator,
             atualizado_em=agora,
             atualizado_por=ator,
+            plano=plano_str(plano),
         )
         break
     if escolhido is None:
@@ -634,7 +867,7 @@ def gerar_mes(
     simulado = dict(anteriores)
     simulado[mes] = escolhido
     avisos = validar_ano(simulado, alvo_ano=alvo_ano)
-    return ResultadoGeracao(escolhido, alvo_ano, avisos, tentativa)
+    return ResultadoGeracao(escolhido, alvo_ano, avisos, tentativa, list(plano))
 
 
 # --------------------------------------------------------------------------
@@ -698,10 +931,16 @@ def validar_ano(meses: Dict[str, InformeMes], *, alvo_ano: Optional[int] = None)
     for c, lim in CONTAGEM_MAX_ANO.items():
         if contagens.count(c) > lim:
             avisos.append(f"{contagens.count(c)} meses com {c} espécies (máx. {lim}).")
+    for a, b in zip(MESES_PESCA, MESES_PESCA[1:]):
+        ra, rb = meses.get(a), meses.get(b)
+        if ra and rb and ra.houve_pesca and rb.houve_pesca and len(ra.especies) == len(rb.especies):
+            avisos.append(
+                f"{MES_TITULO[a]} e {MES_TITULO[b]} com a mesma quantidade ({len(ra.especies)} espécies)."
+            )
     peso = peso_anual(meses)
     if len(feitos) == len(MESES_PESCA):
-        if not set(CONTAGENS).issubset(set(contagens)):
-            avisos.append("Ano sem a mistura 4 / 5 / 6 / 8 espécies.")
+        if not set(CONTAGENS_OBRIGATORIAS).issubset(set(contagens)):
+            avisos.append("Ano sem a mistura 4 / 5 / 6 espécies.")
         if not (KG_ANO_MIN <= peso <= KG_ANO_MAX):
             avisos.append(f"Peso anual {peso} kg fora da faixa {KG_ANO_MIN}–{KG_ANO_MAX}.")
     elif peso > KG_ANO_MAX:
@@ -728,6 +967,9 @@ def especies_de_payload(raw: Any) -> List[Especie]:
 
 def resumo_socio(meses: Dict[str, InformeMes], cpf: str, ano: int) -> Dict[str, Any]:
     feitos = [m for m in MESES_PESCA if m in meses and meses[m].houve_pesca]
+    perfil = perfil_socio(cpf, ano)
+    favoritas = sorted(perfil["pref"], key=lambda n: perfil["pref"][n], reverse=True)
+    plano = plano_do_socio(meses)
     return {
         "gerados": len(feitos),
         "total": len(MESES_PESCA),
@@ -735,8 +977,85 @@ def resumo_socio(meses: Dict[str, InformeMes], cpf: str, ano: int) -> Dict[str, 
         "faturamento_anual": faturamento_anual(meses),
         "alvo_peso_anual": alvo_peso_anual(cpf, ano),
         "contagens": [len(meses[m].especies) for m in feitos],
+        "plano": plano or [],
+        "plano_texto": plano_str(plano) if plano else "",
+        "padrao_atual": padrao_quantidades(meses),
+        "perfil": {
+            "favoritas": favoritas[:3],
+            "menos": favoritas[-2:],
+            "pico": perfil["pico"],
+            "ritmo": perfil["ritmo"],
+        },
         "avisos": validar_ano(meses),
     }
+
+
+def padrao_quantidades(meses: Dict[str, InformeMes]) -> str:
+    """Ex.: '4-6-5-·-·-·-·-·' (· = mês ainda não gerado)."""
+    return "-".join(
+        str(len(meses[m].especies)) if m in meses and meses[m].houve_pesca else "·"
+        for m in MESES_PESCA
+    )
+
+
+def padroes_iguais(
+    por_socio: Dict[str, Dict[str, InformeMes]],
+    *,
+    minimo_meses: int = 4,
+) -> List[Dict[str, Any]]:
+    """Grupos de sócios com padrão igual (quantidades, kg por mês ou mês idêntico)."""
+    grupos: List[Dict[str, Any]] = []
+
+    def _agrupar(tipo: str, descricao, chaves: Dict[str, Any]) -> None:
+        inv: Dict[Any, List[str]] = {}
+        for pid, key in chaves.items():
+            if key is not None:
+                inv.setdefault(key, []).append(pid)
+        for key, pids in inv.items():
+            if len(pids) >= 2:
+                grupos.append({"tipo": tipo, "descricao": descricao(key), "padrao": str(key), "socios": sorted(pids)})
+
+    quant: Dict[str, Any] = {}
+    kg: Dict[str, Any] = {}
+    planos: Dict[str, Any] = {}
+    for pid, meses in por_socio.items():
+        feitos = [m for m in MESES_PESCA if m in meses and meses[m].houve_pesca]
+        quant[pid] = padrao_quantidades(meses) if len(feitos) >= minimo_meses else None
+        kg[pid] = (
+            "-".join(str(meses[m].peso_mes) if m in feitos else "·" for m in MESES_PESCA)
+            if len(feitos) >= 2
+            else None
+        )
+        pl = plano_do_socio(meses)
+        planos[pid] = plano_str(pl) if pl else None
+
+    _agrupar("plano", lambda k: f"Mesmo plano anual de quantidades: {k}", planos)
+    ja = {tuple(g["socios"]) for g in grupos}
+    for pid in list(quant):
+        if quant[pid] is not None and "·" not in quant[pid]:
+            quant[pid] = None
+    _agrupar("quantidades", lambda k: f"Mesma quantidade de espécies por mês: {k}", quant)
+    grupos[:] = [g for g in grupos if g["tipo"] != "quantidades" or tuple(g["socios"]) not in ja]
+    _agrupar("kg", lambda k: f"Mesmos kg por mês: {k}", kg)
+
+    for m in MESES_PESCA:
+        mes_key: Dict[str, Any] = {}
+        for pid, meses in por_socio.items():
+            r = meses.get(m)
+            mes_key[pid] = assinatura_conjunto(r.especies) if r and r.houve_pesca else None
+        _agrupar(
+            "mes_identico",
+            lambda k, m=m: f"{MES_TITULO[m]} idêntico (mesmas espécies e kg): {k.split('|', 1)[1].replace('|', ', ')}",
+            mes_key,
+        )
+    vistos = set()
+    unicos = []
+    for g in grupos:
+        chave = (g["tipo"], tuple(g["socios"]), g["padrao"])
+        if chave not in vistos:
+            vistos.add(chave)
+            unicos.append(g)
+    return unicos
 
 
 def texto_para_site(reg: InformeMes) -> str:

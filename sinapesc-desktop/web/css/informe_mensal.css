@@ -150,6 +150,68 @@ body.screen-informe .tab-bar { display: none; }
   margin: 4px 0;
 }
 
+.im-avisos-igual { background: #FCEDEC; border-color: #EDB4AF; color: #7A2620; }
+.im-badge-igual {
+  display: inline-block;
+  width: 16px; height: 16px; line-height: 16px;
+  text-align: center;
+  border-radius: 50%;
+  background: #D9534F;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.im-iguais {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: #FCEDEC;
+  border: 1px solid #EDB4AF;
+  color: #7A2620;
+}
+.im-iguais summary { cursor: pointer; font-weight: 600; }
+.im-iguais-item { padding: 4px 0; border-top: 1px solid #F3D3D0; margin-top: 4px; }
+.im-iguais-ok { background: #EEF8F2; border-color: #9FD3B4; color: #1F7A4A; }
+
+.im-plano {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  padding: 6px 0;
+  border-top: 1px solid #EEF3F7;
+}
+.im-plano-label { color: var(--muted); font-weight: 600; }
+.im-plano-vazio { color: var(--muted); font-style: italic; }
+.im-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.im-chip {
+  border: 1px dashed #9DB6C9;
+  background: #fff;
+  color: var(--muted);
+  padding: 1px 6px;
+  font-size: 11.5px;
+}
+.im-chip strong { color: var(--primary); }
+.im-chip-ok { border-style: solid; border-color: #9FD3B4; background: #EEF8F2; }
+.im-chip-8 { border-color: #C77D00; background: #FFF1D6; }
+.im-chip-8 strong { color: #8A5600; }
+.im-mes-oito .im-mes-status { color: #8A5600; font-weight: 600; }
+.im-perfil { font-size: 12px; color: var(--muted); padding: 2px 0 6px; }
+.im-prob {
+  border: 1px solid #EEF3F7;
+  background: #F9FBFD;
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+}
+.im-prob-head { font-weight: 700; font-size: 12.5px; color: var(--primary); margin-bottom: 4px; }
+.im-prob-text { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 4px 0; }
+.im-prob-table { font-size: 11.5px; }
+.im-prob-table tbody tr { cursor: default; }
+.im-prob-table td, .im-prob-table th { text-align: right; padding: 3px 6px; }
+.im-prob-table tbody th { text-align: left; }
+.im-prob-8 { color: #8A5600; font-weight: 600; }
+
 .im-detalhe { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 10px; }
 .im-det-head { margin-bottom: 8px; }
 .im-det-title { font-weight: 700; font-size: 14px; color: var(--primary); }

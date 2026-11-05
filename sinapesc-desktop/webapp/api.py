@@ -2128,6 +2128,8 @@ class SinapescApi:
             "dias_max": im.DIAS_MAX,
             "contagens": list(im.CONTAGENS),
             "municipios": list(im.MUNICIPIOS),
+            "probabilidades": im.probabilidades_plano(),
+            "regras_probabilidade": im.regras_probabilidade(),
         }
 
     @staticmethod
@@ -2169,7 +2171,8 @@ class SinapescApi:
                 for p in svc.get_all_pessoas()
             ]
             socios.sort(key=lambda s: s["nome"].casefold())
-            return {"ano": ano_i, "socios": socios, **self._informe_meta()}
+            iguais = _informe_iguais(por_pessoa, socios)
+            return {"ano": ano_i, "socios": socios, "padroes_iguais": iguais, **self._informe_meta()}
 
         return self._run_async("informe_lista", work, "Carregando Informe Mensal…")
 
@@ -2200,6 +2203,17 @@ class SinapescApi:
                 for r in do_ano
                 if r.person_id != pid and r.mes == mes and r.houve_pesca
             }
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in do_ano:
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            outros_planos: Dict[str, int] = {}
+            for outro, meses_outro in por_pessoa.items():
+                if outro == pid:
+                    continue
+                pl = im.plano_do_socio(meses_outro)
+                if pl:
+                    txt = im.plano_str(pl)
+                    outros_planos[txt] = outros_planos.get(txt, 0) + 1
             municipio = (
                 municipio_req
                 or (anterior.municipio if anterior else "")
@@ -2215,6 +2229,7 @@ class SinapescApi:
                 salvos=salvos,
                 assinaturas_globais=globais,
                 nomes_outros_socios=nomes_outros,
+                outros_planos=outros_planos,
                 municipio=municipio,
                 ator=self._admin_user,
             )
@@ -2224,6 +2239,7 @@ class SinapescApi:
                 reg.gerado_por = anterior.gerado_por or reg.gerado_por
             inf.salvar(reg)
             salvos[mes] = reg
+            por_pessoa[pid] = salvos
             titulo = f"{im.MES_TITULO[mes]}/{ano_i}"
             resumo_mes = f"{len(reg.especies)} espécies, {reg.dias} dias, {reg.peso_mes} kg"
             if anterior:
@@ -2245,6 +2261,9 @@ class SinapescApi:
                 "regerado": bool(anterior),
                 "avisos": res.avisos,
                 "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+                "padroes_iguais": [
+                    g for g in im.padroes_iguais(por_pessoa) if pid in g["socios"]
+                ],
             }
 
         return self._run_async("informe_gerado", work, "Gerando REAP do mês…")
@@ -2298,6 +2317,7 @@ class SinapescApi:
                 atualizado_em=agora,
                 atualizado_por=self._admin_user,
                 motor=f"{im.MOTOR}+manual",
+                plano=anterior.plano,
             )
             mudancas = _informe_diff(anterior, reg)
             if not mudancas:
@@ -2415,6 +2435,22 @@ def _informe_args(payload: Any) -> Dict[str, Any]:
     if payload is None:
         return {}
     return _js_payload_to_dict(payload)
+
+
+def _informe_iguais(
+    por_pessoa: Dict[str, Dict[str, "im.InformeMes"]], socios: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Grupos de padrões iguais com nomes; marca ``padrao_igual`` em cada sócio."""
+    nomes = {s["id"]: s["nome"] for s in socios}
+    grupos = im.padroes_iguais(por_pessoa)
+    marcados: Dict[str, List[str]] = {}
+    for g in grupos:
+        g["nomes"] = [nomes.get(pid, pid) for pid in g["socios"]]
+        for pid in g["socios"]:
+            marcados.setdefault(pid, []).append(g["descricao"])
+    for s in socios:
+        s["padrao_igual"] = marcados.get(s["id"], [])
+    return grupos
 
 
 def _informe_ano(valor: Any) -> int:
