@@ -220,6 +220,7 @@
               <option value="excluir_informe" ${S.audAcao === "excluir_informe" ? "selected" : ""}>Excluiu</option>
               <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela geral</option>
               <option value="abrir_tabela_socio" ${S.audAcao === "abrir_tabela_socio" ? "selected" : ""}>Tabela do sócio</option>
+              <option value="config_especies_informe" ${S.audAcao === "config_especies_informe" ? "selected" : ""}>Peixes do cérebro</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -251,6 +252,7 @@
           </div>
           <div class="im-bar-actions">
             <label class="im-ano">Ano <select id="im-ano">${anos}</select></label>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="im-peixes" title="Escolhe quais peixes entram no cérebro (vale para todos os sócios)">Peixes do cérebro</button>
             <button type="button" class="btn btn-primary btn-sm" id="im-tabela" title="Abre no navegador uma tabela HTML com cada sócio e os meses preenchidos">Abrir tabela no navegador</button>
             <button type="button" class="btn btn-outline-dark btn-sm" id="im-refresh">Atualizar</button>
           </div>
@@ -288,6 +290,7 @@
     bindTabs();
     document.querySelector("#im-ano")?.addEventListener("change", (e) => load(e.target.value));
     document.querySelector("#im-refresh")?.addEventListener("click", () => load());
+    document.querySelector("#im-peixes")?.addEventListener("click", openConfigPeixes);
     document.querySelector("#im-tabela")?.addEventListener("click", () => {
       if (S.busy) return;
       S.busy = true;
@@ -330,7 +333,8 @@
     const lista = filtrados();
     const completos = S.socios.filter((s) => (s.resumo?.gerados || 0) >= totalPesca()).length;
     if (hint) {
-      hint.textContent = `${lista.length} de ${S.socios.length} sócio(s) · ${completos} completo(s) em ${S.ano} · abas InformeMensal / InformeAuditoria da planilha REAP`;
+      const nPeixes = (S.meta.especies_ativas || especiesAtivasNomes() || []).length || 8;
+      hint.textContent = `${lista.length} de ${S.socios.length} sócio(s) · ${completos} completo(s) em ${S.ano} · ${nPeixes} peixe(s) no cérebro · abas InformeMensal / InformeAuditoria`;
     }
     if (!lista.length) {
       tbody.innerHTML = `<tr><td colspan="8" class="im-empty">${S.socios.length ? "Nenhum sócio neste filtro." : "Nenhum sócio na planilha REAP. Cadastre em Abrir REAP."}</td></tr>`;
@@ -378,6 +382,82 @@
         abrirTabelaSocio(btn.dataset.imTabela);
       });
     });
+  }
+
+  function openConfigPeixes() {
+    const todas = S.meta.especies_todas || (S.meta.catalogo || []).map((c) => c.nome);
+    const ativas = new Set(S.meta.especies_ativas || todas);
+    const min = S.meta.especies_minimo || 4;
+    const precos = {};
+    (S.meta.catalogo || []).forEach((c) => { precos[c.nome] = c.preco; });
+    if (S.modalPeixes && S.modalPeixes.isConnected) S.modalPeixes.remove();
+    const boxes = todas.map((n) => `
+      <label class="im-peixe-item">
+        <input type="checkbox" data-im-peixe="${esc(n)}" ${ativas.has(n) ? "checked" : ""} />
+        <span class="im-peixe-nome">${esc(n)}</span>
+        <span class="im-peixe-preco">R$ ${fmtMoney(precos[n] || 0)}/kg</span>
+      </label>`).join("");
+    S.modalPeixes = window.sinapescCreateModal(`
+      <div class="im-peixes-box">
+        <div class="modal-head im-head">
+          <div>
+            <div class="im-head-nome">Peixes do cérebro</div>
+            <div class="im-head-meta">Configuração exclusiva do Informe Mensal · vale para <strong>todos</strong> os sócios</div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="im-peixes-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="im-det-help">Marque os peixes que o cérebro pode usar ao <strong>Gerar REAP</strong>.
+          Precisa de pelo menos <strong>${min}</strong>. Se marcar menos de 8, o mês com 8 espécies não entra no plano.</p>
+          <div class="im-peixes-grid" id="im-peixes-grid">${boxes}</div>
+          <div class="im-peixes-foot">
+            <span id="im-peixes-count"></span>
+            <div class="im-peixes-btns">
+              <button type="button" class="btn btn-ghost btn-sm" id="im-peixes-todos">Marcar todos</button>
+              <button type="button" class="btn btn-primary" id="im-peixes-salvar">Salvar seleção</button>
+            </div>
+          </div>
+        </div>
+      </div>`, "modal-wide im-modal");
+    S.modalPeixes._onClose = () => { S.modalPeixes = null; };
+
+    const syncCount = () => {
+      const n = S.modalPeixes.querySelectorAll("[data-im-peixe]:checked").length;
+      const el = S.modalPeixes.querySelector("#im-peixes-count");
+      if (el) {
+        el.textContent = `${n} de ${todas.length} selecionado(s)` +
+          (n < min ? ` · mínimo ${min}` : "") +
+          (n < 8 ? " · sem mês de 8 espécies" : "");
+        el.classList.toggle("im-peixes-warn", n < min);
+      }
+      const save = S.modalPeixes.querySelector("#im-peixes-salvar");
+      if (save) save.disabled = n < min || S.busy;
+    };
+    S.modalPeixes.querySelector("#im-peixes-close")?.addEventListener("click", () => {
+      if (S.modalPeixes && S.modalPeixes._close) S.modalPeixes._close(false);
+    });
+    S.modalPeixes.querySelector("#im-peixes-todos")?.addEventListener("click", () => {
+      S.modalPeixes.querySelectorAll("[data-im-peixe]").forEach((c) => { c.checked = true; });
+      syncCount();
+    });
+    S.modalPeixes.querySelectorAll("[data-im-peixe]").forEach((c) => {
+      c.addEventListener("change", syncCount);
+    });
+    S.modalPeixes.querySelector("#im-peixes-salvar")?.addEventListener("click", () => {
+      const sel = [...S.modalPeixes.querySelectorAll("[data-im-peixe]:checked")].map((c) => c.dataset.imPeixe);
+      if (sel.length < min) {
+        toast(`Selecione pelo menos ${min} peixes.`, 4200);
+        return;
+      }
+      if (S.busy) return;
+      S.busy = true;
+      toast("Salvando peixes do cérebro…", 2000);
+      api("salvar_informe_especies", JSON.stringify({ especies: sel })).catch((e) => {
+        S.busy = false;
+        toast(String(e));
+      });
+    });
+    syncCount();
   }
 
   function abrirTabelaSocio(id) {
@@ -614,11 +694,19 @@
     return lista.map((mu) => `<option ${mu === atual ? "selected" : ""}>${esc(mu)}</option>`).join("");
   }
 
+  function especiesAtivasNomes() {
+    return S.meta.especies_ativas || (S.meta.catalogo || []).filter((c) => c.ativo !== false).map((c) => c.nome);
+  }
+
   function especieOpts(atual, usados) {
-    return (S.meta.catalogo || []).map((c) => {
-      const off = usados.has(c.nome) && c.nome !== atual;
-      return `<option value="${esc(c.nome)}" ${c.nome === atual ? "selected" : ""} ${off ? "disabled" : ""}>${esc(c.nome)} (R$ ${fmtMoney(c.preco)})</option>`;
-    }).join("");
+    const ativas = new Set(especiesAtivasNomes());
+    return (S.meta.catalogo || [])
+      .filter((c) => ativas.has(c.nome) || c.nome === atual)
+      .map((c) => {
+        const off = usados.has(c.nome) && c.nome !== atual;
+        const marca = ativas.has(c.nome) ? "" : " · fora do cérebro";
+        return `<option value="${esc(c.nome)}" ${c.nome === atual ? "selected" : ""} ${off ? "disabled" : ""}>${esc(c.nome)}${marca} (R$ ${fmtMoney(c.preco)})</option>`;
+      }).join("");
   }
 
   function paintEdicao(el, s, m, r) {
@@ -627,7 +715,8 @@
     const kgMin = S.meta.kg_min || 5;
     const kgMax = S.meta.kg_max || 22;
     const total = ed.especies.reduce((a, e) => a + (parseInt(e.kg, 10) || 0), 0);
-    const podeAdd = ed.especies.length < (S.meta.catalogo || []).length;
+    const ativasN = especiesAtivasNomes();
+    const podeAdd = ed.especies.length < ativasN.length;
     el.innerHTML = `
       <div class="im-det-head">
         <div class="im-det-title">Editar ${esc(titulo(m))}/${esc(S.ano)}</div>
@@ -690,7 +779,8 @@
     }));
     el.querySelector("#im-ed-add")?.addEventListener("click", () => {
       syncFromDom();
-      const livre = (S.meta.catalogo || []).find((c) => !ed.especies.some((e) => e.nome === c.nome));
+      const ativas = new Set(especiesAtivasNomes());
+      const livre = (S.meta.catalogo || []).find((c) => ativas.has(c.nome) && !ed.especies.some((e) => e.nome === c.nome));
       if (livre) ed.especies.push({ nome: livre.nome, kg: 10 });
       paintDetalhe();
     });
@@ -756,6 +846,7 @@
     excluir_informe: "Excluiu",
     abrir_tabela_informe: "Abriu tabela",
     abrir_tabela_socio: "Tabela sócio",
+    config_especies_informe: "Peixes do cérebro",
   };
 
   function paintAuditoria() {
@@ -886,6 +977,25 @@
           5200
         );
       }
+    });
+    window.AppEvents.on("informe_especies_salvas", (r) => {
+      S.busy = false;
+      if (!r.ok) {
+        failed(r, "Falha ao salvar peixes do cérebro.");
+        return;
+      }
+      const d = r.data || {};
+      S.meta.especies_ativas = d.especies_ativas || [];
+      S.meta.catalogo = d.catalogo || S.meta.catalogo;
+      S.meta.contagens = d.contagens || S.meta.contagens;
+      S.meta.permite_8 = !!d.permite_8;
+      if (d.probabilidades) S.meta.probabilidades = d.probabilidades;
+      toast(
+        `Peixes do cérebro salvos (${(d.especies_ativas || []).length}): ${(d.especies_ativas || []).join(", ")}`,
+        5200
+      );
+      if (S.modalPeixes && S.modalPeixes._close) S.modalPeixes._close(false);
+      if (onScreen() && S.tab === "socios") paintTable();
     });
   }
 

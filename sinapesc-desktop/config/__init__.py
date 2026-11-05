@@ -71,6 +71,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "auto_start_tunnel": False,
     "ultimo_backup_em": "",
     "backup_adiado_em": "",
+    # Informe Mensal — peixes ativos no cérebro (universal). Vazio = todos.
+    "informe_especies": [],
 }
 
 

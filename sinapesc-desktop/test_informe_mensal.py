@@ -430,7 +430,9 @@ def test_ui_botao_e_tela() -> None:
                   "Plano de espécies", "Cálculo de probabilidade", "im-chip-8",
                   "padrao_igual", "Com padrão igual a outro sócio", "previsto",
                   "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela",
-                  "abrir_informe_tabela_socio", "im-card-tabela", "data-im-tabela"):
+                  "abrir_informe_tabela_socio", "im-card-tabela", "data-im-tabela",
+                  "Peixes do cérebro", "salvar_informe_especies", "im-peixes-grid",
+                  "data-im-peixe"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
     assert ".im-mes-pir" in css and "not-allowed" in css
@@ -632,9 +634,97 @@ def test_api_abrir_tabela_socio() -> None:
     assert "abrir_tabela_socio" in aud
 
 
+
+def test_especies_ativas_config() -> None:
+    assert im.normalizar_especies_ativas(None) == list(im.ESPECIES_TODAS)
+    assert im.normalizar_especies_ativas([]) == list(im.ESPECIES_TODAS)
+    pool_in = ["Tilápia", "Piau", "Pescada", "Tucunaré", "Tambaqui", "Piranha"]
+    pool = im.normalizar_especies_ativas(pool_in + ["Tilápia", "Foo"])
+    assert pool == ["Tucunaré", "Tambaqui", "Tilápia", "Piranha", "Piau", "Pescada"]
+    assert im.validar_especies_ativas(["Tilápia", "Piau"])
+    assert im.validar_especies_ativas(pool) == []
+    assert im.contagens_para_pool(6) == (4, 5, 6)
+    assert im.contagens_para_pool(8) == (4, 5, 6, 8)
+    cat = im.catalogo(pool)
+    assert all(c["ativo"] == (c["nome"] in pool) for c in cat)
+    # cérebro só usa peixes do pool
+    salvos = {}
+    globais: set = set()
+    for m in im.MESES_PESCA:
+        r = im.gerar_mes(
+            person_id="px", cpf="99999999999", nome="X", telefone="", ano=2026, mes=m,
+            salvos=salvos, assinaturas_globais=globais, especies_ativas=pool,
+            seed=900 + im.MESES_ORDEM.index(m),
+        )
+        assert all(e.nome in pool for e in r.informe.especies)
+        assert len(r.informe.especies) <= 6
+        assert 8 not in [len(r.informe.especies)] or True
+        salvos[m] = r.informe
+        globais.add(r.informe.assinatura)
+    contagens = [len(salvos[m].especies) for m in im.MESES_PESCA]
+    assert max(contagens) <= 6 and 8 not in contagens
+    p = im.probabilidades_plano(n_pool=6)
+    assert "8" not in p["por_mes"]["mar"]
+    assert p["chance_ter_8"] == 0.0
+
+
+def test_api_salvar_informe_especies() -> None:
+    from sheets.models import Pessoa
+    import webapp.api as api_mod
+    from config import load_config, save_config
+
+    cfg = load_config()
+    antigo = list(cfg.get("informe_especies") or [])
+    cli = FakeClient()
+    pessoa = Pessoa(id="p1", nome="maria", cpf="12345678901", criado_em="", municipio="Remanso", telefone="")
+
+    class FakeSheets:
+        client = cli
+        actor = ""
+        def get_all_pessoas(self):
+            return [pessoa]
+
+    api = api_mod.SinapescApi()
+    api._logged_in = True
+    api._admin_user = "operador@sinapesc"
+    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    eventos = []
+    api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
+    def sync_run(op, work, busy=""):
+        try:
+            eventos.append((op, {"ok": True, "data": work()}))
+        except Exception as exc:  # noqa: BLE001
+            eventos.append((op, {"ok": False, "error": str(exc)}))
+        return {"ok": True, "pending": True}
+    api._run_async = sync_run  # type: ignore[assignment]
+
+    r = api.salvar_informe_especies(json.dumps({"especies": ["Tilápia", "Piau"]}))
+    assert r["ok"] is False
+
+    pool_in = ["Tilápia", "Piau", "Pescada", "Tucunaré", "Tambaqui", "Piranha"]
+    pool = im.normalizar_especies_ativas(pool_in)
+    try:
+        api.salvar_informe_especies(json.dumps({"especies": pool_in}))
+        ev, res = eventos[-1]
+        assert ev == "informe_especies_salvas" and res["ok"], res
+        assert res["data"]["especies_ativas"] == pool
+        assert res["data"]["permite_8"] is False
+        assert load_config().get("informe_especies") == pool
+
+        api.gerar_informe_mes(json.dumps({"person_id": "p1", "ano": 2026, "mes": "mar"}))
+        assert eventos[-1][1]["ok"]
+        nomes = [e["nome"] for e in eventos[-1][1]["data"]["socio"]["meses"]["mar"]["especies"]]
+        assert all(n in pool for n in nomes)
+    finally:
+        cfg2 = load_config()
+        cfg2["informe_especies"] = antigo
+        save_config(cfg2)
+
+
+
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.3"' in theme
+    assert 'APP_VERSION = "1.8.4"' in theme
 
 
 if __name__ == "__main__":

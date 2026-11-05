@@ -6,6 +6,16 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.4] — 2026-11-05 — Informe Mensal: peixes do cérebro
+
+**Tag:** [`v1.8.4`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.4/SinapescREAP-Windows-v1.8.4.zip
+
+- Configuração exclusiva do Informe Mensal: botão **Peixes do cérebro** com os 8 peixes em caixas de seleção
+- A seleção é **universal** (vale para todos os sócios) e grava em `config.json` (`informe_especies`)
+- O cérebro só gera REAP com os peixes marcados; mínimo 4; com menos de 8 peixes o mês de 8 espécies some do plano
+- Auditoria registra a mudança (`config_especies_informe`)
+
 ## [v1.8.3] — 2026-11-05 — Informe Mensal: card Tabela por sócio
 
 **Tag:** [`v1.8.3`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3)  

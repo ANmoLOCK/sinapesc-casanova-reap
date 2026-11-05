@@ -319,6 +319,11 @@ class SinapescApi:
             cfg["consulta_rgp_importar_auto"] = bool(payload.get("consulta_rgp_importar_auto"))
         if "consulta_rgp_govbr_opcional" in payload:
             cfg["consulta_rgp_govbr_opcional"] = bool(payload.get("consulta_rgp_govbr_opcional"))
+        if "informe_especies" in payload:
+            erros_esp = im.validar_especies_ativas(payload.get("informe_especies"))
+            if erros_esp:
+                return err(" ".join(erros_esp))
+            cfg["informe_especies"] = im.normalizar_especies_ativas(payload.get("informe_especies"))
         if "public_site_url" in payload:
             base = normalize_public_base(str(payload.get("public_site_url") or ""))
             cfg["public_site_url"] = base
@@ -2112,9 +2117,18 @@ class SinapescApi:
         return self._informe_service
 
     @staticmethod
-    def _informe_meta() -> Dict[str, Any]:
+    def _informe_especies_cfg() -> List[str]:
+        return im.normalizar_especies_ativas(load_config().get("informe_especies"))
+
+    @classmethod
+    def _informe_meta(cls) -> Dict[str, Any]:
+        ativas = cls._informe_especies_cfg()
+        n_pool = len(ativas)
         return {
-            "catalogo": im.catalogo(),
+            "catalogo": im.catalogo(ativas),
+            "especies_ativas": ativas,
+            "especies_todas": list(im.ESPECIES_TODAS),
+            "especies_minimo": im.MIN_ESPECIES_ATIVAS,
             "meses_ordem": im.MESES_ORDEM,
             "meses_pesca": im.MESES_PESCA,
             "meses_piracema": im.MESES_PIRACEMA,
@@ -2126,10 +2140,11 @@ class SinapescApi:
             "kg_ano_max": im.KG_ANO_MAX,
             "dias_min": im.DIAS_MIN,
             "dias_max": im.DIAS_MAX,
-            "contagens": list(im.CONTAGENS),
+            "contagens": list(im.contagens_para_pool(n_pool)),
             "municipios": list(im.MUNICIPIOS),
-            "probabilidades": im.probabilidades_plano(),
+            "probabilidades": im.probabilidades_plano(n_pool=n_pool),
             "regras_probabilidade": im.regras_probabilidade(),
+            "permite_8": n_pool >= 8,
         }
 
     @staticmethod
@@ -2275,6 +2290,38 @@ class SinapescApi:
             "informe_tabela_socio", work, "Gerando tabela individual do sócio…"
         )
 
+    def salvar_informe_especies(self, payload: Any = None) -> Dict[str, Any]:
+        """Config exclusiva do Informe Mensal: peixes que entram no cérebro (universal)."""
+        data = _informe_args(payload)
+        erros = im.validar_especies_ativas(data.get("especies"))
+        if erros:
+            return err(" ".join(erros))
+        ativas = im.normalizar_especies_ativas(data.get("especies"))
+
+        def work():
+            cfg = load_config()
+            cfg["informe_especies"] = ativas
+            save_config(cfg)
+            try:
+                self._ensure_informe().registrar_auditoria(
+                    "config_especies_informe",
+                    f"Configurou peixes do cérebro ({len(ativas)}): {', '.join(ativas)}",
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            return {
+                "especies_ativas": ativas,
+                "catalogo": im.catalogo(ativas),
+                "contagens": list(im.contagens_para_pool(len(ativas))),
+                "permite_8": len(ativas) >= 8,
+                "probabilidades": im.probabilidades_plano(n_pool=len(ativas)),
+                "resumo": im.resumo_especies_ativas(ativas),
+            }
+
+        return self._run_async(
+            "informe_especies_salvas", work, "Salvando peixes do Informe Mensal…"
+        )
+
     def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
         data = _informe_args(payload)
         pid = str(data.get("person_id") or "").strip()
@@ -2331,6 +2378,7 @@ class SinapescApi:
                 outros_planos=outros_planos,
                 municipio=municipio,
                 ator=self._admin_user,
+                especies_ativas=self._informe_especies_cfg(),
             )
             reg = res.informe
             if anterior:

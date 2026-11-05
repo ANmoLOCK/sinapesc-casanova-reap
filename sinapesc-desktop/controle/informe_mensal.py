@@ -61,6 +61,62 @@ PRECOS_VAREJO: Dict[str, float] = {
     "Piau": 14.0,
     "Pescada": 19.0,
 }
+# ordem fixa do catálogo (configuração universal do Informe Mensal)
+ESPECIES_TODAS: Tuple[str, ...] = tuple(PRECOS_VAREJO.keys())
+MIN_ESPECIES_ATIVAS = 4
+
+
+def normalizar_especies_ativas(raw: Any = None) -> List[str]:
+    """Lista canônica dos peixes ativos no cérebro (universal para todos os sócios).
+
+    Vazio / inválido → todos os 8. Ordem = ``ESPECIES_TODAS``.
+    """
+    if raw is None or raw == "" or raw == []:
+        return list(ESPECIES_TODAS)
+    if isinstance(raw, str):
+        partes = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        partes = [str(p).strip() for p in raw if str(p).strip()]
+    else:
+        return list(ESPECIES_TODAS)
+    vistos = set()
+    out: List[str] = []
+    for nome in ESPECIES_TODAS:
+        if nome in partes and nome not in vistos:
+            out.append(nome)
+            vistos.add(nome)
+    return out or list(ESPECIES_TODAS)
+
+
+def validar_especies_ativas(raw: Any) -> List[str]:
+    """Erros da seleção (precisa de pelo menos ``MIN_ESPECIES_ATIVAS`` peixes do catálogo)."""
+    if raw is None or raw == "" or raw == []:
+        return []
+    if isinstance(raw, str):
+        partes = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        partes = [str(p).strip() for p in raw if str(p).strip()]
+    else:
+        return ["Seleção de peixes inválida."]
+    desconhecidos = [p for p in partes if p not in PRECOS_VAREJO]
+    erros: List[str] = []
+    if desconhecidos:
+        erros.append(f"Peixe(s) fora do catálogo: {', '.join(desconhecidos)}.")
+    ativos = [p for p in ESPECIES_TODAS if p in set(partes)]
+    if len(ativos) < MIN_ESPECIES_ATIVAS:
+        erros.append(
+            f"Selecione pelo menos {MIN_ESPECIES_ATIVAS} peixes para o cérebro gerar o REAP."
+        )
+    return erros
+
+
+def contagens_para_pool(n_pool: int) -> Tuple[int, ...]:
+    return tuple(c for c in CONTAGENS if c <= int(n_pool))
+
+
+def contagens_obrigatorias_para_pool(n_pool: int) -> Tuple[int, ...]:
+    return tuple(c for c in CONTAGENS_OBRIGATORIAS if c <= int(n_pool))
+
 
 KG_MIN = 5
 KG_MAX = 22
@@ -442,28 +498,38 @@ def plano_parse(texto: str) -> Optional[List[int]]:
     return seq
 
 
-def plano_valido(seq: Sequence[int]) -> bool:
+def plano_valido(seq: Sequence[int], n_pool: int = 8) -> bool:
     if len(seq) != len(MESES_PESCA):
         return False
     if any(a == b for a, b in zip(seq, seq[1:])):
         return False
-    if not set(CONTAGENS_OBRIGATORIAS).issubset(set(seq)):
+    if any(int(c) > int(n_pool) for c in seq):
+        return False
+    obr = contagens_obrigatorias_para_pool(n_pool)
+    if obr and not set(obr).issubset(set(seq)):
         return False
     return all(list(seq).count(c) <= lim for c, lim in CONTAGEM_MAX_ANO.items())
 
 
-def _decidir_8(rng: random.Random, fixos: Dict[int, int]) -> bool:
+def _decidir_8(rng: random.Random, fixos: Dict[int, int], n_pool: int) -> bool:
     """Sorteio único por sócio: terá (ou não) um mês com 8 espécies."""
+    if n_pool < 8:
+        return False
     if 8 in fixos.values():
         return True
     return rng.random() < CHANCE_SOCIO_TER_8
 
 
-def _sortear_sequencia(rng: random.Random, fixos: Dict[int, int], quer8: bool) -> List[int]:
+def _sortear_sequencia(
+    rng: random.Random, fixos: Dict[int, int], quer8: bool, n_pool: int = 8
+) -> List[int]:
     n = len(MESES_PESCA)
     livres = [i for i in range(n) if i not in fixos]
+    pesos_base = {c: p for c, p in PESO_QUANTIDADE.items() if c <= n_pool}
+    if not pesos_base:
+        pesos_base = {max(1, n_pool): 1.0}
     pos8 = None
-    if quer8 and 8 not in fixos.values() and livres:
+    if quer8 and n_pool >= 8 and 8 not in fixos.values() and livres:
         pos8 = rng.choices(livres, weights=[PESO_POSICAO_8[i] for i in livres], k=1)[0]
     seq: List[int] = []
     for i in range(n):
@@ -476,10 +542,10 @@ def _sortear_sequencia(rng: random.Random, fixos: Dict[int, int], quer8: bool) -
         prev = seq[-1] if seq else None
         nxt = fixos.get(i + 1, 8 if pos8 == i + 1 else None)
         usados = seq + [fixos[j] for j in fixos if j > i]
-        opcoes = [c for c in PESO_QUANTIDADE if c != prev and c != nxt] or [
-            c for c in PESO_QUANTIDADE if c != prev
-        ] or list(PESO_QUANTIDADE)
-        pesos = [PESO_QUANTIDADE[c] * (FATOR_REPETICAO ** usados.count(c)) for c in opcoes]
+        opcoes = [c for c in pesos_base if c != prev and c != nxt] or [
+            c for c in pesos_base if c != prev
+        ] or list(pesos_base)
+        pesos = [pesos_base[c] * (FATOR_REPETICAO ** usados.count(c)) for c in opcoes]
         seq.append(rng.choices(opcoes, weights=pesos, k=1)[0])
     return seq
 
@@ -489,24 +555,28 @@ def sortear_plano(
     fixos: Optional[Dict[int, int]] = None,
     evitar: Optional[Any] = None,
     tentativas: int = 600,
+    n_pool: int = 8,
 ) -> List[int]:
     """Sorteia Mar → Out respeitando os meses já salvos (``fixos``: índice → quantidade).
 
-    Regras: nunca a mesma quantidade em meses vizinhos, 4/5/6 aparecem no ano,
-    no máximo 3 meses com 4/5/6 e no máximo 1 mês com 8 (só ~35% dos sócios).
+    Regras: nunca a mesma quantidade em meses vizinhos, 4/5/6 aparecem no ano
+    (quando o pool de peixes permitir), no máximo 3 meses com 4/5/6 e no máximo
+    1 mês com 8 (só ~35% dos sócios, e só se houver ≥ 8 peixes ativos).
     ``evitar`` = planos de outros sócios (set ou dict plano → nº de sócios); tenta
     não repetir nenhum e, se o espaço esgotar, repete o plano menos usado.
     """
-    fixos = dict(fixos or {})
+    fixos = {i: c for i, c in dict(fixos or {}).items() if int(c) <= int(n_pool)}
     uso: Dict[str, int] = dict(evitar) if isinstance(evitar, dict) else {k: 1 for k in (evitar or ())}
-    quer8 = _decidir_8(rng, fixos)
+    quer8 = _decidir_8(rng, fixos, n_pool)
     reserva: Optional[List[int]] = None
     ultimo: List[int] = []
     for i in range(tentativas):
         # Só troca a decisão do 8 se não houver plano válido possível sem ela.
-        seq = _sortear_sequencia(rng, fixos, quer8 if i < tentativas // 2 or reserva else not quer8)
+        seq = _sortear_sequencia(
+            rng, fixos, quer8 if i < tentativas // 2 or reserva else not quer8, n_pool
+        )
         ultimo = seq
-        if not plano_valido(seq):
+        if not plano_valido(seq, n_pool):
             continue
         txt = plano_str(seq)
         if txt in uso:
@@ -518,19 +588,22 @@ def sortear_plano(
 
 
 @lru_cache(maxsize=512)
-def _probabilidades_cache(fixos_key: Tuple[Tuple[int, int], ...], amostras: int) -> Dict[str, Any]:
+def _probabilidades_cache(
+    fixos_key: Tuple[Tuple[int, int], ...], amostras: int, n_pool: int
+) -> Dict[str, Any]:
     rng = random.Random(20260308)
     fixos = dict(fixos_key)
-    cont = [{c: 0 for c in CONTAGENS} for _ in MESES_PESCA]
+    contagens = contagens_para_pool(n_pool) or CONTAGENS
+    cont = [{c: 0 for c in contagens} for _ in MESES_PESCA]
     com8 = 0
     validos = 0
     soma = 0
     for _ in range(amostras):
-        quer8 = _decidir_8(rng, fixos)
+        quer8 = _decidir_8(rng, fixos, n_pool)
         seq = None
         for _t in range(200):
-            cand = _sortear_sequencia(rng, fixos, quer8)
-            if plano_valido(cand):
+            cand = _sortear_sequencia(rng, fixos, quer8, n_pool)
+            if plano_valido(cand, n_pool):
                 seq = cand
                 break
         if seq is None:
@@ -540,25 +613,29 @@ def _probabilidades_cache(fixos_key: Tuple[Tuple[int, int], ...], amostras: int)
         if 8 in seq:
             com8 += 1
         for i, c in enumerate(seq):
-            cont[i][c] += 1
+            if c in cont[i]:
+                cont[i][c] += 1
     total = max(1, validos)
     return {
         "por_mes": {
-            m: {str(c): round(cont[i][c] / total, 4) for c in CONTAGENS}
+            m: {str(c): round(cont[i].get(c, 0) / total, 4) for c in contagens}
             for i, m in enumerate(MESES_PESCA)
         },
-        "chance_ter_8": round(com8 / total, 4),
+        "chance_ter_8": round(com8 / total, 4) if n_pool >= 8 else 0.0,
         "media_especies_ano": round(soma / total, 2),
         "amostras": validos,
+        "n_pool": n_pool,
     }
 
 
 def probabilidades_plano(
-    fixos: Optional[Dict[int, int]] = None, amostras: int = AMOSTRAS_PROBABILIDADE
+    fixos: Optional[Dict[int, int]] = None,
+    amostras: int = AMOSTRAS_PROBABILIDADE,
+    n_pool: int = 8,
 ) -> Dict[str, Any]:
     """Cálculo (Monte Carlo do próprio sorteio) da chance de cada quantidade por mês."""
     key = tuple(sorted((int(i), int(c)) for i, c in (fixos or {}).items()))
-    return _probabilidades_cache(key, int(amostras))
+    return _probabilidades_cache(key, int(amostras), int(n_pool))
 
 
 def regras_probabilidade() -> Dict[str, Any]:
@@ -605,22 +682,23 @@ def _plano_para_mes(
     mes: str,
     salvos: Dict[str, InformeMes],
     outros_planos: Any,
+    n_pool: int = 8,
 ) -> List[int]:
     fixos = {
         MESES_PESCA.index(m): len(r.especies)
         for m, r in salvos.items()
-        if m != mes and m in MESES_PESCA and r.houve_pesca
+        if m != mes and m in MESES_PESCA and r.houve_pesca and len(r.especies) <= n_pool
     }
     existente = plano_do_socio(salvos)
     if existente:
         candidato = list(existente)
         for i, c in fixos.items():
             candidato[i] = c
-        if plano_valido(candidato):
+        if plano_valido(candidato, n_pool):
             return candidato
     fixos_txt = ",".join(f"{i}:{c}" for i, c in sorted(fixos.items()))
-    rng = random.Random(_hash_int(f"{cpf}|{ano}|plano|{fixos_txt}"))
-    return sortear_plano(rng, fixos=fixos, evitar=outros_planos)
+    rng = random.Random(_hash_int(f"{cpf}|{ano}|plano|{n_pool}|{fixos_txt}"))
+    return sortear_plano(rng, fixos=fixos, evitar=outros_planos, n_pool=n_pool)
 
 
 def _escolher_combo(
@@ -630,8 +708,10 @@ def _escolher_combo(
     salvos: Dict[str, InformeMes],
     nomes_outros_socios: set,
     perfil: Dict[str, Any],
+    pool: Optional[Sequence[str]] = None,
 ) -> Tuple[str, ...]:
-    nomes = list(PRECOS_VAREJO.keys())
+    nomes = list(normalizar_especies_ativas(pool))
+    n_esp = max(1, min(int(n_esp), len(nomes)))
     if n_esp >= len(nomes):
         return tuple(nomes)
     usados_ano = {
@@ -789,6 +869,7 @@ def gerar_mes(
     municipio: str = "Casa Nova",
     seed: Optional[int] = None,
     ator: str = "",
+    especies_ativas: Optional[Sequence[str]] = None,
 ) -> ResultadoGeracao:
     """Gera o REAP de um mês de pesca, condicionado aos meses já salvos do sócio.
 
@@ -797,6 +878,7 @@ def gerar_mes(
     (evita gerar um mês idêntico ao de outro pescador).
     ``outros_planos`` = planos de quantidades dos outros sócios no ano
     (o plano deste sócio é sorteado para não repetir nenhum).
+    ``especies_ativas`` = peixes liberados na config do Informe Mensal (universal).
     """
     mes = normalizar_mes(mes)
     if mes in MESES_PIRACEMA:
@@ -804,6 +886,8 @@ def gerar_mes(
     ano = int(ano)
     if seed is None:
         seed = secrets.randbits(48)
+    pool = normalizar_especies_ativas(especies_ativas)
+    n_pool = len(pool)
     chave = cpf or person_id
     globais = set(assinaturas_globais or set())
     outros_nomes = set(nomes_outros_socios or set())
@@ -818,14 +902,14 @@ def gerar_mes(
     }
     alvo_ano = alvo_peso_anual(chave, ano)
     perfil = perfil_socio(chave, ano)
-    plano = _plano_para_mes(chave, ano, mes, anteriores, outros_planos or {})
-    n_esp = plano[MESES_PESCA.index(mes)]
+    plano = _plano_para_mes(chave, ano, mes, anteriores, outros_planos or {}, n_pool)
+    n_esp = min(plano[MESES_PESCA.index(mes)], n_pool)
 
     escolhido: Optional[InformeMes] = None
     tentativa = 0
     for tentativa in range(1, 121):
         rng = random.Random(seed + tentativa * 97)
-        combo = _escolher_combo(rng, mes, n_esp, anteriores, outros_nomes, perfil)
+        combo = _escolher_combo(rng, mes, n_esp, anteriores, outros_nomes, perfil, pool)
         dias = _escolher_dias(rng, mes, anteriores)
         alvo = _alvo_mes(rng, mes, plano, anteriores, alvo_ano, perfil)
         kgs = _distribuir_kg(rng, mes, combo, alvo, perfil)
@@ -939,8 +1023,16 @@ def validar_ano(meses: Dict[str, InformeMes], *, alvo_ano: Optional[int] = None)
             )
     peso = peso_anual(meses)
     if len(feitos) == len(MESES_PESCA):
-        if not set(CONTAGENS_OBRIGATORIAS).issubset(set(contagens)):
-            avisos.append("Ano sem a mistura 4 / 5 / 6 espécies.")
+        # A mistura 4/5/6 só é exigida quando o pool de peixes ativos permite.
+        n_pool = max((len(meses[m].especies) for m in feitos), default=8)
+        # Se algum mês chegou a 8, o pool era ≥ 8; senão usamos o maior visto.
+        if any(len(meses[m].especies) == 8 for m in feitos):
+            n_pool = 8
+        obr = contagens_obrigatorias_para_pool(max(n_pool, max(contagens) if contagens else 4))
+        if obr and not set(obr).issubset(set(contagens)):
+            avisos.append(
+                "Ano sem a mistura " + " / ".join(str(c) for c in obr) + " espécies."
+            )
         if not (KG_ANO_MIN <= peso <= KG_ANO_MAX):
             avisos.append(f"Peso anual {peso} kg fora da faixa {KG_ANO_MIN}–{KG_ANO_MAX}.")
     elif peso > KG_ANO_MAX:
@@ -1076,5 +1168,22 @@ def texto_para_site(reg: InformeMes) -> str:
     return "\n".join(linhas)
 
 
-def catalogo() -> List[Dict[str, Any]]:
-    return [{"nome": n, "preco": p} for n, p in PRECOS_VAREJO.items()]
+def catalogo(ativas: Optional[Sequence[str]] = None) -> List[Dict[str, Any]]:
+    """Catálogo completo; ``ativo`` indica se entra no cérebro (seleção universal)."""
+    ligados = set(normalizar_especies_ativas(ativas))
+    return [
+        {"nome": n, "preco": p, "ativo": n in ligados}
+        for n, p in PRECOS_VAREJO.items()
+    ]
+
+
+def resumo_especies_ativas(ativas: Optional[Sequence[str]] = None) -> Dict[str, Any]:
+    pool = normalizar_especies_ativas(ativas)
+    return {
+        "todas": list(ESPECIES_TODAS),
+        "ativas": pool,
+        "n_ativas": len(pool),
+        "minimo": MIN_ESPECIES_ATIVAS,
+        "contagens": list(contagens_para_pool(len(pool))),
+        "permite_8": len(pool) >= 8,
+    }
