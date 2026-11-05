@@ -6,6 +6,20 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.1] — 2026-11-05 — Informe Mensal: plano probabilístico e padrões iguais
+
+**Tag:** [`v1.8.1`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.1)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.1/SinapescREAP-Windows-v1.8.1.zip
+
+- Cada sócio ganha um **plano próprio de quantidades de espécies (Mar → Out)**, sorteado com probabilidade e gravado na coluna `planoContagens`. Acaba a sequência repetida `4,5,4,6,8,4,6,8`
+- Pesos base 4 → 40%, 5 → 33%, 6 → 27%; cada repetição no ano multiplica a chance por 0,45; meses vizinhos nunca com a mesma quantidade
+- **8 espécies só para ~35% dos sócios**, no máximo 1 mês, de preferência no meio da safra
+- O plano não repete o de outro sócio do mesmo ano; se os planos de uma categoria se esgotarem, repete o menos usado e aponta em Padrões iguais
+- **Kg humanizados por pessoa**: preferência por espécie (0,80–1,25) e ritmo de produção do ano próprios de cada pescador
+- Caixa do sócio: chips do plano, quantidade prevista nos meses pendentes, perfil do pescador e **cálculo de probabilidade** (4.000 simulações)
+- **Padrões iguais** entre sócios (mesmo plano, mesmos kg, mês idêntico): faixa na lista, filtro, selo **=** e aviso ao gerar
+- Guia atualizado: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md) (seções 5.5 e 5.6)
+
 ## [v1.8.0] — 2026-11-05 — Módulo Informe Mensal (REAP mês a mês)
 
 **Tag:** [`v1.8.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.0)  

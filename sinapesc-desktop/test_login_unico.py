@@ -44,7 +44,7 @@ def test_tk_labels_login_unico() -> None:
 
 def test_version_bump() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.0"' in theme
+    assert 'APP_VERSION = "1.8.1"' in theme
 
 
 if __name__ == "__main__":
