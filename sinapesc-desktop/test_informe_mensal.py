@@ -428,19 +428,113 @@ def test_ui_botao_e_tela() -> None:
                   "gerar_informe_mes", "salvar_informe_mes", "excluir_informe_mes",
                   "load_informe_auditoria", "Regerar", "Copiar texto",
                   "Plano de espécies", "Cálculo de probabilidade", "im-chip-8",
-                  "padrao_igual", "Com padrão igual a outro sócio", "previsto"):
+                  "padrao_igual", "Com padrão igual a outro sócio", "previsto",
+                  "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
     assert ".im-mes-pir" in css and "not-allowed" in css
     spec = (ROOT / "build_exe.spec").read_text(encoding="utf-8")
     assert "controle.informe_mensal" in spec and "sheets.informe_mensal_service" in spec
+    assert "controle.informe_mensal_relatorio" in spec
     # kg não re-renderiza no blur (senão o clique em Salvar se perde)
     assert 'inp.addEventListener("input"' in im_js
 
 
+
+def test_html_tabela_por_socio() -> None:
+    from controle.informe_mensal_relatorio import montar_html_informe, nome_arquivo_informe
+    salvos = _ano_completo(21)
+    por = {"p21": salvos}
+    socios = [{
+        "id": "p21",
+        "nome": "Fulano De Tal",
+        "cpf": "000.000.000-21",
+        "cpf_raw": f"{21:011d}",
+        "telefone": "(74) 99999-0000",
+        "municipio": "Casa Nova",
+        "resumo": im.resumo_socio(salvos, f"{21:011d}", 2026),
+    }, {
+        "id": "p99",
+        "nome": "Sem Meses",
+        "cpf": "000.000.000-99",
+        "cpf_raw": "00000000099",
+        "telefone": "",
+        "municipio": "Remanso",
+        "resumo": im.resumo_socio({}, "00000000099", 2026),
+    }]
+    html_txt = montar_html_informe(
+        org_short="Sinapesc", org_full="Sindicato", ano=2026, socios=socios, por_pessoa=por,
+    )
+    assert "Informe Mensal" in html_txt and "Fulano De Tal" in html_txt
+    assert "Sem Meses" in html_txt
+    assert "spp" in html_txt and "piracema" in html_txt
+    assert "Detalhe dos meses preenchidos" in html_txt
+    assert "Março/2026" in html_txt and "kg" in html_txt
+    assert "nome_arquivo" or nome_arquivo_informe(2026).startswith("informe-mensal-2026-")
+    assert "Abrir tabela" not in html_txt  # só no JS
+
+
+def test_api_abrir_tabela(tmp_path=None) -> None:
+    from pathlib import Path
+    import tempfile
+    from sheets.informe_mensal_service import InformeMensalService
+    from sheets.models import Pessoa
+    import webapp.api as api_mod
+    import controle.informe_mensal_relatorio as rel
+
+    cli = FakeClient()
+    pessoa = Pessoa(id="p1", nome="maria das dores", cpf="12345678901", criado_em="",
+                    municipio="Remanso", telefone="(74) 99999-0000")
+
+    class FakeSheets:
+        client = cli
+        actor = ""
+        def get_all_pessoas(self):
+            return [pessoa]
+
+    api = api_mod.SinapescApi()
+    api._logged_in = True
+    api._admin_user = "operador@sinapesc"
+    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    eventos = []
+    api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
+
+    def sync_run(op, work, busy=""):
+        try:
+            eventos.append((op, {"ok": True, "data": work()}))
+        except Exception as exc:  # noqa: BLE001
+            eventos.append((op, {"ok": False, "error": str(exc)}))
+        return {"ok": True, "pending": True}
+
+    api._run_async = sync_run  # type: ignore[assignment]
+    for m in im.MESES_PESCA:
+        api.gerar_informe_mes(json.dumps({"person_id": "p1", "ano": 2026, "mes": m}))
+        assert eventos[-1][1]["ok"], eventos[-1]
+
+    pasta = Path(tempfile.mkdtemp())
+    import controle.relatorio as relatorio_mod
+
+    orig = relatorio_mod.pasta_relatorios
+    relatorio_mod.pasta_relatorios = lambda: pasta  # type: ignore[assignment]
+    try:
+        api.abrir_informe_tabela(2026)
+    finally:
+        relatorio_mod.pasta_relatorios = orig  # type: ignore[assignment]
+    ev, res = eventos[-1]
+    assert ev == "informe_tabela" and res["ok"], res
+    path = Path(res["data"]["path"])
+    assert path.exists() and path.suffix == ".html"
+    texto = path.read_text(encoding="utf-8")
+    assert "Maria Das Dores" in texto or "maria das dores".title() in texto or "Maria" in texto
+    assert res["data"]["com_meses"] == 1
+    aud = [e.acao for e in api._ensure_informe().listar_auditoria(50)]
+    assert "abrir_tabela_informe" in aud
+
+
+
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.1"' in theme
+    assert 'APP_VERSION = "1.8.2"' in theme
 
 
 if __name__ == "__main__":

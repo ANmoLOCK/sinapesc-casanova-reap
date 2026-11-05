@@ -218,6 +218,7 @@
               <option value="regerar_informe" ${S.audAcao === "regerar_informe" ? "selected" : ""}>Regerou</option>
               <option value="editar_informe" ${S.audAcao === "editar_informe" ? "selected" : ""}>Alterou</option>
               <option value="excluir_informe" ${S.audAcao === "excluir_informe" ? "selected" : ""}>Excluiu</option>
+              <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -249,6 +250,7 @@
           </div>
           <div class="im-bar-actions">
             <label class="im-ano">Ano <select id="im-ano">${anos}</select></label>
+            <button type="button" class="btn btn-primary btn-sm" id="im-tabela" title="Abre no navegador uma tabela HTML com cada sócio e os meses preenchidos">Abrir tabela no navegador</button>
             <button type="button" class="btn btn-outline-dark btn-sm" id="im-refresh">Atualizar</button>
           </div>
         </div>
@@ -285,6 +287,15 @@
     bindTabs();
     document.querySelector("#im-ano")?.addEventListener("change", (e) => load(e.target.value));
     document.querySelector("#im-refresh")?.addEventListener("click", () => load());
+    document.querySelector("#im-tabela")?.addEventListener("click", () => {
+      if (S.busy) return;
+      S.busy = true;
+      toast("Gerando tabela HTML…", 2200);
+      api("abrir_informe_tabela", S.ano).catch((e) => {
+        S.busy = false;
+        toast(String(e));
+      });
+    });
     document.querySelector("#im-search")?.addEventListener("input", (e) => {
       S.search = e.target.value || "";
       paintTable();
@@ -703,6 +714,7 @@
     regerar_informe: "Regerou",
     editar_informe: "Alterou",
     excluir_informe: "Excluiu",
+    abrir_tabela_informe: "Abriu tabela",
   };
 
   function paintAuditoria() {
@@ -803,6 +815,21 @@
       }
       S.auditoria = (r.data && r.data.itens) || [];
       if (onScreen() && S.tab === "auditoria") paintAuditoria();
+    });
+    window.AppEvents.on("informe_tabela", (r) => {
+      S.busy = false;
+      if (!r.ok) {
+        failed(r, "Falha ao gerar a tabela do Informe Mensal.");
+        return;
+      }
+      const d = r.data || {};
+      if (d.path) {
+        api("open_path", d.path).catch(() => {});
+        toast(
+          `Tabela de ${d.ano || S.ano} aberta no navegador (${d.com_meses || 0} sócio(s) com mês preenchido).`,
+          5200
+        );
+      }
     });
   }
 

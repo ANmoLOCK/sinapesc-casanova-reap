@@ -6,6 +6,14 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.2] — 2026-11-05 — Informe Mensal: tabela HTML no navegador
+
+**Tag:** [`v1.8.2`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.2/SinapescREAP-Windows-v1.8.2.zip
+
+- Botão **Abrir tabela no navegador** no Informe Mensal: gera HTML com 1 linha por sócio, células Jan→Dez (piracema / gerado com spp·kg·dias / pendente) e detalhe dos meses preenchidos com espécies
+- Abre numa aba do navegador (imprimir / salvar PDF); arquivo na pasta de relatórios; ação registrada na Auditoria
+
 ## [v1.8.1] — 2026-11-05 — Informe Mensal: plano probabilístico e padrões iguais
 
 **Tag:** [`v1.8.1`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.1)  

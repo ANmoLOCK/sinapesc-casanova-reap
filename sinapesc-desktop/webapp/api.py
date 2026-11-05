@@ -2176,6 +2176,50 @@ class SinapescApi:
 
         return self._run_async("informe_lista", work, "Carregando Informe Mensal…")
 
+    def abrir_informe_tabela(self, ano: Any = None) -> Dict[str, Any]:
+        """Gera HTML com tabela por sócio (meses preenchidos) e abre no navegador."""
+        from controle.informe_mensal_relatorio import (
+            montar_html_informe,
+            nome_arquivo_informe,
+            salvar_html_informe,
+        )
+
+        ano_i = _informe_ano(ano)
+
+        def work():
+            svc = self._ensure_service()
+            inf = self._ensure_informe()
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in inf.listar(ano_i):
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            pessoas = svc.get_all_pessoas()
+            socios = [
+                self._informe_socio_dict(p, por_pessoa.get(p.id, {}), ano_i)
+                for p in pessoas
+            ]
+            socios.sort(key=lambda s: s["nome"].casefold())
+            html_txt = montar_html_informe(
+                org_short=ORG_SHORT,
+                org_full=ORG_FULL,
+                ano=ano_i,
+                socios=socios,
+                por_pessoa=por_pessoa,
+            )
+            path = salvar_html_informe(html_txt, nome_arquivo=nome_arquivo_informe(ano_i))
+            inf.registrar_auditoria(
+                "abrir_tabela_informe",
+                f"Abriu tabela HTML do Informe Mensal {ano_i} ({len(socios)} sócio(s)) — {path.name}",
+                ano=str(ano_i),
+            )
+            return {
+                "path": str(path),
+                "total": len(socios),
+                "com_meses": sum(1 for s in socios if (s.get("resumo") or {}).get("gerados")),
+                "ano": ano_i,
+            }
+
+        return self._run_async("informe_tabela", work, "Gerando tabela do Informe Mensal…")
+
     def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
         data = _informe_args(payload)
         pid = str(data.get("person_id") or "").strip()

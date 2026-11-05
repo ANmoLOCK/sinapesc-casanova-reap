@@ -1,8 +1,8 @@
 # Informe Mensal — REAP mês a mês por sócio
 
-**Versão:** v1.8.1 (2026-11-05)  
-**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.1/SinapescREAP-Windows-v1.8.1.zip  
-**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.1  
+**Versão:** v1.8.2 (2026-11-05)  
+**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.2/SinapescREAP-Windows-v1.8.2.zip  
+**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2  
 **Origem do cérebro:** pacote `reap-informe-mensal-v1.8.0.zip` (`cerebro_reformulacao.py` v4), refatorado na v1.8.1 para plano probabilístico por sócio (`v5-plano`)
 
 ---
@@ -33,6 +33,11 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
+- **Abrir tabela no navegador:** gera um HTML com **uma linha por sócio** e as células dos 12 meses (piracema em cinza; meses gerados em verde com espécies · kg · dias; pendentes com —). Embaixo, o **detalhe** de cada sócio com tabela de espécies dos meses preenchidos. O arquivo abre numa aba do navegador (Imprimir → Salvar como PDF) e fica na pasta de relatórios do Sinapesc. A ação entra na Auditoria.
+
+![Botão Abrir tabela no navegador](previews/informe-mensal/informe_11_botao_tabela.png)
+
+![Tabela HTML no navegador](previews/informe-mensal/informe_12_tabela_html.png)
 
 ## 4. Caixa do sócio (os 12 meses)
 
@@ -193,6 +198,7 @@ Aba **Auditoria** dentro do módulo, com busca e filtro por ação:
 | **Regerou** | Regerou REAP de Abril/2026 — …: 8 espécies, 19 dias, 105 kg (antes: 5 espécies, 18 dias, 72 kg) |
 | **Alterou** | Alterou REAP de Julho/2026 — …: dias 18→20; Tambaqui 22→7 kg; +Piau 9 kg; −Pescada |
 | **Excluiu** | Excluiu REAP de Outubro/2026 — … (5 espécies, 18 dias, 81 kg) |
+| **Abriu tabela** | Abriu tabela HTML do Informe Mensal 2026 (N sócio(s)) — informe-mensal-2026-….html |
 
 Cada registro guarda data/hora, **usuário logado**, ação, detalhe, sócio, ano e mês.
 
@@ -232,8 +238,9 @@ O módulo usa a **mesma planilha do REAP** (`spreadsheet_id` do `config.json`). 
 | Arquivo | Função |
 |---------|--------|
 | `sinapesc-desktop/controle/informe_mensal.py` | Cérebro mês a mês: regras, preços, sazonalidade, anti-repetição, validação, texto para o site |
+| `sinapesc-desktop/controle/informe_mensal_relatorio.py` | HTML da tabela por sócio (abre no navegador) |
 | `sinapesc-desktop/sheets/informe_mensal_service.py` | Leitura/gravação das abas `InformeMensal` e `InformeAuditoria` |
-| `sinapesc-desktop/webapp/api.py` | `load_informe_mensal`, `gerar_informe_mes`, `salvar_informe_mes`, `excluir_informe_mes`, `load_informe_auditoria` |
+| `sinapesc-desktop/webapp/api.py` | `load_informe_mensal`, `gerar_informe_mes`, `salvar_informe_mes`, `excluir_informe_mes`, `abrir_informe_tabela`, `load_informe_auditoria` |
 | `sinapesc-desktop/web/js/informe_mensal.js` | Tela do módulo (lista, caixa de meses, edição, auditoria) |
 | `sinapesc-desktop/web/css/informe_mensal.css` | Visual (piracema em cinza, grade de meses) |
 | `sinapesc-desktop/web/js/app.js` | Botão no hub, rota `informe_mensal`, cabeçalho ← Módulos |
@@ -257,7 +264,11 @@ cd sinapesc-desktop
 python test_informe_mensal.py
 ```
 
-## 10. Mudanças da v1.8.1
+## 10. Mudanças da v1.8.2
+
+- Botão **Abrir tabela no navegador**: HTML com tabela por sócio (Jan→Dez) e detalhe dos meses preenchidos; abre numa aba do navegador e registra na Auditoria.
+
+## 11. Mudanças da v1.8.1
 
 - **Plano de quantidades por sócio**, sorteado com probabilidade e gravado na planilha (coluna `planoContagens`). Acaba o padrão repetido do tipo `4,5,4,6,8,4,6,8`.
 - **8 espécies só para ~35% dos sócios**, no máximo 1 mês, de preferência no meio da safra.
@@ -267,7 +278,7 @@ python test_informe_mensal.py
 - **Padrões iguais** entre sócios: faixa na lista, filtro, selo **=** e aviso ao gerar.
 - Meses pendentes mostram a quantidade prevista.
 
-## 11. Mudanças da v1.8.0
+## 12. Mudanças da v1.8.0
 
 - Botão **Informe Mensal** ao lado de **Abrir REAP**.
 - Lista de sócios com busca, filtros, ano e progresso Jan → Dez.
