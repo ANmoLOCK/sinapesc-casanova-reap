@@ -35,7 +35,8 @@ if "tkinter" not in sys.modules:
 from controle import informe_mensal as im  # noqa: E402
 
 
-def _ano_completo(seed: int, globais: set | None = None, ordem: list | None = None):
+def _ano_completo(seed: int, globais: set | None = None, ordem: list | None = None,
+                  planos: dict | None = None):
     salvos = {}
     meses = list(ordem or im.MESES_PESCA)
     for m in meses:
@@ -48,27 +49,37 @@ def _ano_completo(seed: int, globais: set | None = None, ordem: list | None = No
             mes=m,
             salvos=salvos,
             assinaturas_globais=globais,
+            outros_planos=planos,
             seed=seed * 1000 + im.MESES_ORDEM.index(m),
         )
         assert not im.validar_mes(m, r.informe.dias, r.informe.especies)
         salvos[m] = r.informe
         if globais is not None:
             globais.add(r.informe.assinatura)
+    if planos is not None:
+        txt = im.plano_str([len(salvos[m].especies) for m in im.MESES_PESCA])
+        planos[txt] = planos.get(txt, 0) + 1
     return salvos
 
 
 def test_cerebro_ano_completo_qualquer_ordem() -> None:
     globais: set = set()
+    planos: dict = {}
+    com8 = 0
     for s in range(120):
         ordem = list(im.MESES_PESCA)
         random.Random(s).shuffle(ordem)
-        salvos = _ano_completo(s, globais, ordem)
+        salvos = _ano_completo(s, globais, ordem, planos)
         assert im.validar_ano(salvos) == [], (s, im.validar_ano(salvos))
         peso = im.peso_anual(salvos)
         assert im.KG_ANO_MIN <= peso <= im.KG_ANO_MAX
         contagens = [len(salvos[m].especies) for m in im.MESES_PESCA]
-        assert {4, 5, 6, 8} <= set(contagens)
-        assert contagens.count(4) <= 3
+        assert {4, 5, 6} <= set(contagens)
+        assert contagens.count(8) <= 1
+        assert all(contagens.count(c) <= 3 for c in (4, 5, 6))
+        assert all(a != b for a, b in zip(contagens, contagens[1:])), contagens
+        com8 += 8 in contagens
+        assert salvos["mar"].plano and im.plano_do_socio(salvos) == contagens
         conj = {im.assinatura_conjunto(r.especies) for r in salvos.values()}
         assert len(conj) == 8
         ordens = {im.assinatura_ordem(r.especies) for r in salvos.values()}
@@ -78,6 +89,62 @@ def test_cerebro_ano_completo_qualquer_ordem() -> None:
                 assert e.valor == im.PRECOS_VAREJO[e.nome]
                 assert isinstance(e.kg, int)
             assert im.DIAS_MIN <= r.dias <= im.DIAS_MAX
+    # cada sócio com plano próprio; 8 espécies só para uma parte deles
+    assert len(planos) == 120
+    assert 0.2 <= com8 / 120 <= 0.5, com8
+
+
+def test_probabilidade_plano() -> None:
+    p = im.probabilidades_plano()
+    for m in im.MESES_PESCA:
+        assert abs(sum(p["por_mes"][m].values()) - 1) < 0.01
+        assert p["por_mes"][m]["8"] < p["por_mes"][m]["4"]
+    assert 0.3 <= p["chance_ter_8"] <= 0.4
+    # meio da safra tem mais chance de 8 que as pontas
+    assert p["por_mes"]["jun"]["8"] > p["por_mes"]["mar"]["8"]
+    regras = im.regras_probabilidade()
+    assert regras["chance_socio_ter_8"] == im.CHANCE_SOCIO_TER_8
+    # com Mar já salvo com 6, Abr nunca pode ser 6
+    cond = im.probabilidades_plano({0: 6}, 800)
+    assert cond["por_mes"]["mar"]["6"] == 1 and cond["por_mes"]["abr"]["6"] == 0
+    assert im.plano_valido([4, 6, 5, 4, 8, 5, 6, 4])
+    assert not im.plano_valido([4, 4, 5, 6, 5, 6, 4, 5])
+    assert not im.plano_valido([4, 8, 5, 8, 6, 4, 5, 6])
+    assert im.plano_parse(im.plano_str([4, 5, 6, 4, 5, 6, 4, 5])) == [4, 5, 6, 4, 5, 6, 4, 5]
+
+
+def test_plano_evita_outros_e_repete_menos_usado() -> None:
+    rng = random.Random(1)
+    todos = {}
+    for _ in range(150):
+        pl = im.sortear_plano(rng, evitar=todos)
+        txt = im.plano_str(pl)
+        assert txt not in todos
+        todos[txt] = 1
+
+
+def test_padroes_iguais() -> None:
+    a = _ano_completo(11)
+    b = {m: im.row_to_informe(r.to_row()) for m, r in a.items()}
+    for r in b.values():
+        r.person_id = "outro"
+    c = _ano_completo(12)
+    grupos = im.padroes_iguais({"a": a, "b": b, "c": c})
+    tipos = {g["tipo"] for g in grupos}
+    assert {"plano", "kg", "mes_identico"} <= tipos
+    assert all(g["socios"] == ["a", "b"] for g in grupos)
+    assert im.padroes_iguais({"a": a, "c": c}) == []
+    resumo = im.resumo_socio(a, "00000000011", 2026)
+    assert resumo["plano_texto"] == "-".join(str(n) for n in resumo["contagens"])
+    assert len(resumo["perfil"]["favoritas"]) == 3 and resumo["perfil"]["pico"] in im.MESES_PESCA
+
+
+def test_humanizado_por_pessoa() -> None:
+    p1, p2 = im.perfil_socio("11111111111", 2026), im.perfil_socio("22222222222", 2026)
+    assert p1 == im.perfil_socio("11111111111", 2026)
+    assert p1 != p2
+    for nome, f in p1["pref"].items():
+        assert 0.75 <= f <= 1.3, (nome, f)
 
 
 def test_vizinhos_nao_repetem() -> None:
@@ -338,6 +405,12 @@ def test_api_gerar_editar_excluir() -> None:
     assert ev == "informe_lista" and res["ok"]
     assert res["data"]["meses_piracema"] == ["jan", "fev", "nov", "dez"]
     assert res["data"]["socios"][0]["resumo"]["gerados"] == 7
+    assert res["data"]["probabilidades"]["por_mes"]["mar"]
+    assert res["data"]["padroes_iguais"] == []
+    assert res["data"]["socios"][0]["padrao_igual"] == []
+    plano = res["data"]["socios"][0]["resumo"]["plano"]
+    assert len(plano) == 8 and plano[:7] == res["data"]["socios"][0]["resumo"]["contagens"]
+    assert abr["plano"], "edição manual mantém o plano"
 
 
 def test_ui_botao_e_tela() -> None:
@@ -353,7 +426,9 @@ def test_ui_botao_e_tela() -> None:
     im_js = (ROOT / "web" / "js" / "informe_mensal.js").read_text(encoding="utf-8")
     for token in ("ÉPOCA DE PIRACEMA", "im-mes-pir", "aria-disabled", "Auditoria",
                   "gerar_informe_mes", "salvar_informe_mes", "excluir_informe_mes",
-                  "load_informe_auditoria", "Regerar", "Copiar texto"):
+                  "load_informe_auditoria", "Regerar", "Copiar texto",
+                  "Plano de espécies", "Cálculo de probabilidade", "im-chip-8",
+                  "padrao_igual", "Com padrão igual a outro sócio", "previsto"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
     assert ".im-mes-pir" in css and "not-allowed" in css
@@ -365,7 +440,7 @@ def test_ui_botao_e_tela() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.0"' in theme
+    assert 'APP_VERSION = "1.8.1"' in theme
 
 
 if __name__ == "__main__":
