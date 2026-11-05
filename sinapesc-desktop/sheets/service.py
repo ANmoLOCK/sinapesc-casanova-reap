@@ -30,10 +30,16 @@ def _now_iso() -> str:
 
 
 def _format_cpf(digits: str) -> str:
-    clean = "".join(ch for ch in (digits or "") if ch.isdigit())[:11]
+    """Grava CPF como texto na planilha (prefixo '), sem máscara.
+
+    Evita o Google Sheets tratar o valor como número e corromper dígitos.
+    """
+    from ui.formatters import cpf_para_celula, only_digits
+
+    clean = only_digits(str(digits or ""))
     if len(clean) != 11:
         return clean
-    return f"{clean[:3]}.{clean[3:6]}.{clean[6:9]}-{clean[9:]}"
+    return cpf_para_celula(clean)
 
 
 def _format_nome(name: str) -> str:

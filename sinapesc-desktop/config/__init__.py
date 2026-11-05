@@ -55,6 +55,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "defeso_declaracao_fonte": "allura",
     "defeso_atalhos_telefones": ["", "", ""],
     "defeso_atalhos_emails": ["", "", ""],
+    "consulta_rgp_spreadsheet_id": "",
+    "consulta_rgp_importar_auto": True,
+    "consulta_rgp_govbr_opcional": False,
+    "consulta_rgp_govbr_senha": "",
     "service_account_email": "",
     "private_key": "",
     "credentials_json": None,
@@ -67,6 +71,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "auto_start_tunnel": False,
     "ultimo_backup_em": "",
     "backup_adiado_em": "",
+    # Informe Mensal — peixes ativos no cérebro (universal). Vazio = todos.
+    "informe_especies": [],
 }
 
 

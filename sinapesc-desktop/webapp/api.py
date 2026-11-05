@@ -34,6 +34,17 @@ from controle.defeso_declaracao import (
 from controle.defeso_pacote import listar_opcoes_pacote, montar_pacote_pdf, normalize_selecao
 from controle.pendencias import classificar
 from controle.sync_planilhas import sync_municipios_bidirecional
+from controle.consulta_rgp import (
+    SEGUNDOS_POR_CONSULTA_EST,
+    aplicar_resultado_mpa,
+    resumo_kpis,
+    situacao_apta_import,
+)
+from controle.consulta_rgp_mpa import (
+    MPA_CONSULTA_URL,
+    abrir_site_mpa_no_navegador,
+    consultar_cpf_isolado,
+)
 from controle.defeso_relatorio import (
     itens_defeso_para_relatorio,
     montar_html_defeso,
@@ -45,7 +56,17 @@ from drive import DriveDefesoClient
 from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
 from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
-from ui.formatters import display_nome, format_cpf, format_nome, only_digits, parse_lote_lines
+from sheets.consulta_rgp_service import ConsultaRgpService
+from sheets.informe_mensal_service import InformeMensalService
+from controle import informe_mensal as im
+from ui.formatters import (
+    display_nome,
+    format_cpf,
+    format_nome,
+    normalize_cpf,
+    only_digits,
+    parse_lote_lines,
+)
 from ui.public_link import ensure_site_qrs, urls_for
 from ui.qr_vault import normalize_public_base, preferred_public_base, qr_dir
 from ui.qrutil import make_qr_image
@@ -160,6 +181,9 @@ class SinapescApi:
         self._admin_user = ""
         self._service: Optional[SheetsService] = None
         self._defeso_service: Optional[DefesoService] = None
+        self._consulta_rgp_service: Optional[ConsultaRgpService] = None
+        self._informe_service: Optional[InformeMensalService] = None
+        self._consulta_rgp_lote_cancel = False
 
     def bind_window(self, window: Any) -> None:
         self._window = window
@@ -197,6 +221,10 @@ class SinapescApi:
                 "defeso_atalhos_emails": _normalize_atalhos_lista(
                     cfg.get("defeso_atalhos_emails")
                 ),
+                "consulta_rgp_spreadsheet_id": str(cfg.get("consulta_rgp_spreadsheet_id") or ""),
+                "consulta_rgp_importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "consulta_rgp_govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
+                "consulta_rgp_mpa_url": MPA_CONSULTA_URL,
                 "public_site_url": site,
                 "ultimo_backup_em": str(cfg.get("ultimo_backup_em") or "Nunca"),
                 "credentials_label": cred_label,
@@ -219,6 +247,7 @@ class SinapescApi:
         self._admin_user = email.strip()
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         return ok(admin_user=self._admin_user)
 
     def logout(self) -> Dict[str, Any]:
@@ -226,6 +255,7 @@ class SinapescApi:
         self._admin_user = ""
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         return ok()
 
     def get_settings(self) -> Dict[str, Any]:
@@ -241,6 +271,9 @@ class SinapescApi:
                     str(cfg.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
                 ),
                 "defeso_fontes": listar_fontes(),
+                "consulta_rgp_spreadsheet_id": str(cfg.get("consulta_rgp_spreadsheet_id") or ""),
+                "consulta_rgp_importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "consulta_rgp_govbr_opcional": bool(cfg.get("consulta_rgp_govbr_opcional", False)),
                 "public_site_url": normalize_public_base(
                     cfg.get("public_site_url") or cfg.get("public_base_url") or ""
                 ),
@@ -278,6 +311,19 @@ class SinapescApi:
             cfg["defeso_declaracao_fonte"] = normalize_fonte(
                 str(payload.get("defeso_declaracao_fonte") or DEFAULT_FONTE)
             )
+        if "consulta_rgp_spreadsheet_id" in payload:
+            cfg["consulta_rgp_spreadsheet_id"] = normalize_sheet_id(
+                str(payload.get("consulta_rgp_spreadsheet_id") or "")
+            )
+        if "consulta_rgp_importar_auto" in payload:
+            cfg["consulta_rgp_importar_auto"] = bool(payload.get("consulta_rgp_importar_auto"))
+        if "consulta_rgp_govbr_opcional" in payload:
+            cfg["consulta_rgp_govbr_opcional"] = bool(payload.get("consulta_rgp_govbr_opcional"))
+        if "informe_especies" in payload:
+            erros_esp = im.validar_especies_ativas(payload.get("informe_especies"))
+            if erros_esp:
+                return err(" ".join(erros_esp))
+            cfg["informe_especies"] = im.normalizar_especies_ativas(payload.get("informe_especies"))
         if "public_site_url" in payload:
             base = normalize_public_base(str(payload.get("public_site_url") or ""))
             cfg["public_site_url"] = base
@@ -289,6 +335,7 @@ class SinapescApi:
         save_config(cfg)
         self._service = None
         self._defeso_service = None
+        self._consulta_rgp_service = None
         self._sync_site_config_js(cfg.get("spreadsheet_id", ""))
         return ok()
 
@@ -386,6 +433,19 @@ class SinapescApi:
         if self._defeso_service is None:
             self._defeso_service = DefesoService.from_config(cfg)
         return self._defeso_service
+
+    def _ensure_consulta_rgp(self) -> ConsultaRgpService:
+        if not self._logged_in:
+            raise SheetsConfigError("Faça login como administrador.")
+        cfg = load_config()
+        if not is_sheets_configured(cfg):
+            raise SheetsConfigError("Google Sheets ainda não configurado.")
+        if self._consulta_rgp_service is None:
+            self._consulta_rgp_service = ConsultaRgpService.from_config(cfg)
+        self._consulta_rgp_service.actor = (
+            self._admin_user if self._logged_in else str(cfg.get("admin_email") or "")
+        )
+        return self._consulta_rgp_service
 
     def _sync_site_config_js(self, spreadsheet_id: str) -> None:
         sid = (spreadsheet_id or "").strip()
@@ -698,8 +758,48 @@ class SinapescApi:
         localidade: str = "",
         somente_entrada: bool = False,
         somente_parcela: bool = False,
+        colunas: Any = None,
+        filtros: Any = None,
     ) -> Dict[str, Any]:
-        """Relatório HTML Defeso: nome, CPF, tel REAP, endereço Defeso, parcelas."""
+        """Relatório HTML Defeso com filtros, colunas e observação."""
+        from controle.defeso_relatorio import (
+            normalize_colunas_defeso,
+            normalize_filtros_defeso,
+            resumo_filtros_defeso,
+        )
+
+        raw_cols: Any = colunas
+        if isinstance(colunas, str) and colunas.strip()[:1] in "{[":
+            try:
+                raw_cols = json.loads(colunas)
+            except json.JSONDecodeError:
+                raw_cols = colunas
+        elif colunas is not None and not isinstance(colunas, (str, list, tuple, dict, bool)):
+            try:
+                raw_cols = _js_payload_to_dict(colunas)
+            except ValueError:
+                raw_cols = None
+        cols = normalize_colunas_defeso(raw_cols)
+
+        raw_filtros: Any = filtros
+        if isinstance(filtros, str) and filtros.strip()[:1] in "{[":
+            try:
+                raw_filtros = json.loads(filtros)
+            except json.JSONDecodeError:
+                raw_filtros = {}
+        elif filtros is not None and not isinstance(filtros, (str, dict)):
+            try:
+                raw_filtros = _js_payload_to_dict(filtros)
+            except ValueError:
+                raw_filtros = {}
+        if isinstance(raw_filtros, dict) and raw_filtros.get("colunas") and not raw_cols:
+            cols = normalize_colunas_defeso(raw_filtros.get("colunas"))
+        fcfg = normalize_filtros_defeso(
+            raw_filtros if isinstance(raw_filtros, dict) else None,
+            localidade=str(localidade or ""),
+            somente_entrada=bool(somente_entrada),
+            somente_parcela=bool(somente_parcela),
+        )
 
         def work():
             reap = self._ensure_service()
@@ -721,37 +821,40 @@ class SinapescApi:
                 if mun:
                     municipios[cpf] = mun
             fichas = defeso.listar()
-            loc = str(localidade or "").strip()
+            loc = str(fcfg.get("localidade") or "").strip()
             itens = itens_defeso_para_relatorio(
                 fichas,
                 telefones_reap=telefones,
                 municipios_reap=municipios,
                 nomes_reap=nomes,
                 cpfs_reap=cpfs,
-                localidade=loc,
-                somente_entrada=bool(somente_entrada),
-                somente_parcela=bool(somente_parcela),
+                filtros=fcfg,
             )
             if not itens:
                 raise ValueError("Nenhuma ficha encontrada com os filtros escolhidos.")
+            resumo = resumo_filtros_defeso(fcfg)
             titulo = "Relatório Defeso Fácil"
-            if loc:
-                titulo += f" — {loc}"
-            if somente_entrada:
-                titulo += " · entrada confirmada"
-            if somente_parcela:
-                titulo += " · com parcela"
+            if resumo:
+                titulo += f" — {resumo}"
             html_txt = montar_html_defeso(
                 org_short=ORG_SHORT,
                 org_full=ORG_FULL,
                 itens=itens,
                 titulo=titulo,
                 localidade=loc,
+                colunas=cols,
+                filtros_resumo=resumo,
             )
             nome_arq = nome_arquivo_defeso_relatorio(localidade=loc)
             path = salvar_html_defeso(html_txt, nome_arquivo=nome_arq)
             reap.registrar_evento("relatorio_defeso", f"gerou {path.name}")
-            return {"path": str(path), "html": html_txt, "total": len(itens)}
+            return {
+                "path": str(path),
+                "html": html_txt,
+                "total": len(itens),
+                "colunas": cols,
+                "filtros": fcfg,
+            }
 
         return self._run_async("defeso_relatorio", work, "Gerando relatório Defeso…")
 
@@ -1054,6 +1157,8 @@ class SinapescApi:
                         "tem_identidade": bool(f and f.tem_identidade),
                         "tem_carteira_pesca": bool(f and f.tem_carteira_pesca),
                         "tem_caf": bool(f and f.tem_caf),
+                        "observacao": str(f.observacao or "").strip() if f else "",
+                        "tem_observacao": bool(f and str(f.observacao or "").strip()),
                     }
                 )
             # Não lista fichas órfãs (existem só no Defeso, sem CPF no REAP) —
@@ -1452,10 +1557,1113 @@ class SinapescApi:
 
         return self._run_async("defeso_anexo", work, "Enviando anexo…")
 
+    # ---- Consulta RGP ----------------------------------------------------
+
+    def load_consulta_rgp(self) -> Dict[str, Any]:
+        def work():
+            cfg = load_config()
+            svc = self._ensure_consulta_rgp()
+            regs = svc.listar()
+            # Preferências (senha Gov.br etc.) vêm da aba Config da planilha
+            govbr_senha = ""
+            try:
+                govbr_senha = svc.get_govbr_senha()
+            except Exception:  # noqa: BLE001
+                govbr_senha = str(cfg.get("consulta_rgp_govbr_senha") or "")
+            return {
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "govbr_opcional": bool(govbr_senha) or bool(
+                    cfg.get("consulta_rgp_govbr_opcional", False)
+                ),
+                "govbr_senha": govbr_senha,
+                "spreadsheet_id": normalize_sheet_id(
+                    str(cfg.get("consulta_rgp_spreadsheet_id") or cfg.get("spreadsheet_id") or "")
+                ),
+                "mpa_url": MPA_CONSULTA_URL,
+            }
+
+        return self._run_async("consulta_rgp", work, "Carregando Consulta RGP…")
+
+    def save_consulta_rgp_prefs(self, payload: Any = None) -> Dict[str, Any]:
+        """Grava preferências na planilha Consulta RGP (aba Config)."""
+        data = _js_payload_to_dict(payload)
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            govbr_senha = None
+            if "govbr_senha" in data:
+                govbr_senha = svc.set_govbr_senha(str(data.get("govbr_senha") or ""))
+            else:
+                govbr_senha = svc.get_govbr_senha()
+
+            # Espelho local opcional (cache) — fonte da verdade é a planilha
+            cfg = load_config()
+            if "importar_auto" in data:
+                cfg["consulta_rgp_importar_auto"] = bool(data.get("importar_auto"))
+            cfg["consulta_rgp_govbr_senha"] = str(govbr_senha or "")
+            cfg["consulta_rgp_govbr_opcional"] = bool(govbr_senha)
+            if "govbr_opcional" in data and "govbr_senha" not in data:
+                cfg["consulta_rgp_govbr_opcional"] = bool(data.get("govbr_opcional"))
+            save_config(cfg)
+
+            svc.registrar_auditoria(
+                "consulta_rgp_prefs",
+                "Alterou preferências/senha Gov.br na Consulta RGP.",
+            )
+            return {
+                "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
+                "govbr_opcional": bool(govbr_senha) or bool(
+                    cfg.get("consulta_rgp_govbr_opcional", False)
+                ),
+                "govbr_senha": str(govbr_senha or ""),
+                "mensagem": "Senha Gov.br salva na planilha Consulta RGP.",
+            }
+
+        return self._run_async("consulta_rgp_prefs", work, "Salvando na planilha…")
+
+    def sync_consulta_rgp_reap(self) -> Dict[str, Any]:
+        """Desativado — Consulta RGP opera só na própria planilha nesta etapa."""
+        return err(
+            "Sincronização com REAP/Defeso desativada nesta etapa. "
+            "Cadastre e consulte só na planilha Consulta RGP."
+        )
+
+    def importar_lote_consulta_rgp(self, rows: Any = None) -> Dict[str, Any]:
+        """Importa nome/CPF/telefone/município na planilha Consulta (batch anti-cota)."""
+        from webapp.consulta_rgp_ext import importar_lote_batch_payload
+
+        itens = _lote_itens_from_rows(rows)
+
+        def work():
+            return importar_lote_batch_payload(self._ensure_consulta_rgp(), itens)
+
+        return self._run_async("consulta_rgp_lote", work, "Importando para Consulta RGP…")
+
+    def importar_arquivo_consulta_rgp(self, path: Any = None) -> Dict[str, Any]:
+        """Importa PDF/XLS/XLSX/TXT/CSV com batch (evita erro de cota 60/429 em ~500)."""
+        from webapp.consulta_rgp_ext import importar_arquivo_payload
+
+        arquivo = str(path or "").strip()
+        if not arquivo:
+            return err("Informe o caminho do arquivo.")
+
+        def work():
+            return importar_arquivo_payload(self._ensure_consulta_rgp(), arquivo)
+
+        return self._run_async(
+            "consulta_rgp_lote",
+            work,
+            "Importando arquivo para Consulta RGP…",
+        )
+
+    def escolher_arquivo_import_consulta_rgp(self) -> Dict[str, Any]:
+        """Abre seletor PDF/XLS/TXT e importa o lote de uma vez (anti-cota)."""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+        except ImportError as exc:  # pragma: no cover
+            return err(f"Seletor de arquivo indisponível: {exc}")
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        try:
+            chosen = filedialog.askopenfilename(
+                parent=root,
+                title="Importar lote Consulta RGP (PDF / XLS / TXT)",
+                filetypes=[
+                    ("Listas nome+CPF", "*.pdf *.xls *.xlsx *.txt *.csv"),
+                    ("PDF", "*.pdf"),
+                    ("Excel", "*.xls *.xlsx"),
+                    ("Texto/CSV", "*.txt *.csv"),
+                    ("Todos", "*.*"),
+                ],
+            )
+        finally:
+            root.destroy()
+
+        if not chosen:
+            return err("Nenhum arquivo selecionado.")
+        return self.importar_arquivo_consulta_rgp(chosen)
+
+    def cadastrar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Cadastra/atualiza sócio na Consulta (nome, CPF, município, telefone, obs)."""
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            nome = str(local.get("nome") or "").strip()
+            cpf = normalize_cpf(local.get("cpf") or "")
+            if not nome:
+                raise ValueError("Informe o nome.")
+            if len(cpf) != 11:
+                raise ValueError("CPF inválido (11 dígitos).")
+            svc = self._ensure_consulta_rgp()
+            # Senha Gov.br individual do sócio (coluna na planilha ConsultaRGP)
+            senha = None
+            if "govbr_senha" in local:
+                senha = str(local.get("govbr_senha") or "")
+            reg = svc.upsert_manual(
+                nome=nome,
+                cpf=cpf,
+                telefone=str(local.get("telefone") or "").strip(),
+                municipio=str(local.get("municipio") or "").strip(),
+                uf=str(local.get("uf") or "").strip(),
+                email=str(local.get("email") or "").strip(),
+                observacao=str(local.get("observacao") or "").strip(),
+                govbr_senha=senha,
+            )
+            svc.registrar_auditoria(
+                "consulta_rgp_cadastro",
+                f"Cadastrou/atualizou sócio: {reg.nome} ({reg.cpf})",
+                person_id=reg.id,
+                nome=reg.nome,
+            )
+            regs = svc.listar()
+            return {
+                "registro": reg.to_dict(),
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "mensagem": "Sócio salvo na Consulta RGP.",
+            }
+
+        return self._run_async("consulta_rgp_cadastro", work, "Salvando sócio…")
+
+    def save_consulta_rgp_registro(self, payload: Any = None) -> Dict[str, Any]:
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            if not str(local.get("id") or "").strip():
+                senha = None
+                if "govbr_senha" in local:
+                    senha = str(local.get("govbr_senha") or "")
+                reg = svc.upsert_manual(
+                    nome=str(local.get("nome") or "").strip(),
+                    cpf=str(local.get("cpf") or ""),
+                    telefone=str(local.get("telefone") or "").strip(),
+                    municipio=str(local.get("municipio") or "").strip(),
+                    uf=str(local.get("uf") or "").strip(),
+                    email=str(local.get("email") or "").strip(),
+                    observacao=str(local.get("observacao") or "").strip(),
+                    govbr_senha=senha,
+                )
+            else:
+                # preserva situação/consulta ao editar cadastro
+                existing = svc.por_id(str(local.get("id")))
+                if existing:
+                    local.setdefault("situacao_rgp", existing.situacao_rgp)
+                    local.setdefault("ultima_consulta_em", existing.ultima_consulta_em)
+                    local.setdefault("codigo_rgp", existing.codigo_rgp)
+                    local.setdefault("categoria", existing.categoria)
+                    local.setdefault("timeline", existing.timeline)
+                    local.setdefault("importado_reap_em", existing.importado_reap_em)
+                    local.setdefault("importado_defeso_em", existing.importado_defeso_em)
+                    local.setdefault("cadastro_reap_em", existing.cadastro_reap_em)
+                    local.setdefault("person_id", existing.person_id)
+                    if "govbr_senha" not in local:
+                        local["govbr_senha"] = existing.govbr_senha
+                # govbr_senha é coluna individual do registro (T)
+                reg = svc.salvar(local)
+            svc.registrar_auditoria(
+                "consulta_rgp_salvar",
+                f"Alterou cadastro: {reg.nome} ({reg.cpf})",
+                person_id=reg.id,
+                nome=reg.nome,
+            )
+            regs = svc.listar()
+            return {
+                "registro": reg.to_dict(),
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+            }
+
+        return self._run_async("consulta_rgp_saved", work, "Salvando registro…")
+
+    def consultar_rgp_pessoa(self, registro_id: Any = "", cpf: Any = "") -> Dict[str, Any]:
+        """Consulta MPA em processo isolado; grava só na planilha Consulta (sem REAP).
+
+        Prefira JSON string: ``JSON.stringify({id, cpf})`` — evita a ponte pywebview
+        transformar CPF com zero à esquerda em número.
+        Também aceita dict/JSObject ou ``(id, cpf)``.
+        """
+        rid, cpf_digits = _parse_consulta_rgp_args(registro_id, cpf)
+
+        def work():
+            svc = self._ensure_consulta_rgp()
+            reg = svc.por_id(rid) if rid else None
+            if reg is None and cpf_digits:
+                reg = svc.por_cpf(cpf_digits)
+            if reg is None:
+                raise ValueError(
+                    "Registro não encontrado. Cadastre o sócio na Consulta RGP primeiro."
+                )
+
+            # Planilha + arg JS (ambos normalizados; arg cobre planilha corrompida).
+            # NÃO trocar CPF da planilha por outro só porque o arg tem zero à esquerda
+            # e DV válido — isso inventava CPF diferente (ex. 10683919515 → 01068391952).
+            sheet_cpf = normalize_cpf(reg.cpf)
+            arg_cpf = normalize_cpf(cpf_digits) if cpf_digits else ""
+            if len(sheet_cpf) == 11:
+                alvo = sheet_cpf
+            elif len(arg_cpf) == 11:
+                alvo = arg_cpf
+            else:
+                alvo = sheet_cpf or arg_cpf
+            if len(alvo) != 11:
+                raise ValueError(
+                    "CPF inválido para consulta. "
+                    f"Planilha={reg.cpf!r} arg={cpf_digits!r}. "
+                    "Edite o cadastro e salve o CPF completo (11 dígitos)."
+                )
+            # Regrava normalizado se a planilha tinha valor corrompido (float .0)
+            if sheet_cpf != alvo or str(reg.cpf or "").strip() != alvo:
+                reg.cpf = alvo
+                try:
+                    svc.salvar(reg.to_dict())
+                except Exception:  # noqa: BLE001
+                    pass
+
+            try:
+                result = consultar_cpf_isolado(alvo)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(
+                    f"Consulta automática falhou ({exc}). "
+                    "Use «Abrir site MPA» se precisar consultar manualmente."
+                ) from exc
+
+            if not result.get("ok"):
+                raise ValueError(
+                    str(result.get("error") or "Consulta MPA sem resultado.")
+                    + " Use «Abrir site MPA» se precisar consultar manualmente."
+                )
+
+            data = result.get("data") if isinstance(result.get("data"), dict) else {}
+            if not data and isinstance(result.get("situacao"), str):
+                data = {"situacao": result.get("situacao")}
+            if not data:
+                raise ValueError("API MPA não retornou dados.")
+
+            aplicar_resultado_mpa(reg, data, ator="Sistema")
+            # Robô: situação verdadeira do MPA (não limitada ao filtro da UI)
+            if result.get("situacao"):
+                from controle.consulta_rgp import normalize_situacao as _norm
+
+                sit_mpa = _norm(result.get("situacao"))
+                if sit_mpa and sit_mpa != "Não consultado":
+                    reg.situacao_rgp = sit_mpa
+                elif not reg.situacao_rgp or reg.situacao_rgp == "Não consultado":
+                    reg.situacao_rgp = sit_mpa or reg.situacao_rgp
+            reg.cpf = alvo
+            # 1 write quando a linha já existe (anti-cota vs salvar→listar+_row_index)
+            row_idx = 0
+            try:
+                row_idx = int(svc._row_index(reg.id) or 0)
+            except Exception:  # noqa: BLE001
+                row_idx = 0
+            if row_idx >= 2 and hasattr(svc, "atualizar_linha"):
+                salvo = svc.atualizar_linha(reg, row_idx)
+            else:
+                salvo = svc.salvar(reg.to_dict())
+            svc.registrar_auditoria(
+                "consulta_rgp_consulta",
+                f"Consultou MPA: {salvo.nome} → {salvo.situacao_rgp}",
+                person_id=salvo.id,
+                nome=salvo.nome,
+            )
+            regs = svc.listar()
+            return {
+                "registro": salvo.to_dict(),
+                "situacao": salvo.situacao_rgp,
+                "itens": [r.to_dict() for r in regs],
+                "kpis": resumo_kpis(regs),
+                "imports": {},
+                "mensagem": f"Situação RGP gravada: {salvo.situacao_rgp}",
+            }
+
+        return self._run_async("consulta_rgp_consulta", work, "Consultando RGP no MPA…")
+
+    def estimar_consulta_rgp_lote(self, quantidade: Any = 0) -> Dict[str, Any]:
+        """Estimativa de tempo (modelo: ~20 min para 500 sócios)."""
+        try:
+            n = max(0, int(quantidade or 0))
+        except (TypeError, ValueError):
+            n = 0
+        secs = n * float(SEGUNDOS_POR_CONSULTA_EST)
+        mins = max(1, int(round(secs / 60.0))) if n else 0
+        return ok(
+            quantidade=n,
+            segundos_por_consulta=SEGUNDOS_POR_CONSULTA_EST,
+            segundos_total=round(secs, 1),
+            minutos_estimados=mins,
+            mensagem=(
+                f"Estimativa: ~{mins} min para {n} sócio(s) "
+                f"(consulta automática uma a uma)."
+                if n
+                else "Selecione ao menos um registro."
+            ),
+        )
+
+    def cancelar_consulta_rgp_lote(self) -> Dict[str, Any]:
+        self._consulta_rgp_lote_cancel = True
+        return ok(mensagem="Cancelamento solicitado — para após a consulta atual.")
+
+    def consultar_rgp_lote(self, payload: Any = None) -> Dict[str, Any]:
+        """Consulta MPA em série (fila inteligente: pausa após N falhas + CSV erros)."""
+        from webapp.consulta_rgp_ext import executar_lote
+
+        local = _js_payload_to_dict(payload)
+        ids = []
+        ids_raw = local.get("ids") or []
+        if isinstance(ids_raw, str):
+            try:
+                ids_raw = json.loads(ids_raw)
+            except json.JSONDecodeError:
+                ids_raw = [x.strip() for x in ids_raw.split(",") if x.strip()]
+        if isinstance(ids_raw, (list, tuple)):
+            ids = [str(x).strip() for x in ids_raw if str(x).strip()]
+        todos = bool(local.get("todos"))
+        try:
+            max_falhas = int(local.get("max_falhas_seguidas") or 3)
+        except (TypeError, ValueError):
+            max_falhas = 3
+
+        def work():
+            self._consulta_rgp_lote_cancel = False
+            svc = self._ensure_consulta_rgp()
+            return executar_lote(
+                svc=svc,
+                regs=svc.listar(),
+                ids=ids,
+                todos=todos,
+                cancel_check=lambda: self._consulta_rgp_lote_cancel,
+                on_progress=lambda p: self._dispatch("consulta_rgp_lote_progress", p),
+                on_status=lambda msg: self._dispatch("status", {"msg": msg}),
+                max_falhas_seguidas=max_falhas,
+            )
+
+        n_hint = len(ids) if ids and not todos else 0
+        busy = (
+            f"Consulta automática em lote ({n_hint or 'todos'})…"
+            if n_hint
+            else "Consulta automática em lote…"
+        )
+        return self._run_async("consulta_rgp_consulta_lote", work, busy)
+
+    def listar_consulta_rgp_vencidos(self, dias: Any = 30) -> Dict[str, Any]:
+        """Função 4 — sócios Não consultado ou última consulta > N dias."""
+        from webapp.consulta_rgp_ext import listar_vencidos_payload
+
+        try:
+            n = int(dias or 30)
+        except (TypeError, ValueError):
+            n = 30
+
+        def work():
+            return listar_vencidos_payload(self._ensure_consulta_rgp(), dias=n)
+
+        return self._run_async(
+            "consulta_rgp_vencidos", work, "Listando vencidos…"
+        )
+
+    def exportar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Função 3 — exporta CSV + HTML (imprimir PDF) com filtros."""
+        from webapp.consulta_rgp_ext import exportar_payload
+
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            return exportar_payload(
+                self._ensure_consulta_rgp(),
+                municipio=str(local.get("municipio") or ""),
+                situacao=str(local.get("situacao") or ""),
+                ultima_de=str(local.get("ultima_de") or ""),
+                ultima_ate=str(local.get("ultima_ate") or ""),
+                ids=local.get("ids") if isinstance(local.get("ids"), list) else None,
+                busca=str(local.get("busca") or local.get("q") or ""),
+                municipios=local.get("municipios") if isinstance(local.get("municipios"), list) else None,
+                situacoes=local.get("situacoes") if isinstance(local.get("situacoes"), list) else None,
+                com_senha=str(local.get("com_senha") or ""),
+                consulta_periodo=str(local.get("consulta_periodo") or ""),
+                colunas=local.get("colunas") if isinstance(local.get("colunas"), list) else None,
+                auto_print=bool(local.get("auto_print", True)),
+                escopo=str(local.get("escopo") or ""),
+                abrir_html=bool(local.get("abrir_html", True)),
+                modo_geral=bool(local.get("modo_geral") or local.get("relatorio_geral")),
+            )
+
+        return self._run_async("consulta_rgp_export", work, "Exportando Consulta RGP…")
+
+    def relatorio_geral_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Relatório HTML com filtros/seleção e colunas configuráveis."""
+        from webapp.consulta_rgp_ext import exportar_payload
+
+        local = _js_payload_to_dict(payload)
+
+        def work():
+            return exportar_payload(
+                self._ensure_consulta_rgp(),
+                municipio=str(local.get("municipio") or ""),
+                situacao=str(local.get("situacao") or ""),
+                ultima_de=str(local.get("ultima_de") or ""),
+                ultima_ate=str(local.get("ultima_ate") or ""),
+                ids=local.get("ids") if isinstance(local.get("ids"), list) else None,
+                busca=str(local.get("busca") or local.get("q") or ""),
+                municipios=local.get("municipios") if isinstance(local.get("municipios"), list) else None,
+                situacoes=local.get("situacoes") if isinstance(local.get("situacoes"), list) else None,
+                com_senha=str(local.get("com_senha") or ""),
+                consulta_periodo=str(local.get("consulta_periodo") or ""),
+                colunas=local.get("colunas") if isinstance(local.get("colunas"), list) else None,
+                auto_print=bool(local.get("auto_print", True)),
+                escopo=str(local.get("escopo") or ""),
+                abrir_html=bool(local.get("abrir_html", True)),
+                modo_geral=True,
+            )
+
+        return self._run_async(
+            "consulta_rgp_export", work, "Gerando relatório HTML…"
+        )
+
+    def editar_lote_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Corrige em lote: nome, CPF, telefone, município, observação (+ senha Gov.br)."""
+        from webapp.consulta_rgp_ext import editar_lote_payload
+
+        local = _js_payload_to_dict(payload)
+        itens = local.get("itens") or local.get("rows") or []
+        atualizar_govbr = bool(local.get("atualizar_govbr"))
+        govbr = str(local.get("govbr_senha") or "") if atualizar_govbr else None
+
+        def work():
+            return editar_lote_payload(
+                self._ensure_consulta_rgp(),
+                itens if isinstance(itens, list) else [],
+                govbr_senha=govbr,
+                atualizar_govbr=atualizar_govbr,
+            )
+
+        return self._run_async(
+            "consulta_rgp_editar_lote",
+            work,
+            "Salvando correções em lote…",
+        )
+
+    def excluir_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
+        """Exclui um ou vários sócios da planilha Consulta RGP."""
+        from webapp.consulta_rgp_ext import excluir_payload
+
+        local = _js_payload_to_dict(payload)
+        ids = local.get("ids") if isinstance(local, dict) else payload
+        if isinstance(local, dict) and local.get("id") and not ids:
+            ids = [local.get("id")]
+
+        def work():
+            return excluir_payload(self._ensure_consulta_rgp(), ids)
+
+        return self._run_async(
+            "consulta_rgp_excluir",
+            work,
+            "Excluindo da Consulta RGP…",
+        )
+
+    def abrir_csv_erros_consulta_rgp(self, path: str = "") -> Dict[str, Any]:
+        """Abre CSV de erros da fila inteligente."""
+        p = Path(str(path or "")).expanduser()
+        if not p.is_file():
+            return err("Arquivo de erros não encontrado.")
+        try:
+            _abrir_no_navegador(p) if p.suffix.lower() in (".html", ".htm", ".pdf") else None
+            if os.name == "nt":
+                os.startfile(str(p))  # type: ignore[attr-defined]
+            else:
+                webbrowser.open(p.as_uri())
+            return ok(path=str(p))
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
+
+    def load_consulta_rgp_auditoria(self) -> Dict[str, Any]:
+        def work():
+            svc = self._ensure_consulta_rgp()
+            evts = svc.listar_auditoria(500)
+            return {
+                "itens": [
+                    {
+                        "id": e.id,
+                        "em": e.em,
+                        "usuario": e.usuario,
+                        "acao": e.acao,
+                        "detalhe": e.detalhe,
+                        "person_id": e.person_id,
+                        "nome": e.nome,
+                    }
+                    for e in evts
+                ]
+            }
+
+        return self._run_async(
+            "consulta_rgp_auditoria", work, "Carregando auditoria Consulta RGP…"
+        )
+
+    # ---- Informe Mensal (REAP mês a mês, planilha REAP) ------------------
+
+    def _ensure_informe(self) -> InformeMensalService:
+        svc = self._ensure_service()
+        if self._informe_service is None or self._informe_service.client is not svc.client:
+            self._informe_service = InformeMensalService(svc.client)
+        self._informe_service.actor = self._admin_user
+        return self._informe_service
+
+    @staticmethod
+    def _informe_especies_cfg() -> List[str]:
+        return im.normalizar_especies_ativas(load_config().get("informe_especies"))
+
+    @classmethod
+    def _informe_meta(cls) -> Dict[str, Any]:
+        ativas = cls._informe_especies_cfg()
+        n_pool = len(ativas)
+        return {
+            "catalogo": im.catalogo(ativas),
+            "especies_ativas": ativas,
+            "especies_todas": list(im.ESPECIES_TODAS),
+            "especies_minimo": im.MIN_ESPECIES_ATIVAS,
+            "meses_ordem": im.MESES_ORDEM,
+            "meses_pesca": im.MESES_PESCA,
+            "meses_piracema": im.MESES_PIRACEMA,
+            "meses_titulo": im.MES_TITULO,
+            "piracema_label": im.PIRACEMA_LABEL,
+            "kg_min": im.KG_MIN,
+            "kg_max": im.KG_MAX,
+            "kg_ano_min": im.KG_ANO_MIN,
+            "kg_ano_max": im.KG_ANO_MAX,
+            "dias_min": im.DIAS_MIN,
+            "dias_max": im.DIAS_MAX,
+            "contagens": list(im.contagens_para_pool(n_pool)),
+            "municipios": list(im.MUNICIPIOS),
+            "probabilidades": im.probabilidades_plano(n_pool=n_pool),
+            "regras_probabilidade": im.regras_probabilidade(),
+            "permite_8": n_pool >= 8,
+        }
+
+    @staticmethod
+    def _informe_socio_dict(p: Any, meses: Dict[str, "im.InformeMes"], ano: int) -> Dict[str, Any]:
+        cpf = only_digits(p.cpf)
+        return {
+            "id": p.id,
+            "nome": format_nome(p.nome),
+            "cpf": format_cpf(p.cpf),
+            "cpf_raw": cpf,
+            "telefone": getattr(p, "telefone", "") or "",
+            "municipio": getattr(p, "municipio", "") or "",
+            "municipio_reap": im.normalizar_municipio(getattr(p, "municipio", "")),
+            "meses": {m: r.to_dict() for m, r in meses.items()},
+            "textos": {m: im.texto_para_site(r) for m, r in meses.items() if r.houve_pesca},
+            "resumo": im.resumo_socio(meses, cpf or p.id, ano),
+        }
+
+    def _informe_pessoa(self, person_id: str) -> Any:
+        pessoa = next(
+            (p for p in self._ensure_service().get_all_pessoas() if p.id == person_id),
+            None,
+        )
+        if not pessoa:
+            raise ValueError("Sócio não encontrado na planilha REAP.")
+        return pessoa
+
+    def load_informe_mensal(self, ano: Any = None) -> Dict[str, Any]:
+        ano_i = _informe_ano(ano)
+
+        def work():
+            svc = self._ensure_service()
+            inf = self._ensure_informe()
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in inf.listar(ano_i):
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            socios = [
+                self._informe_socio_dict(p, por_pessoa.get(p.id, {}), ano_i)
+                for p in svc.get_all_pessoas()
+            ]
+            socios.sort(key=lambda s: s["nome"].casefold())
+            iguais = _informe_iguais(por_pessoa, socios)
+            return {"ano": ano_i, "socios": socios, "padroes_iguais": iguais, **self._informe_meta()}
+
+        return self._run_async("informe_lista", work, "Carregando Informe Mensal…")
+
+    def abrir_informe_tabela(self, ano: Any = None) -> Dict[str, Any]:
+        """Gera HTML com tabela por sócio (meses preenchidos) e abre no navegador."""
+        from controle.informe_mensal_relatorio import (
+            montar_html_informe,
+            nome_arquivo_informe,
+            salvar_html_informe,
+        )
+
+        ano_i = _informe_ano(ano)
+
+        def work():
+            svc = self._ensure_service()
+            inf = self._ensure_informe()
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in inf.listar(ano_i):
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            pessoas = svc.get_all_pessoas()
+            socios = [
+                self._informe_socio_dict(p, por_pessoa.get(p.id, {}), ano_i)
+                for p in pessoas
+            ]
+            socios.sort(key=lambda s: s["nome"].casefold())
+            html_txt = montar_html_informe(
+                org_short=ORG_SHORT,
+                org_full=ORG_FULL,
+                ano=ano_i,
+                socios=socios,
+                por_pessoa=por_pessoa,
+            )
+            path = salvar_html_informe(html_txt, nome_arquivo=nome_arquivo_informe(ano_i))
+            inf.registrar_auditoria(
+                "abrir_tabela_informe",
+                f"Abriu tabela HTML do Informe Mensal {ano_i} ({len(socios)} sócio(s)) — {path.name}",
+                ano=str(ano_i),
+            )
+            return {
+                "path": str(path),
+                "total": len(socios),
+                "com_meses": sum(1 for s in socios if (s.get("resumo") or {}).get("gerados")),
+                "ano": ano_i,
+            }
+
+        return self._run_async("informe_tabela", work, "Gerando tabela do Informe Mensal…")
+
+    def abrir_informe_tabela_socio(self, payload: Any = None) -> Dict[str, Any]:
+        """HTML individual: só os meses preenchidos daquele sócio → abre no navegador."""
+        from controle.informe_mensal_relatorio import (
+            montar_html_informe_socio,
+            nome_arquivo_informe_socio,
+            salvar_html_informe,
+        )
+
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        if not pid:
+            return err("Sócio não informado.")
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            meses = inf.meses_do_socio(pid, ano_i)
+            socio = self._informe_socio_dict(pessoa, meses, ano_i)
+            feitos = sum(1 for m in im.MESES_PESCA if m in meses and meses[m].houve_pesca)
+            if feitos == 0:
+                raise ValueError(
+                    f"{socio['nome']} ainda não tem mês preenchido em {ano_i}. "
+                    "Gere ao menos um REAP antes de abrir a tabela."
+                )
+            html_txt = montar_html_informe_socio(
+                org_short=ORG_SHORT,
+                org_full=ORG_FULL,
+                ano=ano_i,
+                socio=socio,
+                meses=meses,
+            )
+            path = salvar_html_informe(
+                html_txt, nome_arquivo=nome_arquivo_informe_socio(ano_i, socio["nome"])
+            )
+            inf.registrar_auditoria(
+                "abrir_tabela_socio",
+                f"Abriu tabela HTML individual de {socio['nome']} — {ano_i} "
+                f"({feitos} mês(es)) — {path.name}",
+                person_id=pid,
+                nome=socio["nome"],
+                ano=str(ano_i),
+            )
+            return {
+                "path": str(path),
+                "person_id": pid,
+                "nome": socio["nome"],
+                "meses": feitos,
+                "ano": ano_i,
+            }
+
+        return self._run_async(
+            "informe_tabela_socio", work, "Gerando tabela individual do sócio…"
+        )
+
+    def salvar_informe_especies(self, payload: Any = None) -> Dict[str, Any]:
+        """Config exclusiva do Informe Mensal: peixes que entram no cérebro (universal)."""
+        data = _informe_args(payload)
+        erros = im.validar_especies_ativas(data.get("especies"))
+        if erros:
+            return err(" ".join(erros))
+        ativas = im.normalizar_especies_ativas(data.get("especies"))
+
+        def work():
+            cfg = load_config()
+            cfg["informe_especies"] = ativas
+            save_config(cfg)
+            try:
+                self._ensure_informe().registrar_auditoria(
+                    "config_especies_informe",
+                    f"Configurou peixes ({len(ativas)}): {', '.join(ativas)}",
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            return {
+                "especies_ativas": ativas,
+                "catalogo": im.catalogo(ativas),
+                "contagens": list(im.contagens_para_pool(len(ativas))),
+                "permite_8": len(ativas) >= 8,
+                "probabilidades": im.probabilidades_plano(n_pool=len(ativas)),
+                "resumo": im.resumo_especies_ativas(ativas),
+            }
+
+        return self._run_async(
+            "informe_especies_salvas", work, "Salvando peixes do Informe Mensal…"
+        )
+
+    def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+        if mes in im.MESES_PIRACEMA:
+            return err(f"{im.MES_TITULO[mes]} é {im.PIRACEMA_LABEL} — não há REAP de pesca.")
+        if not pid:
+            return err("Sócio não informado.")
+        municipio_req = str(data.get("municipio") or "").strip()
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            todos = inf.listar()
+            do_ano = [r for r in todos if r.ano == ano_i]
+            salvos = {r.mes: r for r in do_ano if r.person_id == pid}
+            anterior = salvos.get(mes)
+            globais = {r.assinatura for r in todos if r.assinatura}
+            nomes_outros = {
+                im.assinatura_nomes(e.nome for e in r.especies)
+                for r in do_ano
+                if r.person_id != pid and r.mes == mes and r.houve_pesca
+            }
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in do_ano:
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            outros_planos: Dict[str, int] = {}
+            for outro, meses_outro in por_pessoa.items():
+                if outro == pid:
+                    continue
+                pl = im.plano_do_socio(meses_outro)
+                if pl:
+                    txt = im.plano_str(pl)
+                    outros_planos[txt] = outros_planos.get(txt, 0) + 1
+            municipio = (
+                municipio_req
+                or (anterior.municipio if anterior else "")
+                or pessoa.municipio
+            )
+            res = im.gerar_mes(
+                person_id=pid,
+                cpf=only_digits(pessoa.cpf),
+                nome=format_nome(pessoa.nome),
+                telefone=getattr(pessoa, "telefone", "") or "",
+                ano=ano_i,
+                mes=mes,
+                salvos=salvos,
+                assinaturas_globais=globais,
+                nomes_outros_socios=nomes_outros,
+                outros_planos=outros_planos,
+                municipio=municipio,
+                ator=self._admin_user,
+                especies_ativas=self._informe_especies_cfg(),
+            )
+            reg = res.informe
+            if anterior:
+                reg.gerado_em = anterior.gerado_em or reg.gerado_em
+                reg.gerado_por = anterior.gerado_por or reg.gerado_por
+            inf.salvar(reg)
+            salvos[mes] = reg
+            por_pessoa[pid] = salvos
+            titulo = f"{im.MES_TITULO[mes]}/{ano_i}"
+            resumo_mes = f"{len(reg.especies)} espécies, {reg.dias} dias, {reg.peso_mes} kg"
+            if anterior:
+                acao = "regerar_informe"
+                detalhe = (
+                    f"Regerou REAP de {titulo} — {reg.nome}: {resumo_mes} "
+                    f"(antes: {len(anterior.especies)} espécies, {anterior.dias} dias, "
+                    f"{anterior.peso_mes} kg)"
+                )
+            else:
+                acao = "gerar_informe"
+                detalhe = f"Gerou REAP de {titulo} — {reg.nome}: {resumo_mes}"
+            inf.registrar_auditoria(
+                acao, detalhe, person_id=pid, nome=reg.nome, ano=str(ano_i), meses=mes
+            )
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "regerado": bool(anterior),
+                "avisos": res.avisos,
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+                "padroes_iguais": [
+                    g for g in im.padroes_iguais(por_pessoa) if pid in g["socios"]
+                ],
+            }
+
+        return self._run_async("informe_gerado", work, "Gerando REAP do mês…")
+
+    def salvar_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+        especies = im.especies_de_payload(data.get("especies"))
+        dias = data.get("dias")
+        erros = im.validar_mes(mes, dias, especies)
+        if erros:
+            return err(" ".join(erros))
+        if not pid:
+            return err("Sócio não informado.")
+        municipio_req = str(data.get("municipio") or "").strip()
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            salvos = inf.meses_do_socio(pid, ano_i)
+            anterior = salvos.get(mes)
+            if not anterior:
+                raise ValueError("Gere o REAP do mês antes de editar.")
+            conj = im.assinatura_conjunto(especies)
+            for m, r in salvos.items():
+                if m != mes and r.houve_pesca and im.assinatura_conjunto(r.especies) == conj:
+                    raise ValueError(
+                        f"Mesmo conjunto de espécies/kg de {im.MES_TITULO[m]} — altere algum valor."
+                    )
+            agora = im.now_stamp()
+            reg = im.InformeMes(
+                id=anterior.id,
+                person_id=pid,
+                cpf=only_digits(pessoa.cpf),
+                nome=format_nome(pessoa.nome),
+                telefone=getattr(pessoa, "telefone", "") or "",
+                ano=ano_i,
+                mes=mes,
+                houve_pesca=True,
+                dias=int(dias),
+                especies=especies,
+                municipio=im.normalizar_municipio(municipio_req or anterior.municipio),
+                assinatura=im.assinatura_mes(mes, especies, int(dias)),
+                gerado_em=anterior.gerado_em,
+                gerado_por=anterior.gerado_por,
+                atualizado_em=agora,
+                atualizado_por=self._admin_user,
+                motor=f"{im.MOTOR}+manual",
+                plano=anterior.plano,
+            )
+            mudancas = _informe_diff(anterior, reg)
+            if not mudancas:
+                return {
+                    "ano": ano_i,
+                    "mes": mes,
+                    "sem_mudanca": True,
+                    "avisos": im.validar_ano(salvos),
+                    "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+                }
+            inf.salvar(reg)
+            salvos[mes] = reg
+            inf.registrar_auditoria(
+                "editar_informe",
+                f"Alterou REAP de {im.MES_TITULO[mes]}/{ano_i} — {reg.nome}: {'; '.join(mudancas)}",
+                person_id=pid,
+                nome=reg.nome,
+                ano=str(ano_i),
+                meses=mes,
+            )
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "avisos": im.validar_ano(salvos),
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+            }
+
+        return self._run_async("informe_salvo", work, "Salvando REAP do mês…")
+
+    def excluir_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            removido = inf.excluir(pid, ano_i, mes)
+            if not removido:
+                raise ValueError("Esse mês ainda não foi gerado.")
+            inf.registrar_auditoria(
+                "excluir_informe",
+                f"Excluiu REAP de {im.MES_TITULO[mes]}/{ano_i} — {removido.nome} "
+                f"({len(removido.especies)} espécies, {removido.dias} dias, {removido.peso_mes} kg)",
+                person_id=pid,
+                nome=removido.nome,
+                ano=str(ano_i),
+                meses=mes,
+            )
+            salvos = inf.meses_do_socio(pid, ano_i)
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+            }
+
+        return self._run_async("informe_excluido", work, "Excluindo REAP do mês…")
+
+    def load_informe_auditoria(self) -> Dict[str, Any]:
+        def work():
+            evts = self._ensure_informe().listar_auditoria(500)
+            return {
+                "itens": [
+                    {
+                        "id": e.id,
+                        "em": e.em,
+                        "usuario": e.usuario,
+                        "acao": e.acao,
+                        "detalhe": e.detalhe,
+                        "person_id": e.person_id,
+                        "nome": e.nome,
+                        "ano": e.ano,
+                        "mes": e.meses,
+                    }
+                    for e in evts
+                ]
+            }
+
+        return self._run_async("informe_auditoria", work, "Carregando auditoria do Informe Mensal…")
+
+    def importar_consulta_rgp(self, registro_id: str = "") -> Dict[str, Any]:
+        return err(
+            "Envio para REAP/Defeso desativado nesta etapa. "
+            "Os dados ficam só na planilha Consulta RGP."
+        )
+
+    def abrir_consulta_rgp_mpa(self, cpf: Any = "") -> Dict[str, Any]:
+        try:
+            abrir_site_mpa_no_navegador(normalize_cpf(cpf) or str(cpf or ""))
+            return ok(url=MPA_CONSULTA_URL)
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
+
     def quit_app(self) -> Dict[str, Any]:
         if webview:
             webview.destroy_window()
         return ok()
+
+
+
+def _informe_args(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text:
+            return {}
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+    if payload is None:
+        return {}
+    return _js_payload_to_dict(payload)
+
+
+def _informe_iguais(
+    por_pessoa: Dict[str, Dict[str, "im.InformeMes"]], socios: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Grupos de padrões iguais com nomes; marca ``padrao_igual`` em cada sócio."""
+    nomes = {s["id"]: s["nome"] for s in socios}
+    grupos = im.padroes_iguais(por_pessoa)
+    marcados: Dict[str, List[str]] = {}
+    for g in grupos:
+        g["nomes"] = [nomes.get(pid, pid) for pid in g["socios"]]
+        for pid in g["socios"]:
+            marcados.setdefault(pid, []).append(g["descricao"])
+    for s in socios:
+        s["padrao_igual"] = marcados.get(s["id"], [])
+    return grupos
+
+
+def _informe_ano(valor: Any) -> int:
+    try:
+        ano = int(str(valor).strip())
+    except (TypeError, ValueError):
+        return datetime.now().year
+    return ano if 2000 <= ano <= 2100 else datetime.now().year
+
+
+def _informe_diff(antes: "im.InformeMes", depois: "im.InformeMes") -> List[str]:
+    out: List[str] = []
+    if int(antes.dias) != int(depois.dias):
+        out.append(f"dias {antes.dias}→{depois.dias}")
+    if antes.municipio != depois.municipio:
+        out.append(f"município {antes.municipio}→{depois.municipio}")
+    kg_antes = {e.nome: int(e.kg) for e in antes.especies}
+    kg_depois = {e.nome: int(e.kg) for e in depois.especies}
+    for nome, kg in kg_depois.items():
+        if nome not in kg_antes:
+            out.append(f"+{nome} {kg} kg")
+        elif kg_antes[nome] != kg:
+            out.append(f"{nome} {kg_antes[nome]}→{kg} kg")
+    for nome in kg_antes:
+        if nome not in kg_depois:
+            out.append(f"−{nome}")
+    if not out and [e.nome for e in antes.especies] != [e.nome for e in depois.especies]:
+        out.append("ordem das espécies")
+    return out
+
+
+def _parse_consulta_rgp_args(registro_id: Any = "", cpf: Any = "") -> tuple[str, str]:
+    """Extrai (id, cpf_normalizado) de JSON string, dict/JSObject ou args clássicos."""
+    # 1) JSON string — forma preferida (sem coerção de zero à esquerda na ponte)
+    if isinstance(registro_id, str):
+        text = registro_id.strip()
+        if text.startswith("{"):
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                data = {}
+            if isinstance(data, dict):
+                rid = str(data.get("id") or data.get("registro_id") or "").strip()
+                digits = normalize_cpf(data.get("cpf") or cpf or "")
+                return rid, digits
+    # 2) dict / JSObject
+    if _is_consulta_payload(registro_id):
+        data = _js_payload_to_dict(registro_id)
+        rid = str(data.get("id") or data.get("registro_id") or "").strip()
+        digits = normalize_cpf(data.get("cpf") or cpf or "")
+        return rid, digits
+    # 3) (id, cpf) clássico
+    return str(registro_id or "").strip(), normalize_cpf(cpf)
+
+
+def _is_consulta_payload(obj: Any) -> bool:
+    """True se o 1º arg de consultar_rgp_pessoa é dict/JSON/JSObject com id/cpf."""
+    if isinstance(obj, dict):
+        return True
+    if isinstance(obj, str) and obj.strip().startswith("{"):
+        return True
+    try:
+        keys = {str(k) for k in list(obj.keys())}  # type: ignore[attr-defined]
+    except Exception:
+        return False
+    return bool(keys & {"id", "cpf", "registro_id"})
 
 
 def _normalize_atalhos_lista(raw: Any) -> List[str]:

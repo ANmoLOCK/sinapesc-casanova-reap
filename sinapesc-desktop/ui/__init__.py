@@ -23,7 +23,7 @@ from sheets import MESES, MESES_LABEL, MesKey, PessoaComReap, SheetsConfigError,
 from sheets.models import meses_no_intervalo
 from ui.brand import load_logo
 from ui.chrome import build_shell, clear_body, go_back, navigate, page_wrap, sync_chrome
-from ui.formatters import display_nome, format_cpf, format_cpf_masked, format_nome, get_initials, only_digits, parse_lote_lines
+from ui.formatters import display_nome, format_cpf, format_cpf_input, format_cpf_masked, format_nome, get_initials, only_digits, parse_lote_lines
 from ui.public_link import ensure_site_qrs, resolve_base, urls_for
 from ui.public_web import start_public_server
 from ui.qr_vault import (
@@ -306,7 +306,7 @@ class SinapescApp(tk.Tk):
             cards,
             "Secretaria",
             "Cadastre sócios, marque REAPs e importe lotes na planilha Google.",
-            "Entrar como administrador",
+            "Entrar",
             self.show_login,
         ).pack(side="left", fill="both", expand=True, padx=(0, 10))
         self._home_card(
@@ -347,7 +347,8 @@ class SinapescApp(tk.Tk):
         wrap = page_wrap(self)
         box = tk.Frame(wrap, bg=COLORS["surface"], padx=32, pady=28, highlightbackground=COLORS["border"], highlightthickness=1)
         box.pack(anchor="n", pady=40)
-        tk.Label(box, text="Acesso administrativo", bg=COLORS["surface"], fg=COLORS["primary"], font=(FONT_DISPLAY, 15, "bold")).pack(anchor="w")
+        tk.Label(box, text="Acesso unificado", bg=COLORS["surface"], fg=COLORS["primary"], font=(FONT_DISPLAY, 15, "bold")).pack(anchor="w")
+        tk.Label(box, text="Login único no início. Depois escolha o módulo sem entrar de novo.", bg=COLORS["surface"], fg=COLORS["muted"], font=(FONT_FAMILY, 9)).pack(anchor="w", pady=(2, 2))
         tk.Label(box, text=ORG_FULL, bg=COLORS["surface"], fg=COLORS["muted"], font=(FONT_FAMILY, 9)).pack(anchor="w", pady=(2, 16))
 
         tk.Label(box, text="E-mail", bg=COLORS["surface"], fg=COLORS["muted"]).pack(anchor="w")
@@ -837,7 +838,21 @@ class SinapescApp(tk.Tk):
         cpf = ttk.Entry(win, width=44)
         cpf.pack(padx=16)
         if pessoa:
-            cpf.insert(0, format_cpf(pessoa.cpf))
+            cpf.insert(0, format_cpf_input(pessoa.cpf))
+
+        def _mask_cpf(_evt=None) -> None:
+            digits = only_digits(cpf.get())
+            shown = format_cpf_input(digits)
+            if cpf.get() != shown:
+                pos = cpf.index("insert")
+                cpf.delete(0, "end")
+                cpf.insert(0, shown)
+                try:
+                    cpf.icursor(min(pos, len(shown)))
+                except tk.TclError:
+                    cpf.icursor("end")
+
+        cpf.bind("<KeyRelease>", _mask_cpf)
 
         def save() -> None:
             n = format_nome(nome.get())
@@ -1191,7 +1206,8 @@ class SinapescApp(tk.Tk):
         def bind_cpf_mask(entry: ttk.Entry) -> None:
             def on_key(_evt=None):
                 digits = only_digits(entry.get())
-                shown = format_cpf(digits)
+                # format_cpf_input: sem pad/recover (format_cpf quebrava no 9º/10º dígito)
+                shown = format_cpf_input(digits)
                 if entry.get() != shown:
                     entry.delete(0, "end")
                     entry.insert(0, shown)
@@ -1219,7 +1235,7 @@ class SinapescApp(tk.Tk):
             cpf_ent = ttk.Entry(inner, width=18)
             cpf_ent.pack(side="left")
             if cpf:
-                cpf_ent.insert(0, format_cpf(cpf))
+                cpf_ent.insert(0, format_cpf_input(cpf))
             bind_cpf_mask(cpf_ent)
             item = {"frame": frame, "nome": nome_ent, "cpf": cpf_ent}
             self._btn(

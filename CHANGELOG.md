@@ -6,7 +6,386 @@ Formato: mais recente primeiro.
 
 ---
 
----
+## [v1.8.5] — 2026-11-05 — Informe Mensal: botão Peixes
+
+**Tag:** [`v1.8.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip
+
+- Botão e tela de configuração renomeados de «Peixes do cérebro» para **Peixes**
+
+## [v1.8.4] — 2026-11-05 — Informe Mensal: peixes do cérebro
+
+**Tag:** [`v1.8.4`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.4/SinapescREAP-Windows-v1.8.4.zip
+
+- Configuração exclusiva do Informe Mensal: botão **Peixes do cérebro** com os 8 peixes em caixas de seleção
+- A seleção é **universal** (vale para todos os sócios) e grava em `config.json` (`informe_especies`)
+- O cérebro só gera REAP com os peixes marcados; mínimo 4; com menos de 8 peixes o mês de 8 espécies some do plano
+- Auditoria registra a mudança (`config_especies_informe`)
+
+## [v1.8.3] — 2026-11-05 — Informe Mensal: card Tabela por sócio
+
+**Tag:** [`v1.8.3`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.3/SinapescREAP-Windows-v1.8.3.zip
+
+- Ao lado de **Abrir**, cada sócio ganha o card **Tabela**: abre no navegador um HTML **só daquele sócio**, com **apenas os meses preenchidos** (resumo + detalhe de espécies)
+- Card desabilitado quando o sócio ainda não tem mês gerado; ação registrada na Auditoria (`abrir_tabela_socio`)
+
+## [v1.8.2] — 2026-11-05 — Informe Mensal: tabela HTML no navegador
+
+**Tag:** [`v1.8.2`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.2/SinapescREAP-Windows-v1.8.2.zip
+
+- Botão **Abrir tabela no navegador** no Informe Mensal: gera HTML com 1 linha por sócio, células Jan→Dez (piracema / gerado com spp·kg·dias / pendente) e detalhe dos meses preenchidos com espécies
+- Abre numa aba do navegador (imprimir / salvar PDF); arquivo na pasta de relatórios; ação registrada na Auditoria
+
+## [v1.8.1] — 2026-11-05 — Informe Mensal: plano probabilístico e padrões iguais
+
+**Tag:** [`v1.8.1`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.1)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.1/SinapescREAP-Windows-v1.8.1.zip
+
+- Cada sócio ganha um **plano próprio de quantidades de espécies (Mar → Out)**, sorteado com probabilidade e gravado na coluna `planoContagens`. Acaba a sequência repetida `4,5,4,6,8,4,6,8`
+- Pesos base 4 → 40%, 5 → 33%, 6 → 27%; cada repetição no ano multiplica a chance por 0,45; meses vizinhos nunca com a mesma quantidade
+- **8 espécies só para ~35% dos sócios**, no máximo 1 mês, de preferência no meio da safra
+- O plano não repete o de outro sócio do mesmo ano; se os planos de uma categoria se esgotarem, repete o menos usado e aponta em Padrões iguais
+- **Kg humanizados por pessoa**: preferência por espécie (0,80–1,25) e ritmo de produção do ano próprios de cada pescador
+- Caixa do sócio: chips do plano, quantidade prevista nos meses pendentes, perfil do pescador e **cálculo de probabilidade** (4.000 simulações)
+- **Padrões iguais** entre sócios (mesmo plano, mesmos kg, mês idêntico): faixa na lista, filtro, selo **=** e aviso ao gerar
+- Guia atualizado: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md) (seções 5.5 e 5.6)
+
+## [v1.8.0] — 2026-11-05 — Módulo Informe Mensal (REAP mês a mês)
+
+**Tag:** [`v1.8.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.0)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.0/SinapescREAP-Windows-v1.8.0.zip
+
+- **Novo botão «Informe Mensal»** ao lado de «Abrir REAP» no hub de módulos
+- Lista os sócios da planilha REAP (nome, CPF, telefone, município) com busca, filtro e progresso Jan → Dez
+- Box por sócio com os 12 meses: **Jan, Fev, Nov e Dez em cinza — ÉPOCA DE PIRACEMA**; Mar → Out liberados
+- Operador escolhe o mês e clica **Gerar REAP**: o cérebro (reformulação v4 do pacote `reap-informe-mensal-v1.8.0`) gera dias 16–21, 4/5/6/8 espécies da época, kg inteiros sazonais e valor = preço varejo, e **salva na aba `InformeMensal` da planilha REAP**
+- Cada mês novo leva em conta os meses já salvos do sócio: não repete conjunto de espécies/kg, ordem dos peixes nem dias do mês vizinho; mistura 4/5/6/8 no ano e peso anual fecha em 540–650 kg (alvo próprio de cada sócio); evita mês idêntico ao de outro sócio
+- **Regerar**, **Editar** (dias, município, espécies, kg, ordem — validado pelas regras do cérebro), **Excluir mês** e **Copiar texto** para conferir no gov.br
+- Aba **Auditoria** do módulo (aba `InformeAuditoria` na planilha): quem gerou, regerou, alterou (com o antes → depois) ou excluiu cada REAP
+- Guia completo: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+
+## [v1.7.56] — 2026-10-14 — Relatórios: aviso/CSV respeitam colunas
+
+**Tag:** [`v1.7.56`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.56)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.56/SinapescREAP-Windows-v1.7.56.zip
+
+- Aviso do HTML Defeso só cita município/telefone/endereço/obs se a coluna estiver ligada
+- Export CSV da Consulta RGP usa as mesmas colunas do modal (não força município)
+- Lista explícita de colunas vazia/inválida cai em «nome» (não restaura o padrão completo)
+- Mantém login único primário e filtros de verificação da v1.7.55
+
+## [v1.7.55] — 2026-10-14 — Login único primário + filtros relatório + verificação RGP
+
+**Tag:** [`v1.7.55`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.55)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.55/SinapescREAP-Windows-v1.7.55.zip
+
+- **Login único primário:** app abre na tela de entrada; após autenticar, hub de módulos; ← Módulos troca sem pedir senha de novo; Sair volta ao login
+- **Bug relatório:** desmarcar Município remove a coluna e o agrupamento «MUNICÍPIO — …» (Defeso e Consulta RGP)
+- **Consulta RGP:** filtros de verificação — Não consultados, Consultados hoje, Consultados recentes (7 dias)
+
+## [v1.7.54] — 2026-10-10 — Login único + observação Defeso + filtros relatório
+
+**Tag:** [`v1.7.54`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.54)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.54/SinapescREAP-Windows-v1.7.54.zip
+
+- **Login único:** uma sessão libera REAP, Defeso Fácil e Consulta RGP; home vira hub após entrar; botão ← Módulos; Sair na home quando logado
+- Mantém **Observação** na ficha Defeso (planilha + relatório/filtros) da v1.7.53
+- Mantém modal de relatório Defeso com filtros e colunas
+
+## [v1.7.53] — 2026-10-10 — Observação na ficha Defeso + filtros no relatório
+
+**Tag:** [`v1.7.53`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.53)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.53/SinapescREAP-Windows-v1.7.53.zip
+
+- Campo **Observação** na ficha de cada sócio (Defeso Fácil), gravado na planilha (coluna `observacao`)
+- Relatório HTML: coluna Observação + modal com filtros (entrada, parcelas, telefone, endereço, observação, docs, busca, colunas)
+- Mantém agrupamento por município do relatório
+
+## [v1.7.52] — 2026-09-15 — Relatórios por município + consulta no HTML + vencidos
+
+**Tag:** [`v1.7.52`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.52)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.52/SinapescREAP-Windows-v1.7.52.zip
+
+- **Vencidos / lote:** CPF inválido **não pausa nem fecha** a operação — pula e segue os demais
+- **Relatório HTML Consulta RGP:** filtro «Consultados hoje» / «últimos 7 dias»
+- **REAP, Defeso e Consulta RGP:** HTML agrupado por `MUNICÍPIO — NOME` (cabeçalho + coluna na linha)
+- Modal de lote só auto-fecha quando não houve erros
+
+## [v1.7.51] — 2026-09-15 — REAP: CPF digitação/gravação sem inventar outro
+
+**Tag:** [`v1.7.51`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.51)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.51/SinapescREAP-Windows-v1.7.51.zip
+
+- **Bug:** no REAP (Tk lote e valor inicial de inputs), `format_cpf`/`normalize` no meio da digitação completava com zero à esquerda no 9º/10º dígito — trava no `maxlength` e grava CPF errado (ex.: `106.839.195-15` → `010.683.919-5x`)
+- **Correção:** `format_cpf_input` (Python) + inputs web com `formatCpfInput`; máscara Tk sem pad; gravação REAP na planilha como texto (`'…`); Defeso ganha máscara segura
+- Consulta RGP normalize (v1.7.50) mantido; testes em `test_reap_cpf_digitacao.py`
+
+## [v1.7.50] — 2026-09-09 — CPF: não inventar outro ao cadastrar/editar
+
+**Tag:** [`v1.7.50`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.50)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.50/SinapescREAP-Windows-v1.7.50.zip
+
+- **Causa:** ao normalizar CPF, o app podia «corrigir» com zero à esquerda / recover de float quando o DV «batia», trocando o valor digitado por outro CPF (ex.: `106.839.195-15` → `010.683.919-52`, `915.647.605-15` → `091.564.760-51`)
+- **Correção:** 11 dígitos da máscara/digitação são preservados (mesmo com DV inválido); recover agressivo só quando o DV atual é inválido ou o valor veio como número; gravação na planilha como texto (`'…`); consulta não sobrescreve CPF da planilha por preferir zero à esquerda
+- Testes de regressão na bateria CPF (`test_cpf_consulta_battery.py`)
+
+## [v1.7.49] — 2026-09-04 — Relatório HTML com filtros e seleção
+
+**Tag:** [`v1.7.49`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.49)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.49/SinapescREAP-Windows-v1.7.49.zip
+
+- Modal de relatório HTML com escopo (todos / selecionados / lista filtrada)
+- Filtros: situação(ões), município(s), busca, datas, com/sem senha Gov.br
+- Escolha das **colunas** do HTML + prévia da quantidade
+- Opção de imprimir automaticamente ou não
+- Correções: relatório não gera mais sem filtros; HTML sem double-escape; células vazias com "—"
+
+## [v1.7.48] — 2026-09-04 — Senha Gov.br individual por sócio
+
+**Tag:** [`v1.7.48`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.48)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.48/SinapescREAP-Windows-v1.7.48.zip
+
+- Senha Gov.br passa a ser **por sócio** (coluna `govbrSenha` na planilha ConsultaRGP)
+- Cadastro, edição e detalhe gravam a senha daquele registro
+- **Corrigir em lote** permite redigitar a senha de cada linha
+- Relatório HTML geral lista a senha de cada sócio
+
+## [v1.7.47] — 2026-09-04 — CPF digitação + busca RGP + excluir sócio
+
+**Tag:** [`v1.7.47`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.47)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.47/SinapescREAP-Windows-v1.7.47.zip
+
+- **REAP:** máscara de CPF na digitação sem `padStart`/recover no meio (CPF completo volta a funcionar)
+- **Consulta RGP:** busca por nome atualiza só a tabela (não recria o input a cada letra)
+- **Consulta RGP:** opção **Excluir** (toolbar, linha e detalhe) — remove da planilha Consulta RGP sem apagar REAP/Defeso
+- Máscaras compartilhadas em `web/js/masks.js`; exclusão em `controle/consulta_rgp_funcoes/excluir.py`
+
+## [v1.7.46] — 2026-09-04 — Corrigir em lote (nome/CPF/tel/mun/obs + senha Gov.br)
+
+**Tag:** [`v1.7.46`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.46)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.46/SinapescREAP-Windows-v1.7.46.zip
+
+- Botão **Corrigir em lote**: edita nome, CPF, número, município e observação de vários sócios
+- Opção de atualizar a **senha Gov.br** do módulo na mesma tela
+- Gravação em batch (anti-cota Sheets)
+- Usa os selecionados; se nenhum, usa a lista filtrada (até 200)
+
+## [v1.7.45] — 2026-09-04 — Scroll da lista + import nome+CPF (TXT/XLSX/PDF)
+
+**Tag:** [`v1.7.45`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.45)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.45/SinapescREAP-Windows-v1.7.45.zip
+
+- Restaura scroll da Consulta RGP (`.rgp-shell` em flex + altura) para rolar a lista de sócios
+- Import TXT/XLSX/PDF captura **nome e CPF juntos** (CPF no início ou no fim; linhas alternadas; evita telefone como CPF)
+- Não grava mais sócio só com «CPF 000…» no lugar do nome
+
+## [v1.7.44] — 2026-09-04 — Filtros RGP oficiais + anti-cota na consulta em lote
+
+**Tag:** [`v1.7.44`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.44)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.44/SinapescREAP-Windows-v1.7.44.zip
+
+- **Filtros** da Consulta RGP (chips + select): Ativo · Aguardando análise · Finalizada · Rascunho · Aguardando atualização
+- O **robô MPA** continua gravando a situação verdadeira (ex.: Suspenso, Não encontrado) — o filtro não limita a gravação
+- **Anti-cota** na consulta automática em lote: 1 mapa de linhas + 1 update por CPF (sem listar/auditar a cada item)
+- Mantém import batch (v1.7.43) contra erro 429 / quota 60 em ~500 cadastros
+
+## [v1.7.43] — 2026-09-04 — Import PDF/XLS/TXT anti-cota + relatório HTML geral
+
+**Tag:** [`v1.7.43`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.43)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.43/SinapescREAP-Windows-v1.7.43.zip
+
+- Importar lote de arquivo PDF / XLS / XLSX / TXT / CSV
+- `upsert_lote_batch` evita estouro de cota Sheets no cadastro em massa
+- Relatório HTML geral: nome, CPF, município, telefone, situação RGP e senha Gov.br
+
+## [v1.7.42] — 2026-09-04 — 4 funções Consulta RGP (módulos separados)
+
+**Tag:** [`v1.7.42`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.42)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.42/SinapescREAP-Windows-v1.7.42.zip
+
+Código em pastas/arquivos separados (sem bagunçar `app.js` / `api.py`):
+
+1. **Fila inteligente** — pausa após 3 falhas seguidas + CSV de erros  
+2. **Alerta de situação** — Ativo → Suspenso/Cancelado/Inativo (toast + destaque)  
+3. **Exportar** — CSV + HTML (imprimir PDF) com filtros  
+4. **Reconsultar vencidos** — Não consultado ou última consulta > N dias  
+
+## [v1.7.41] — 2026-09-04 — Senha Gov.br no Editar + formulário organizado
+
+**Tag:** [`v1.7.41`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.41)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.41/SinapescREAP-Windows-v1.7.41.zip
+
+- Editar sócio mostra a senha Gov.br (antes só no cadastro novo)
+- Formulário em seções: dados do sócio · acesso Gov.br · observação
+- Salvar no Editar grava a senha na aba Config da planilha
+- Botão «Editar» abre o modal completo (não só o painel lateral)
+
+## [v1.7.40] — 2026-09-04 — Lote, consulta automática e auditoria RGP
+
+**Tag:** [`v1.7.40`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.40)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.40/SinapescREAP-Windows-v1.7.40.zip
+
+- Cadastro em lote na Consulta RGP (mesmo quadro do REAP)
+- Consulta automática em lote (todos ou selecionados) com estimativa de tempo (~20 min / 500)
+- Header global como nos outros módulos (sem chip ADMIN)
+- Aba Auditoria na planilha Consulta RGP (captura alterações)
+
+## [v1.7.39] — 2026-09-04 — Rodapé global na Consulta RGP
+
+**Tag:** [`v1.7.39`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.39)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.39/SinapescREAP-Windows-v1.7.39.zip
+
+- Consulta RGP volta a exibir o **mesmo rodapé** dos outros módulos
+- Status (ex.: «Carregando Consulta RGP…», «Consultando RGP no MPA…»), usuário, conexão e crédito do autor
+
+
+**Tag:** [`v1.7.38`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.38)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.38/SinapescREAP-Windows-v1.7.38.zip
+
+- JS envia `JSON.stringify({id,cpf})` — sem coerção numérica na ponte
+- `normalize_cpf` recupera `95453325900` → `09545332590` e `56106905010` → `05610690501`
+  (este último passava no dígito verificador por coincidência e quebrava no MPA)
+- Regrava CPF normalizado na planilha ao consultar
+
+## [v1.7.37] — 2026-09-04 — CPF inválido (bateria + float/ponte)
+
+**Tag:** [`v1.7.37`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.37)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.37/SinapescREAP-Windows-v1.7.37.zip
+
+- Causa raiz: `only_digits(str(9545332590.0))` → `95453325900` (11 dígitos errados)
+- `normalize_cpf` trata float, `"….0"`, científica e zero à esquerda
+- `cadastrar_consulta_rgp` e consulta MPA usam normalize; JS chama com objeto `{id,cpf}`
+- Bateria `test_cpf_consulta_battery.py` (095… / 056… em todos os formatos)
+
+## [v1.7.36] — 2026-09-04 — CPF zero à esquerda + UI compacta
+
+**Tag:** [`v1.7.36`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.36)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.36/SinapescREAP-Windows-v1.7.36.zip
+
+- `normalize_cpf`: recupera zero à esquerda perdido (ex.: `9545332590` → `09545332590`)
+- Consulta MPA / cadastro / planilha usam CPF normalizado (11 dígitos)
+- Testado no site MPA: `095.453.325-90` e `056.106.905-01` retornam situação; sem zero falha
+- UI Consulta RGP compactada (header, KPIs, linhas da tabela) para mais área útil
+
+## [v1.7.35] — 2026-09-04 — Scroll estável + detalhes em modal
+
+**Tag:** [`v1.7.35`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.35)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.35/SinapescREAP-Windows-v1.7.35.zip
+
+- Remove painel lateral que apertava/cortava a tabela
+- KPIs + tabela em área com scroll próprio (`.rgp-body-scroll`)
+- Clique na linha, **Consultar** ou **Editar** abre modal largo (Resumo / Dados cadastrais)
+- Tabela em largura total; mais espaço para colunas e ações
+
+## [v1.7.34] — 2026-09-04 — UI reformulada + senha no cadastro
+
+**Tag:** [`v1.7.34`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.34)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.34/SinapescREAP-Windows-v1.7.34.zip
+
+- Remove campo/botão «Salvar senha» do topo do módulo
+- Senha Gov.br só no modal **Cadastrar sócio** (grava na planilha Config)
+- **Editar** abre o painel lateral completo (aba Dados cadastrais)
+- Abas Resumo / Dados cadastrais; layout folgado alinhado ao mockup
+
+## [v1.7.33] — 2026-09-04 — Senha Gov.br na planilha
+
+**Tag:** [`v1.7.33`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.33)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.33/SinapescREAP-Windows-v1.7.33.zip
+
+- Senha Gov.br gravada na aba **Config** da planilha Consulta RGP (`chave|valor`)
+- Cadastros/edição já iam na aba **ConsultaRGP**; preferências também ficam na planilha
+- Fonte da verdade = Google Sheets (não só config local)
+
+## [v1.7.32] — 2026-09-04 — Layout folgado + senha Gov.br
+
+**Tag:** [`v1.7.32`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.32)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.32/SinapescREAP-Windows-v1.7.32.zip
+
+- Remove barra CONFIGURAÇÕES com toggles (Gov.br / Importar REAP)
+- Campo **Senha Gov.br** no topo (com Salvar senha) + Cadastrar sócio
+- Layout espaçoso alinhado ao mockup (header, KPIs, linhas da tabela, painel)
+
+## [v1.7.31] — 2026-09-04 — Corrige consulta MPA (polling + gravação)
+
+**Tag:** [`v1.7.31`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.31)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.31/SinapescREAP-Windows-v1.7.31.zip
+
+- Consulta MPA: script síncrono + polling (pywebview não espera Promise async)
+- Botão Consultar da tabela dispara a consulta de verdade e grava a situação
+- Falha não abre mais o navegador sozinha — use «Abrir site MPA» só se precisar
+- Trata «não encontrado» e envelopes `content[]` da API pública
+- Testes FakeWindow de polling antes do build
+
+## [v1.7.30] — 2026-09-04 — Consulta MPA grava situação + UI folgada
+
+**Tag:** [`v1.7.30`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.30)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.30/SinapescREAP-Windows-v1.7.30.zip
+
+- Worker MPA: espera reCAPTCHA, múltiplas URLs, parse de situação (texto/número)
+- Após consulta, grava situação/última consulta e atualiza lista + KPIs
+- Cadastro → consulta automática com atraso seguro na fila
+- Layout menos apertado (header, KPIs, tabela, modal)
+
+## [v1.7.29] — 2026-09-04 — Consulta RGP UI fiel ao mockup
+
+**Tag:** [`v1.7.29`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.29)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.29/SinapescREAP-Windows-v1.7.29.zip
+
+- Layout full-bleed (sem limite 1100px / sem header duplo achatado)
+- Espaçamentos e tipografia alinhados ao mockup
+- KPIs, tabela, sidebar e modal com altura/respiro corretos
+
+## [v1.7.28] — 2026-09-04 — Cadastro sócio sólido
+
+**Tag:** [`v1.7.28`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.28)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.28/SinapescREAP-Windows-v1.7.28.zip
+
+- Corrige modal quase transparente (`modal-card` sem estilo)
+- Formulário opaco branco, labels e inputs organizados em grade
+- Edição no painel lateral com o mesmo padrão
+
+## [v1.7.27] — 2026-09-04 — Consulta RGP UI (opções escolhidas)
+
+**Tag:** [`v1.7.27`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.27)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.27/SinapescREAP-Windows-v1.7.27.zip
+
+- Header com usuário logado real
+- Chips rápidos de situação + coluna Município
+- Consultar abre painel; MPA só no painel; Editar abre formulário
+- Painel sem abas com **Editar cadastro**
+- Cadastrar sócio dispara consulta MPA automática
+
+## [v1.7.26] — 2026-09-04 — Consulta RGP cadastro local (sem sync REAP)
+
+**Tag:** [`v1.7.26`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.26)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.26/SinapescREAP-Windows-v1.7.26.zip
+
+- Corrige erro de cota (quota 60) ao abrir o módulo (loop de leitura da planilha)
+- Botão **Cadastrar sócio** (nome, CPF, município, telefone, observação)
+- Sem importação Consulta ↔ REAP nesta etapa
+- UI fiel ao mockup (header navy, KPIs, tabela, sidebar)
+
+## [v1.7.25] — 2026-09-04 — Consulta RGP independente
+
+**Tag:** [`v1.7.25`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.25)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.25/SinapescREAP-Windows-v1.7.25.zip
+
+- Módulo Consulta opera sozinho: importação manual de registros
+- UI alinhada ao mockup
+
+## [v1.7.24] — 2026-09-04 — Módulo Consulta RGP
+## [v1.7.24] — 2026-09-04 — Módulo Consulta RGP
+
+**Tag:** [`v1.7.24`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.24)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.24/SinapescREAP-Windows-v1.7.24.zip
+
+- Home: 4º card **Módulo Consulta** (Consulta RGP)
+- Planilha/aba `ConsultaRGP` + sync a partir do REAP
+- Consulta no site MPA em processo/janela isolada (não derruba o EXE)
+- Importação REAP (município+telefone) e Defeso (CPF+nome) **somente se Ativo**
 
 ## [v1.7.23] — 2026-08-31 — Município REAP isolado na tela
 
