@@ -2305,7 +2305,7 @@ class SinapescApi:
             try:
                 self._ensure_informe().registrar_auditoria(
                     "config_especies_informe",
-                    f"Configurou peixes do cérebro ({len(ativas)}): {', '.join(ativas)}",
+                    f"Configurou peixes ({len(ativas)}): {', '.join(ativas)}",
                 )
             except Exception:  # noqa: BLE001
                 pass

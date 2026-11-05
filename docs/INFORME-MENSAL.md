@@ -1,8 +1,8 @@
 # Informe Mensal — REAP mês a mês por sócio
 
-**Versão:** v1.8.4 (2026-11-05)  
-**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.4/SinapescREAP-Windows-v1.8.4.zip  
-**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4  
+**Versão:** v1.8.5 (2026-11-05)  
+**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip  
+**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5  
 **Origem do cérebro:** pacote `reap-informe-mensal-v1.8.0.zip` (`cerebro_reformulacao.py` v4), refatorado na v1.8.1 para plano probabilístico por sócio (`v5-plano`)
 
 ---
@@ -33,9 +33,9 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
-- Botão **Peixes do cérebro**: configuração exclusiva desta aba. Marque quais dos 8 peixes o cérebro pode usar ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com menos de 8, o mês de 8 espécies não entra no plano.
+- Botão **Peixes**: configuração exclusiva desta aba. Marque quais dos 8 peixes podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com menos de 8, o mês de 8 espécies não entra no plano.
 
-![Peixes do cérebro](previews/informe-mensal/informe_17_config_peixes.png)
+![Peixes](previews/informe-mensal/informe_17_config_peixes.png)
 
 - Em cada linha, ao lado de **Abrir**, o card **Tabela** abre no navegador um HTML **só daquele sócio**, com **apenas os meses preenchidos** (tabela resumida + detalhe das espécies). Se ainda não houver mês gerado, o card fica desabilitado.
 
@@ -274,9 +274,9 @@ cd sinapesc-desktop
 python test_informe_mensal.py
 ```
 
-## 10. Mudanças da v1.8.4
+## 10. Mudanças da v1.8.5
 
-- Botão **Peixes do cérebro**: seleção universal dos peixes que entram no cérebro.
+- Botão **Peixes**: seleção universal dos peixes que entram no cérebro.
 
 
 - Card **Tabela** ao lado de **Abrir** em cada sócio: HTML individual só com os meses preenchidos.

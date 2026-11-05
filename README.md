@@ -11,25 +11,25 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.8.4**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4) |
+| Versão atual | [**v1.8.5**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.8.4)
+## Download do EXE (v1.8.5)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.4/SinapescREAP-Windows-v1.8.4.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5
 
-Versão anterior: [v1.8.3](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3)
+Versão anterior: [v1.8.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
-Guia Informe Mensal (v1.8.4): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+Guia Informe Mensal (v1.8.5): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia numa pasta (ex.: `C:\Sinapesc\`) e coloque o `google-credentials.json` junto.
 
@@ -51,10 +51,13 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.8.4
+## O que há na v1.8.5
 
-- Botão **Peixes do cérebro**: escolhe quais dos 8 peixes entram no cérebro (seleção universal para todos os sócios)
-- Em cada sócio, ao lado de **Abrir**, o card **Tabela** abre no navegador só os meses preenchidos daquele sócio
+- Botão renomeado para **Peixes** (antes «Peixes do cérebro»)
+
+## O que havia na v1.8.4
+
+- Botão **Peixes**: escolhe quais dos 8 peixes entram na geração do REAP (seleção universal)
 
 ## O que havia na v1.8.3
 

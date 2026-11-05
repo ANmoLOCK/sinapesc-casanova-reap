@@ -220,7 +220,7 @@
               <option value="excluir_informe" ${S.audAcao === "excluir_informe" ? "selected" : ""}>Excluiu</option>
               <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela geral</option>
               <option value="abrir_tabela_socio" ${S.audAcao === "abrir_tabela_socio" ? "selected" : ""}>Tabela do sócio</option>
-              <option value="config_especies_informe" ${S.audAcao === "config_especies_informe" ? "selected" : ""}>Peixes do cérebro</option>
+              <option value="config_especies_informe" ${S.audAcao === "config_especies_informe" ? "selected" : ""}>Peixes</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -252,7 +252,7 @@
           </div>
           <div class="im-bar-actions">
             <label class="im-ano">Ano <select id="im-ano">${anos}</select></label>
-            <button type="button" class="btn btn-outline-dark btn-sm" id="im-peixes" title="Escolhe quais peixes entram no cérebro (vale para todos os sócios)">Peixes do cérebro</button>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="im-peixes" title="Escolhe quais peixes entram na geração do REAP (vale para todos os sócios)">Peixes</button>
             <button type="button" class="btn btn-primary btn-sm" id="im-tabela" title="Abre no navegador uma tabela HTML com cada sócio e os meses preenchidos">Abrir tabela no navegador</button>
             <button type="button" class="btn btn-outline-dark btn-sm" id="im-refresh">Atualizar</button>
           </div>
@@ -334,7 +334,7 @@
     const completos = S.socios.filter((s) => (s.resumo?.gerados || 0) >= totalPesca()).length;
     if (hint) {
       const nPeixes = (S.meta.especies_ativas || especiesAtivasNomes() || []).length || 8;
-      hint.textContent = `${lista.length} de ${S.socios.length} sócio(s) · ${completos} completo(s) em ${S.ano} · ${nPeixes} peixe(s) no cérebro · abas InformeMensal / InformeAuditoria`;
+      hint.textContent = `${lista.length} de ${S.socios.length} sócio(s) · ${completos} completo(s) em ${S.ano} · ${nPeixes} peixe(s) ativos · abas InformeMensal / InformeAuditoria`;
     }
     if (!lista.length) {
       tbody.innerHTML = `<tr><td colspan="8" class="im-empty">${S.socios.length ? "Nenhum sócio neste filtro." : "Nenhum sócio na planilha REAP. Cadastre em Abrir REAP."}</td></tr>`;
@@ -401,13 +401,13 @@
       <div class="im-peixes-box">
         <div class="modal-head im-head">
           <div>
-            <div class="im-head-nome">Peixes do cérebro</div>
+            <div class="im-head-nome">Peixes</div>
             <div class="im-head-meta">Configuração exclusiva do Informe Mensal · vale para <strong>todos</strong> os sócios</div>
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="im-peixes-close">✕</button>
         </div>
         <div class="modal-body">
-          <p class="im-det-help">Marque os peixes que o cérebro pode usar ao <strong>Gerar REAP</strong>.
+          <p class="im-det-help">Marque os peixes que podem ser usados ao <strong>Gerar REAP</strong>.
           Precisa de pelo menos <strong>${min}</strong>. Se marcar menos de 8, o mês com 8 espécies não entra no plano.</p>
           <div class="im-peixes-grid" id="im-peixes-grid">${boxes}</div>
           <div class="im-peixes-foot">
@@ -451,7 +451,7 @@
       }
       if (S.busy) return;
       S.busy = true;
-      toast("Salvando peixes do cérebro…", 2000);
+      toast("Salvando peixes…", 2000);
       api("salvar_informe_especies", JSON.stringify({ especies: sel })).catch((e) => {
         S.busy = false;
         toast(String(e));
@@ -704,7 +704,7 @@
       .filter((c) => ativas.has(c.nome) || c.nome === atual)
       .map((c) => {
         const off = usados.has(c.nome) && c.nome !== atual;
-        const marca = ativas.has(c.nome) ? "" : " · fora do cérebro";
+        const marca = ativas.has(c.nome) ? "" : " · desmarcado";
         return `<option value="${esc(c.nome)}" ${c.nome === atual ? "selected" : ""} ${off ? "disabled" : ""}>${esc(c.nome)}${marca} (R$ ${fmtMoney(c.preco)})</option>`;
       }).join("");
   }
@@ -846,7 +846,7 @@
     excluir_informe: "Excluiu",
     abrir_tabela_informe: "Abriu tabela",
     abrir_tabela_socio: "Tabela sócio",
-    config_especies_informe: "Peixes do cérebro",
+    config_especies_informe: "Peixes",
   };
 
   function paintAuditoria() {
@@ -981,7 +981,7 @@
     window.AppEvents.on("informe_especies_salvas", (r) => {
       S.busy = false;
       if (!r.ok) {
-        failed(r, "Falha ao salvar peixes do cérebro.");
+        failed(r, "Falha ao salvar peixes.");
         return;
       }
       const d = r.data || {};
@@ -991,7 +991,7 @@
       S.meta.permite_8 = !!d.permite_8;
       if (d.probabilidades) S.meta.probabilidades = d.probabilidades;
       toast(
-        `Peixes do cérebro salvos (${(d.especies_ativas || []).length}): ${(d.especies_ativas || []).join(", ")}`,
+        `Peixes salvos (${(d.especies_ativas || []).length}): ${(d.especies_ativas || []).join(", ")}`,
         5200
       );
       if (S.modalPeixes && S.modalPeixes._close) S.modalPeixes._close(false);

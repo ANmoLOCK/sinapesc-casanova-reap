@@ -6,6 +6,13 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.5] — 2026-11-05 — Informe Mensal: botão Peixes
+
+**Tag:** [`v1.8.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip
+
+- Botão e tela de configuração renomeados de «Peixes do cérebro» para **Peixes**
+
 ## [v1.8.4] — 2026-11-05 — Informe Mensal: peixes do cérebro
 
 **Tag:** [`v1.8.4`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4)  

@@ -431,7 +431,7 @@ def test_ui_botao_e_tela() -> None:
                   "padrao_igual", "Com padrão igual a outro sócio", "previsto",
                   "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela",
                   "abrir_informe_tabela_socio", "im-card-tabela", "data-im-tabela",
-                  "Peixes do cérebro", "salvar_informe_especies", "im-peixes-grid",
+                  "Peixes", "salvar_informe_especies", "im-peixes-grid",
                   "data-im-peixe"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
@@ -724,7 +724,7 @@ def test_api_salvar_informe_especies() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.4"' in theme
+    assert 'APP_VERSION = "1.8.5"' in theme
 
 
 if __name__ == "__main__":
