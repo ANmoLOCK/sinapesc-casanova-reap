@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.0] — 2026-11-05 — Módulo Informe Mensal (REAP mês a mês)
+
+**Tag:** [`v1.8.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.0)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.0/SinapescREAP-Windows-v1.8.0.zip
+
+- **Novo botão «Informe Mensal»** ao lado de «Abrir REAP» no hub de módulos
+- Lista os sócios da planilha REAP (nome, CPF, telefone, município) com busca, filtro e progresso Jan → Dez
+- Box por sócio com os 12 meses: **Jan, Fev, Nov e Dez em cinza — ÉPOCA DE PIRACEMA**; Mar → Out liberados
+- Operador escolhe o mês e clica **Gerar REAP**: o cérebro (reformulação v4 do pacote `reap-informe-mensal-v1.8.0`) gera dias 16–21, 4/5/6/8 espécies da época, kg inteiros sazonais e valor = preço varejo, e **salva na aba `InformeMensal` da planilha REAP**
+- Cada mês novo leva em conta os meses já salvos do sócio: não repete conjunto de espécies/kg, ordem dos peixes nem dias do mês vizinho; mistura 4/5/6/8 no ano e peso anual fecha em 540–650 kg (alvo próprio de cada sócio); evita mês idêntico ao de outro sócio
+- **Regerar**, **Editar** (dias, município, espécies, kg, ordem — validado pelas regras do cérebro), **Excluir mês** e **Copiar texto** para conferir no gov.br
+- Aba **Auditoria** do módulo (aba `InformeAuditoria` na planilha): quem gerou, regerou, alterou (com o antes → depois) ou excluiu cada REAP
+
 ## [v1.7.56] — 2026-10-14 — Relatórios: aviso/CSV respeitam colunas
 
 **Tag:** [`v1.7.56`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.7.56)  

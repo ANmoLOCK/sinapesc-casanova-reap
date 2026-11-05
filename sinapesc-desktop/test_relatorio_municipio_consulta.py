@@ -166,7 +166,7 @@ def test_agrupar_helper():
 
 def test_version():
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.7.56"' in theme
+    assert 'APP_VERSION = "1.8.0"' in theme
 
 
 def test_ui_has_periodo_filter():

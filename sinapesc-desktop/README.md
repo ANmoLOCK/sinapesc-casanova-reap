@@ -15,9 +15,11 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.7.56** — Relatórios: aviso/CSV respeitam colunas escolhidas.
+**v1.8.0** — Novo módulo **Informe Mensal**: REAP mês a mês por sócio (cérebro v4), salvo na planilha REAP, com auditoria.
 
-**Download:** [SinapescREAP-Windows-v1.7.56.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.7.56/SinapescREAP-Windows-v1.7.56.zip)
+**Download:** [SinapescREAP-Windows-v1.8.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.0/SinapescREAP-Windows-v1.8.0.zip)
+
+**v1.7.56** — Relatórios: aviso/CSV respeitam colunas escolhidas.
 
 **v1.7.55** — Login único primário + correção filtros relatório + verificação RGP.
 
