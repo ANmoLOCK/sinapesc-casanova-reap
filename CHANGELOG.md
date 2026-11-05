@@ -18,6 +18,7 @@ Formato: mais recente primeiro.
 - Cada mês novo leva em conta os meses já salvos do sócio: não repete conjunto de espécies/kg, ordem dos peixes nem dias do mês vizinho; mistura 4/5/6/8 no ano e peso anual fecha em 540–650 kg (alvo próprio de cada sócio); evita mês idêntico ao de outro sócio
 - **Regerar**, **Editar** (dias, município, espécies, kg, ordem — validado pelas regras do cérebro), **Excluir mês** e **Copiar texto** para conferir no gov.br
 - Aba **Auditoria** do módulo (aba `InformeAuditoria` na planilha): quem gerou, regerou, alterou (com o antes → depois) ou excluiu cada REAP
+- Guia completo: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 ## [v1.7.56] — 2026-10-14 — Relatórios: aviso/CSV respeitam colunas
 

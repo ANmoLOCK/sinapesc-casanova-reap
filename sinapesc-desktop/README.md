@@ -15,7 +15,7 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.8.0** — Novo módulo **Informe Mensal**: REAP mês a mês por sócio (cérebro v4), salvo na planilha REAP, com auditoria.
+**v1.8.0** — Novo módulo **Informe Mensal**: REAP mês a mês por sócio (cérebro v4), salvo na planilha REAP, com auditoria. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
 
 **Download:** [SinapescREAP-Windows-v1.8.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.0/SinapescREAP-Windows-v1.8.0.zip)
 

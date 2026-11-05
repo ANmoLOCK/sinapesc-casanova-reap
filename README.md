@@ -29,6 +29,8 @@ Versão anterior: [v1.7.56](https://github.com/ANmoLOCK/sinapesc-casanova-reap/r
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
+Guia Informe Mensal (v1.8.0): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+
 O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia numa pasta (ex.: `C:\Sinapesc\`) e coloque o `google-credentials.json` junto.
 
 ---
@@ -48,6 +50,13 @@ https://anmolock.github.io/sinapesc-casanova-reap
 O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**.
 
 ---
+
+## O que há na v1.8.0
+
+- Novo módulo **Informe Mensal** (botão ao lado de **Abrir REAP**): REAP mês a mês por sócio, salvo na aba `InformeMensal` da planilha REAP
+- Jan / Fev / Nov / Dez em cinza — **ÉPOCA DE PIRACEMA**; Mar → Out geram pelo cérebro v4 sem repetir espécies, kg, posições ou dias
+- Gerar, Regerar, Editar, Excluir e Copiar texto; aba **Auditoria** com quem gerou/alterou
+- Guia completo: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 ## O que há na v1.7.46
 
