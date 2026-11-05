@@ -55,6 +55,34 @@ body.screen-informe .tab-bar { display: none; }
 .im-table td { padding: 6px 8px; border-bottom: 1px solid #EEF3F7; vertical-align: middle; }
 .im-table tbody tr { cursor: pointer; }
 .im-table tbody tr:hover { background: #F7FBFE; }
+.im-acoes { width: 1%; white-space: nowrap; cursor: default; }
+.im-acao-cards {
+  display: inline-flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.im-card-acao {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 72px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  line-height: 1.2;
+}
+.im-card-acao:hover:not(:disabled) { border-color: var(--primary); background: #F3F8FC; }
+.im-card-acao:disabled { opacity: .45; cursor: not-allowed; }
+.im-card-titulo { font-size: 12.5px; font-weight: 700; color: var(--primary); }
+.im-card-sub { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+.im-card-abrir { border-color: #9DB6C9; }
+.im-card-abrir .im-card-titulo { color: #14507E; }
+.im-card-tabela { border-color: #9FD3B4; background: #F3FAF6; }
+.im-card-tabela .im-card-titulo { color: #1F7A4A; }
 .im-row-ok .im-nome { color: #1F7A4A; }
 .im-nome { font-weight: 600; color: var(--primary); }
 .im-mono { font-family: Consolas, "Courier New", monospace; }

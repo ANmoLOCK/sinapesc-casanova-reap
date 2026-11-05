@@ -170,7 +170,7 @@ def test_csv_respeita_colunas() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.2"' in theme
+    assert 'APP_VERSION = "1.8.3"' in theme
 
 
 if __name__ == "__main__":

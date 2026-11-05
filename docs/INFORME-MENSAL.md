@@ -1,8 +1,8 @@
 # Informe Mensal — REAP mês a mês por sócio
 
-**Versão:** v1.8.2 (2026-11-05)  
-**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.2/SinapescREAP-Windows-v1.8.2.zip  
-**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2  
+**Versão:** v1.8.3 (2026-11-05)  
+**Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.3/SinapescREAP-Windows-v1.8.3.zip  
+**Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3  
 **Origem do cérebro:** pacote `reap-informe-mensal-v1.8.0.zip` (`cerebro_reformulacao.py` v4), refatorado na v1.8.1 para plano probabilístico por sócio (`v5-plano`)
 
 ---
@@ -33,6 +33,12 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
+- Em cada linha, ao lado de **Abrir**, o card **Tabela** abre no navegador um HTML **só daquele sócio**, com **apenas os meses preenchidos** (tabela resumida + detalhe das espécies). Se ainda não houver mês gerado, o card fica desabilitado.
+
+![Cards Abrir e Tabela por sócio](previews/informe-mensal/informe_14_cards_abrir_tabela.png)
+
+![Tabela individual do sócio](previews/informe-mensal/informe_15_tabela_socio.png)
+
 - **Abrir tabela no navegador:** gera um HTML com **uma linha por sócio** e as células dos 12 meses (piracema em cinza; meses gerados em verde com espécies · kg · dias; pendentes com —). Embaixo, o **detalhe** de cada sócio com tabela de espécies dos meses preenchidos. O arquivo abre numa aba do navegador (Imprimir → Salvar como PDF) e fica na pasta de relatórios do Sinapesc. A ação entra na Auditoria.
 
 ![Botão Abrir tabela no navegador](previews/informe-mensal/informe_11_botao_tabela.png)
@@ -264,11 +270,15 @@ cd sinapesc-desktop
 python test_informe_mensal.py
 ```
 
-## 10. Mudanças da v1.8.2
+## 10. Mudanças da v1.8.3
+
+- Card **Tabela** ao lado de **Abrir** em cada sócio: HTML individual só com os meses preenchidos.
+
+## 11. Mudanças da v1.8.2
 
 - Botão **Abrir tabela no navegador**: HTML com tabela por sócio (Jan→Dez) e detalhe dos meses preenchidos; abre numa aba do navegador e registra na Auditoria.
 
-## 11. Mudanças da v1.8.1
+## 12. Mudanças da v1.8.1
 
 - **Plano de quantidades por sócio**, sorteado com probabilidade e gravado na planilha (coluna `planoContagens`). Acaba o padrão repetido do tipo `4,5,4,6,8,4,6,8`.
 - **8 espécies só para ~35% dos sócios**, no máximo 1 mês, de preferência no meio da safra.
@@ -278,7 +288,7 @@ python test_informe_mensal.py
 - **Padrões iguais** entre sócios: faixa na lista, filtro, selo **=** e aviso ao gerar.
 - Meses pendentes mostram a quantidade prevista.
 
-## 12. Mudanças da v1.8.0
+## 13. Mudanças da v1.8.0
 
 - Botão **Informe Mensal** ao lado de **Abrir REAP**.
 - Lista de sócios com busca, filtros, ano e progresso Jan → Dez.

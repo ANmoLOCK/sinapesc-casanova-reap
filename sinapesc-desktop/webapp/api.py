@@ -2220,6 +2220,61 @@ class SinapescApi:
 
         return self._run_async("informe_tabela", work, "Gerando tabela do Informe Mensal…")
 
+    def abrir_informe_tabela_socio(self, payload: Any = None) -> Dict[str, Any]:
+        """HTML individual: só os meses preenchidos daquele sócio → abre no navegador."""
+        from controle.informe_mensal_relatorio import (
+            montar_html_informe_socio,
+            nome_arquivo_informe_socio,
+            salvar_html_informe,
+        )
+
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        if not pid:
+            return err("Sócio não informado.")
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            meses = inf.meses_do_socio(pid, ano_i)
+            socio = self._informe_socio_dict(pessoa, meses, ano_i)
+            feitos = sum(1 for m in im.MESES_PESCA if m in meses and meses[m].houve_pesca)
+            if feitos == 0:
+                raise ValueError(
+                    f"{socio['nome']} ainda não tem mês preenchido em {ano_i}. "
+                    "Gere ao menos um REAP antes de abrir a tabela."
+                )
+            html_txt = montar_html_informe_socio(
+                org_short=ORG_SHORT,
+                org_full=ORG_FULL,
+                ano=ano_i,
+                socio=socio,
+                meses=meses,
+            )
+            path = salvar_html_informe(
+                html_txt, nome_arquivo=nome_arquivo_informe_socio(ano_i, socio["nome"])
+            )
+            inf.registrar_auditoria(
+                "abrir_tabela_socio",
+                f"Abriu tabela HTML individual de {socio['nome']} — {ano_i} "
+                f"({feitos} mês(es)) — {path.name}",
+                person_id=pid,
+                nome=socio["nome"],
+                ano=str(ano_i),
+            )
+            return {
+                "path": str(path),
+                "person_id": pid,
+                "nome": socio["nome"],
+                "meses": feitos,
+                "ano": ano_i,
+            }
+
+        return self._run_async(
+            "informe_tabela_socio", work, "Gerando tabela individual do sócio…"
+        )
+
     def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
         data = _informe_args(payload)
         pid = str(data.get("person_id") or "").strip()

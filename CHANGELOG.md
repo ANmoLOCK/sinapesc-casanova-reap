@@ -6,6 +6,14 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.3] — 2026-11-05 — Informe Mensal: card Tabela por sócio
+
+**Tag:** [`v1.8.3`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.3/SinapescREAP-Windows-v1.8.3.zip
+
+- Ao lado de **Abrir**, cada sócio ganha o card **Tabela**: abre no navegador um HTML **só daquele sócio**, com **apenas os meses preenchidos** (resumo + detalhe de espécies)
+- Card desabilitado quando o sócio ainda não tem mês gerado; ação registrada na Auditoria (`abrir_tabela_socio`)
+
 ## [v1.8.2] — 2026-11-05 — Informe Mensal: tabela HTML no navegador
 
 **Tag:** [`v1.8.2`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2)  

@@ -223,9 +223,136 @@ def montar_html_informe(
 """
 
 
+def montar_html_informe_socio(
+    *,
+    org_short: str,
+    org_full: str,
+    ano: int,
+    socio: Dict[str, Any],
+    meses: Dict[str, InformeMes],
+    gerado_em: Optional[datetime] = None,
+) -> str:
+    """HTML individual: só os meses preenchidos daquele sócio."""
+    from controle.relatorio import logo_data_uri
+
+    gerado_em = gerado_em or datetime.now()
+    logo = logo_data_uri()
+    logo_tag = f'<img class="logo" src="{logo}" alt="{_esc(org_short)}">' if logo else ""
+    resumo = socio.get("resumo") or resumo_socio(
+        meses, socio.get("cpf_raw") or socio.get("id") or "", ano
+    )
+    feitos = [m for m in MESES_PESCA if m in meses and meses[m].houve_pesca]
+    plano = resumo.get("plano_texto") or ""
+    nome = socio.get("nome") or ""
+
+    if not feitos:
+        corpo = (
+            '<p class="vazio">Este sócio ainda não tem nenhum mês de pesca preenchido '
+            f"em {int(ano)}.</p>"
+        )
+    else:
+        thead = (
+            "<tr><th>Mês</th><th>Dias</th><th>Espécies</th><th>Kg</th>"
+            "<th>Município</th><th>Peixes (kg)</th></tr>"
+        )
+        rows = []
+        for m in feitos:
+            r = meses[m]
+            peixes = "; ".join(f"{e.nome} {int(e.kg)} kg" for e in r.especies)
+            rows.append(
+                "<tr>"
+                f"<td class='nome'>{_esc(MES_TITULO.get(m, m))}</td>"
+                f"<td class='num'>{int(r.dias)}</td>"
+                f"<td class='num'>{len(r.especies)}</td>"
+                f"<td class='num'>{int(r.peso_mes)}</td>"
+                f"<td>{_esc(r.municipio)}</td>"
+                f"<td class='peixes'>{_esc(peixes)}</td>"
+                "</tr>"
+            )
+        corpo = f"""
+        <p class="legenda">Somente os <strong>{len(feitos)}</strong> mês(es) preenchido(s)
+        de Março a Outubro · Jan/Fev/Nov/Dez = {_esc(PIRACEMA_LABEL)} (não listados).</p>
+        <table class="resumo">
+          <thead>{thead}</thead>
+          <tbody>{''.join(rows)}</tbody>
+        </table>
+        <h2>Detalhe por mês</h2>
+        {_bloco_detalhe(socio, meses, ano)}
+        """
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Informe Mensal {int(ano)} — {_esc(nome)}</title>
+  <style>
+    body {{ font-family: Segoe UI, Arial, sans-serif; color: #0A2F52; margin: 24px; }}
+    .brand {{ display: flex; align-items: center; gap: 12px; }}
+    .logo {{ height: 96px; width: auto; max-width: 120px; object-fit: contain; }}
+    h1 {{ margin: 8px 0 0; font-size: 20px; }}
+    h2 {{ margin: 22px 0 4px; font-size: 16px; color: #0A2F52; border-bottom: 2px solid #C4A35A; padding-bottom: 4px; }}
+    h3 {{ margin: 12px 0 4px; font-size: 13.5px; }}
+    .sub {{ color: #5A7388; font-size: 13px; }}
+    .meta {{ color: #5A7388; font-size: 12px; margin: 2px 0 8px; }}
+    .gold {{ height: 3px; background: #C4A35A; border: 0; margin: 12px 0 18px; }}
+    table.resumo {{ border-collapse: collapse; width: 100%; font-size: 12.5px; margin-bottom: 18px; }}
+    table.resumo th, table.resumo td {{ border: 1px solid #B7CDDD; padding: 7px 10px; text-align: center; vertical-align: middle; }}
+    table.resumo th {{ background: #0A2F52; color: #EAF6FC; font-weight: 600; }}
+    table.resumo td.nome {{ text-align: left; font-weight: 600; }}
+    table.resumo td.num {{ text-align: right; white-space: nowrap; }}
+    table.resumo td.peixes {{ text-align: left; font-size: 12px; }}
+    table.esp {{ border-collapse: collapse; width: 100%; max-width: 520px; font-size: 12px; margin-bottom: 8px; }}
+    table.esp th, table.esp td {{ border: 1px solid #B7CDDD; padding: 4px 8px; }}
+    table.esp th {{ background: #14507E; color: #EAF6FC; text-align: left; }}
+    table.esp td.num {{ text-align: right; }}
+    .mes-bloco {{ margin: 6px 0 14px; padding: 8px 10px; background: #F3F8FC; border: 1px solid #D5E4EE; }}
+    .legenda {{ font-size: 12px; color: #5A7388; margin: 0 0 10px; }}
+    .foot {{ margin-top: 18px; color: #5A7388; font-size: 12px; }}
+    .vazio {{ color: #5A7388; font-style: italic; }}
+    .card-socio {{
+      background: #F3F8FC; border: 1px solid #B7CDDD; padding: 12px 14px; margin-bottom: 14px;
+    }}
+    .card-socio strong {{ color: #0A2F52; }}
+    @media print {{
+      body {{ margin: 10px; }}
+      .noprint {{ display: none; }}
+      .mes-bloco {{ break-inside: avoid; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="brand">{logo_tag}
+  <div>
+    <h1>{_esc(org_short)} — {_esc(org_full)}</h1>
+    <p class="sub">Informe Mensal individual · Ano {int(ano)} · somente meses preenchidos<br>
+    Gerado em {_esc(gerado_em.strftime("%d/%m/%Y %H:%M"))} · CPF completo · uso interno</p>
+  </div></div>
+  <hr class="gold">
+  <div class="card-socio">
+    <strong>{_esc(nome)}</strong><br>
+    CPF {_esc(socio.get("cpf") or "")} · Tel. {_esc(socio.get("telefone") or "—")} ·
+    {_esc(socio.get("municipio") or "—")}<br>
+    {int(resumo.get("gerados") or 0)}/{int(resumo.get("total") or len(MESES_PESCA))} meses ·
+    {int(resumo.get("peso_anual") or 0)} kg no ano
+    {(" · plano " + _esc(plano)) if plano else ""}
+  </div>
+  {corpo}
+  <p class="foot">Meses preenchidos: {len(feitos)} · Peso acumulado: {int(resumo.get("peso_anual") or 0)} kg</p>
+  <p class="noprint sub">Use Imprimir do navegador → «Salvar como PDF» se quiser arquivo.</p>
+</body>
+</html>
+"""
+
+
 def nome_arquivo_informe(ano: int) -> str:
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     return f"informe-mensal-{int(ano)}-{stamp}.html"
+
+
+def nome_arquivo_informe_socio(ano: int, nome: str) -> str:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    slug = "".join(ch if ch.isalnum() else "-" for ch in (nome or "socio"))[:40].strip("-") or "socio"
+    return f"informe-mensal-{int(ano)}-{slug}-{stamp}.html"
 
 
 def salvar_html_informe(html_text: str, *, nome_arquivo: str) -> Path:

@@ -429,7 +429,8 @@ def test_ui_botao_e_tela() -> None:
                   "load_informe_auditoria", "Regerar", "Copiar texto",
                   "Plano de espécies", "Cálculo de probabilidade", "im-chip-8",
                   "padrao_igual", "Com padrão igual a outro sócio", "previsto",
-                  "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela"):
+                  "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela",
+                  "abrir_informe_tabela_socio", "im-card-tabela", "data-im-tabela"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
     assert ".im-mes-pir" in css and "not-allowed" in css
@@ -531,10 +532,109 @@ def test_api_abrir_tabela(tmp_path=None) -> None:
     assert "abrir_tabela_informe" in aud
 
 
+def test_html_tabela_socio_individual() -> None:
+    from controle.informe_mensal_relatorio import (
+        montar_html_informe_socio,
+        nome_arquivo_informe_socio,
+    )
+
+    salvos = _ano_completo(33)
+    parcial = {m: salvos[m] for m in ("mar", "abr", "mai")}
+    socio = {
+        "id": "p33",
+        "nome": "Antonio Individual",
+        "cpf": "000.000.000-33",
+        "cpf_raw": f"{33:011d}",
+        "telefone": "(74) 90000-0000",
+        "municipio": "Casa Nova",
+        "resumo": im.resumo_socio(parcial, f"{33:011d}", 2026),
+    }
+    html_txt = montar_html_informe_socio(
+        org_short="Sinapesc",
+        org_full="Sindicato",
+        ano=2026,
+        socio=socio,
+        meses=parcial,
+    )
+    assert "Antonio Individual" in html_txt
+    assert "Março" in html_txt and "Abril" in html_txt and "Maio" in html_txt
+    assert "Junho" not in html_txt
+    assert "Somente os" in html_txt
+    assert nome_arquivo_informe_socio(2026, "Antonio Individual").startswith(
+        "informe-mensal-2026-"
+    )
+
+
+def test_api_abrir_tabela_socio() -> None:
+    from pathlib import Path
+    import tempfile
+    from sheets.models import Pessoa
+    import webapp.api as api_mod
+    import controle.relatorio as relatorio_mod
+
+    cli = FakeClient()
+    pessoa = Pessoa(
+        id="p1",
+        nome="maria das dores",
+        cpf="12345678901",
+        criado_em="",
+        municipio="Remanso",
+        telefone="(74) 99999-0000",
+    )
+
+    class FakeSheets:
+        client = cli
+        actor = ""
+
+        def get_all_pessoas(self):
+            return [pessoa]
+
+    api = api_mod.SinapescApi()
+    api._logged_in = True
+    api._admin_user = "operador@sinapesc"
+    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    eventos = []
+    api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
+
+    def sync_run(op, work, busy=""):
+        try:
+            eventos.append((op, {"ok": True, "data": work()}))
+        except Exception as exc:  # noqa: BLE001
+            eventos.append((op, {"ok": False, "error": str(exc)}))
+        return {"ok": True, "pending": True}
+
+    api._run_async = sync_run  # type: ignore[assignment]
+
+    api.abrir_informe_tabela_socio(json.dumps({"person_id": "p1", "ano": 2026}))
+    ev, res = eventos[-1]
+    assert ev == "informe_tabela_socio" and res["ok"] is False
+
+    for m in ("mar", "abr"):
+        api.gerar_informe_mes(json.dumps({"person_id": "p1", "ano": 2026, "mes": m}))
+        assert eventos[-1][1]["ok"], eventos[-1]
+
+    pasta = Path(tempfile.mkdtemp())
+    orig = relatorio_mod.pasta_relatorios
+    relatorio_mod.pasta_relatorios = lambda: pasta  # type: ignore[assignment]
+    try:
+        api.abrir_informe_tabela_socio(json.dumps({"person_id": "p1", "ano": 2026}))
+    finally:
+        relatorio_mod.pasta_relatorios = orig  # type: ignore[assignment]
+    ev, res = eventos[-1]
+    assert ev == "informe_tabela_socio" and res["ok"], res
+    assert res["data"]["meses"] == 2
+    path = Path(res["data"]["path"])
+    assert path.exists()
+    texto = path.read_text(encoding="utf-8")
+    assert "Março" in texto and "Abril" in texto
+    assert "Maio" not in texto
+    aud = [e.acao for e in api._ensure_informe().listar_auditoria(50)]
+    assert "abrir_tabela_socio" in aud
+
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.2"' in theme
+    assert 'APP_VERSION = "1.8.3"' in theme
 
 
 if __name__ == "__main__":

@@ -11,25 +11,25 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | [**v1.8.2**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2) |
+| Versão atual | [**v1.8.3**](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.8.2)
+## Download do EXE (v1.8.3)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.2/SinapescREAP-Windows-v1.8.2.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.3/SinapescREAP-Windows-v1.8.3.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3
 
-Versão anterior: [v1.8.1](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.1)
+Versão anterior: [v1.8.2](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
-Guia Informe Mensal (v1.8.2): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+Guia Informe Mensal (v1.8.3): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia numa pasta (ex.: `C:\Sinapesc\`) e coloque o `google-credentials.json` junto.
 
@@ -51,14 +51,13 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.8.2
+## O que há na v1.8.3
+
+- Em cada sócio, ao lado de **Abrir**, o card **Tabela** abre no navegador só os meses preenchidos daquele sócio
+
+## O que havia na v1.8.2
 
 - **Abrir tabela no navegador** no Informe Mensal: HTML com tabela por sócio e os meses preenchidos (imprimir / PDF)
-
-- **Informe Mensal com plano probabilístico por sócio:** cada sócio tem a própria sequência de quantidades de espécies (Mar → Out), sem repetir em meses vizinhos e sem copiar a de outro sócio
-- **8 espécies só para ~35% dos sócios**, no máximo 1 mês no ano; botão **Ver cálculo de probabilidade** mostra a chance por mês
-- **Kg humanizados por pescador** (preferência por espécie e ritmo do ano próprios)
-- **Padrões iguais** entre sócios apontados na lista (faixa, filtro e selo **=**)
 
 ## O que havia na v1.8.1
 

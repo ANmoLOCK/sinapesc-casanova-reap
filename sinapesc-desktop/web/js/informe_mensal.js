@@ -218,7 +218,8 @@
               <option value="regerar_informe" ${S.audAcao === "regerar_informe" ? "selected" : ""}>Regerou</option>
               <option value="editar_informe" ${S.audAcao === "editar_informe" ? "selected" : ""}>Alterou</option>
               <option value="excluir_informe" ${S.audAcao === "excluir_informe" ? "selected" : ""}>Excluiu</option>
-              <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela</option>
+              <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela geral</option>
+              <option value="abrir_tabela_socio" ${S.audAcao === "abrir_tabela_socio" ? "selected" : ""}>Tabela do sócio</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -339,6 +340,7 @@
       const g = s.resumo?.gerados || 0;
       const avisos = (s.resumo?.avisos || []).length;
       const iguais = s.padrao_igual || [];
+      const semMes = g === 0;
       return `
         <tr data-im-open="${esc(s.id)}" class="${g >= totalPesca() ? "im-row-ok" : ""}">
           <td class="im-nome">${esc(s.nome)}${avisos ? ` <span class="im-badge-warn" title="${esc((s.resumo.avisos || []).join(" · "))}">!</span>` : ""}${iguais.length ? ` <span class="im-badge-igual" title="${esc(iguais.join(" · "))}">=</span>` : ""}</td>
@@ -348,11 +350,49 @@
           <td class="im-dots">${dotsHtml(s)}</td>
           <td class="im-num">${g}/${totalPesca()}</td>
           <td class="im-num">${s.resumo?.peso_anual || 0}</td>
-          <td><button type="button" class="btn btn-primary btn-sm" data-im-open="${esc(s.id)}">Abrir</button></td>
+          <td class="im-acoes" onclick="event.stopPropagation()">
+            <div class="im-acao-cards">
+              <button type="button" class="im-card-acao im-card-abrir" data-im-open="${esc(s.id)}">
+                <span class="im-card-titulo">Abrir</span>
+                <span class="im-card-sub">caixa do sócio</span>
+              </button>
+              <button type="button" class="im-card-acao im-card-tabela" data-im-tabela="${esc(s.id)}"
+                ${semMes ? "disabled" : ""}
+                title="${semMes ? "Gere ao menos um mês antes de abrir a tabela" : "Tabela HTML só deste sócio — meses preenchidos"}">
+                <span class="im-card-titulo">Tabela</span>
+                <span class="im-card-sub">${semMes ? "sem meses" : `${g} mês(es)`}</span>
+              </button>
+            </div>
+          </td>
         </tr>`;
     }).join("");
-    tbody.querySelectorAll("tr[data-im-open]").forEach((tr) => {
-      tr.addEventListener("click", () => openSocio(tr.dataset.imOpen));
+    tbody.querySelectorAll("[data-im-open]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSocio(el.dataset.imOpen || el.closest("tr")?.dataset.imOpen);
+      });
+    });
+    tbody.querySelectorAll("[data-im-tabela]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        abrirTabelaSocio(btn.dataset.imTabela);
+      });
+    });
+  }
+
+  function abrirTabelaSocio(id) {
+    const s = socioById(id);
+    if (!s) return;
+    if (!(s.resumo?.gerados || 0)) {
+      toast(`${s.nome}: nenhum mês preenchido ainda.`, 4200);
+      return;
+    }
+    if (S.busy) return;
+    S.busy = true;
+    toast(`Gerando tabela de ${s.nome}…`, 2200);
+    api("abrir_informe_tabela_socio", JSON.stringify({ person_id: id, ano: S.ano })).catch((e) => {
+      S.busy = false;
+      toast(String(e));
     });
   }
 
@@ -715,6 +755,7 @@
     editar_informe: "Alterou",
     excluir_informe: "Excluiu",
     abrir_tabela_informe: "Abriu tabela",
+    abrir_tabela_socio: "Tabela sócio",
   };
 
   function paintAuditoria() {
@@ -827,6 +868,21 @@
         api("open_path", d.path).catch(() => {});
         toast(
           `Tabela de ${d.ano || S.ano} aberta no navegador (${d.com_meses || 0} sócio(s) com mês preenchido).`,
+          5200
+        );
+      }
+    });
+    window.AppEvents.on("informe_tabela_socio", (r) => {
+      S.busy = false;
+      if (!r.ok) {
+        failed(r, "Falha ao gerar a tabela do sócio.");
+        return;
+      }
+      const d = r.data || {};
+      if (d.path) {
+        api("open_path", d.path).catch(() => {});
+        toast(
+          `Tabela de ${d.nome || "sócio"} aberta (${d.meses || 0} mês(es) preenchido(s)).`,
           5200
         );
       }
