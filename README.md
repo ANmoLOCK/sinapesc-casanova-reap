@@ -25,7 +25,7 @@ https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.4/Sina
 
 Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4
 
-Versão anterior: [v1.8.2](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.2)
+Versão anterior: [v1.8.3](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.3)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
