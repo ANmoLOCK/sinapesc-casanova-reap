@@ -57,6 +57,8 @@ from sheets import MESES, MESES_LABEL, MesKey, SheetsConfigError, SheetsService
 from sheets.client import normalize_sheet_id
 from sheets.defeso_service import DefesoService
 from sheets.consulta_rgp_service import ConsultaRgpService
+from sheets.informe_mensal_service import InformeMensalService
+from controle import informe_mensal as im
 from ui.formatters import (
     display_nome,
     format_cpf,
@@ -180,6 +182,7 @@ class SinapescApi:
         self._service: Optional[SheetsService] = None
         self._defeso_service: Optional[DefesoService] = None
         self._consulta_rgp_service: Optional[ConsultaRgpService] = None
+        self._informe_service: Optional[InformeMensalService] = None
         self._consulta_rgp_lote_cancel = False
 
     def bind_window(self, window: Any) -> None:
@@ -2099,6 +2102,286 @@ class SinapescApi:
             "consulta_rgp_auditoria", work, "Carregando auditoria Consulta RGP…"
         )
 
+    # ---- Informe Mensal (REAP mês a mês, planilha REAP) ------------------
+
+    def _ensure_informe(self) -> InformeMensalService:
+        svc = self._ensure_service()
+        if self._informe_service is None or self._informe_service.client is not svc.client:
+            self._informe_service = InformeMensalService(svc.client)
+        self._informe_service.actor = self._admin_user
+        return self._informe_service
+
+    @staticmethod
+    def _informe_meta() -> Dict[str, Any]:
+        return {
+            "catalogo": im.catalogo(),
+            "meses_ordem": im.MESES_ORDEM,
+            "meses_pesca": im.MESES_PESCA,
+            "meses_piracema": im.MESES_PIRACEMA,
+            "meses_titulo": im.MES_TITULO,
+            "piracema_label": im.PIRACEMA_LABEL,
+            "kg_min": im.KG_MIN,
+            "kg_max": im.KG_MAX,
+            "kg_ano_min": im.KG_ANO_MIN,
+            "kg_ano_max": im.KG_ANO_MAX,
+            "dias_min": im.DIAS_MIN,
+            "dias_max": im.DIAS_MAX,
+            "contagens": list(im.CONTAGENS),
+            "municipios": list(im.MUNICIPIOS),
+        }
+
+    @staticmethod
+    def _informe_socio_dict(p: Any, meses: Dict[str, "im.InformeMes"], ano: int) -> Dict[str, Any]:
+        cpf = only_digits(p.cpf)
+        return {
+            "id": p.id,
+            "nome": format_nome(p.nome),
+            "cpf": format_cpf(p.cpf),
+            "cpf_raw": cpf,
+            "telefone": getattr(p, "telefone", "") or "",
+            "municipio": getattr(p, "municipio", "") or "",
+            "municipio_reap": im.normalizar_municipio(getattr(p, "municipio", "")),
+            "meses": {m: r.to_dict() for m, r in meses.items()},
+            "textos": {m: im.texto_para_site(r) for m, r in meses.items() if r.houve_pesca},
+            "resumo": im.resumo_socio(meses, cpf or p.id, ano),
+        }
+
+    def _informe_pessoa(self, person_id: str) -> Any:
+        pessoa = next(
+            (p for p in self._ensure_service().get_all_pessoas() if p.id == person_id),
+            None,
+        )
+        if not pessoa:
+            raise ValueError("Sócio não encontrado na planilha REAP.")
+        return pessoa
+
+    def load_informe_mensal(self, ano: Any = None) -> Dict[str, Any]:
+        ano_i = _informe_ano(ano)
+
+        def work():
+            svc = self._ensure_service()
+            inf = self._ensure_informe()
+            por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
+            for r in inf.listar(ano_i):
+                por_pessoa.setdefault(r.person_id, {})[r.mes] = r
+            socios = [
+                self._informe_socio_dict(p, por_pessoa.get(p.id, {}), ano_i)
+                for p in svc.get_all_pessoas()
+            ]
+            socios.sort(key=lambda s: s["nome"].casefold())
+            return {"ano": ano_i, "socios": socios, **self._informe_meta()}
+
+        return self._run_async("informe_lista", work, "Carregando Informe Mensal…")
+
+    def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+        if mes in im.MESES_PIRACEMA:
+            return err(f"{im.MES_TITULO[mes]} é {im.PIRACEMA_LABEL} — não há REAP de pesca.")
+        if not pid:
+            return err("Sócio não informado.")
+        municipio_req = str(data.get("municipio") or "").strip()
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            todos = inf.listar()
+            do_ano = [r for r in todos if r.ano == ano_i]
+            salvos = {r.mes: r for r in do_ano if r.person_id == pid}
+            anterior = salvos.get(mes)
+            globais = {r.assinatura for r in todos if r.assinatura}
+            nomes_outros = {
+                im.assinatura_nomes(e.nome for e in r.especies)
+                for r in do_ano
+                if r.person_id != pid and r.mes == mes and r.houve_pesca
+            }
+            municipio = (
+                municipio_req
+                or (anterior.municipio if anterior else "")
+                or pessoa.municipio
+            )
+            res = im.gerar_mes(
+                person_id=pid,
+                cpf=only_digits(pessoa.cpf),
+                nome=format_nome(pessoa.nome),
+                telefone=getattr(pessoa, "telefone", "") or "",
+                ano=ano_i,
+                mes=mes,
+                salvos=salvos,
+                assinaturas_globais=globais,
+                nomes_outros_socios=nomes_outros,
+                municipio=municipio,
+                ator=self._admin_user,
+            )
+            reg = res.informe
+            if anterior:
+                reg.gerado_em = anterior.gerado_em or reg.gerado_em
+                reg.gerado_por = anterior.gerado_por or reg.gerado_por
+            inf.salvar(reg)
+            salvos[mes] = reg
+            titulo = f"{im.MES_TITULO[mes]}/{ano_i}"
+            resumo_mes = f"{len(reg.especies)} espécies, {reg.dias} dias, {reg.peso_mes} kg"
+            if anterior:
+                acao = "regerar_informe"
+                detalhe = (
+                    f"Regerou REAP de {titulo} — {reg.nome}: {resumo_mes} "
+                    f"(antes: {len(anterior.especies)} espécies, {anterior.dias} dias, "
+                    f"{anterior.peso_mes} kg)"
+                )
+            else:
+                acao = "gerar_informe"
+                detalhe = f"Gerou REAP de {titulo} — {reg.nome}: {resumo_mes}"
+            inf.registrar_auditoria(
+                acao, detalhe, person_id=pid, nome=reg.nome, ano=str(ano_i), meses=mes
+            )
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "regerado": bool(anterior),
+                "avisos": res.avisos,
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+            }
+
+        return self._run_async("informe_gerado", work, "Gerando REAP do mês…")
+
+    def salvar_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+        especies = im.especies_de_payload(data.get("especies"))
+        dias = data.get("dias")
+        erros = im.validar_mes(mes, dias, especies)
+        if erros:
+            return err(" ".join(erros))
+        if not pid:
+            return err("Sócio não informado.")
+        municipio_req = str(data.get("municipio") or "").strip()
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            salvos = inf.meses_do_socio(pid, ano_i)
+            anterior = salvos.get(mes)
+            if not anterior:
+                raise ValueError("Gere o REAP do mês antes de editar.")
+            conj = im.assinatura_conjunto(especies)
+            for m, r in salvos.items():
+                if m != mes and r.houve_pesca and im.assinatura_conjunto(r.especies) == conj:
+                    raise ValueError(
+                        f"Mesmo conjunto de espécies/kg de {im.MES_TITULO[m]} — altere algum valor."
+                    )
+            agora = im.now_stamp()
+            reg = im.InformeMes(
+                id=anterior.id,
+                person_id=pid,
+                cpf=only_digits(pessoa.cpf),
+                nome=format_nome(pessoa.nome),
+                telefone=getattr(pessoa, "telefone", "") or "",
+                ano=ano_i,
+                mes=mes,
+                houve_pesca=True,
+                dias=int(dias),
+                especies=especies,
+                municipio=im.normalizar_municipio(municipio_req or anterior.municipio),
+                assinatura=im.assinatura_mes(mes, especies, int(dias)),
+                gerado_em=anterior.gerado_em,
+                gerado_por=anterior.gerado_por,
+                atualizado_em=agora,
+                atualizado_por=self._admin_user,
+                motor=f"{im.MOTOR}+manual",
+            )
+            mudancas = _informe_diff(anterior, reg)
+            if not mudancas:
+                return {
+                    "ano": ano_i,
+                    "mes": mes,
+                    "sem_mudanca": True,
+                    "avisos": im.validar_ano(salvos),
+                    "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+                }
+            inf.salvar(reg)
+            salvos[mes] = reg
+            inf.registrar_auditoria(
+                "editar_informe",
+                f"Alterou REAP de {im.MES_TITULO[mes]}/{ano_i} — {reg.nome}: {'; '.join(mudancas)}",
+                person_id=pid,
+                nome=reg.nome,
+                ano=str(ano_i),
+                meses=mes,
+            )
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "avisos": im.validar_ano(salvos),
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+            }
+
+        return self._run_async("informe_salvo", work, "Salvando REAP do mês…")
+
+    def excluir_informe_mes(self, payload: Any) -> Dict[str, Any]:
+        data = _informe_args(payload)
+        pid = str(data.get("person_id") or "").strip()
+        ano_i = _informe_ano(data.get("ano"))
+        try:
+            mes = im.normalizar_mes(data.get("mes"))
+        except ValueError as exc:
+            return err(str(exc))
+
+        def work():
+            inf = self._ensure_informe()
+            pessoa = self._informe_pessoa(pid)
+            removido = inf.excluir(pid, ano_i, mes)
+            if not removido:
+                raise ValueError("Esse mês ainda não foi gerado.")
+            inf.registrar_auditoria(
+                "excluir_informe",
+                f"Excluiu REAP de {im.MES_TITULO[mes]}/{ano_i} — {removido.nome} "
+                f"({len(removido.especies)} espécies, {removido.dias} dias, {removido.peso_mes} kg)",
+                person_id=pid,
+                nome=removido.nome,
+                ano=str(ano_i),
+                meses=mes,
+            )
+            salvos = inf.meses_do_socio(pid, ano_i)
+            return {
+                "ano": ano_i,
+                "mes": mes,
+                "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
+            }
+
+        return self._run_async("informe_excluido", work, "Excluindo REAP do mês…")
+
+    def load_informe_auditoria(self) -> Dict[str, Any]:
+        def work():
+            evts = self._ensure_informe().listar_auditoria(500)
+            return {
+                "itens": [
+                    {
+                        "id": e.id,
+                        "em": e.em,
+                        "usuario": e.usuario,
+                        "acao": e.acao,
+                        "detalhe": e.detalhe,
+                        "person_id": e.person_id,
+                        "nome": e.nome,
+                        "ano": e.ano,
+                        "mes": e.meses,
+                    }
+                    for e in evts
+                ]
+            }
+
+        return self._run_async("informe_auditoria", work, "Carregando auditoria do Informe Mensal…")
+
     def importar_consulta_rgp(self, registro_id: str = "") -> Dict[str, Any]:
         return err(
             "Envio para REAP/Defeso desativado nesta etapa. "
@@ -2117,6 +2400,50 @@ class SinapescApi:
             webview.destroy_window()
         return ok()
 
+
+
+def _informe_args(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text:
+            return {}
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+    if payload is None:
+        return {}
+    return _js_payload_to_dict(payload)
+
+
+def _informe_ano(valor: Any) -> int:
+    try:
+        ano = int(str(valor).strip())
+    except (TypeError, ValueError):
+        return datetime.now().year
+    return ano if 2000 <= ano <= 2100 else datetime.now().year
+
+
+def _informe_diff(antes: "im.InformeMes", depois: "im.InformeMes") -> List[str]:
+    out: List[str] = []
+    if int(antes.dias) != int(depois.dias):
+        out.append(f"dias {antes.dias}→{depois.dias}")
+    if antes.municipio != depois.municipio:
+        out.append(f"município {antes.municipio}→{depois.municipio}")
+    kg_antes = {e.nome: int(e.kg) for e in antes.especies}
+    kg_depois = {e.nome: int(e.kg) for e in depois.especies}
+    for nome, kg in kg_depois.items():
+        if nome not in kg_antes:
+            out.append(f"+{nome} {kg} kg")
+        elif kg_antes[nome] != kg:
+            out.append(f"{nome} {kg_antes[nome]}→{kg} kg")
+    for nome in kg_antes:
+        if nome not in kg_depois:
+            out.append(f"−{nome}")
+    if not out and [e.nome for e in antes.especies] != [e.nome for e in depois.especies]:
+        out.append("ordem das espécies")
+    return out
 
 
 def _parse_consulta_rgp_args(registro_id: Any = "", cpf: Any = "") -> tuple[str, str]:
