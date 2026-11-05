@@ -385,7 +385,9 @@
   }
 
   function isSecretariaScreen(screen) {
-    return !["home", "login", "settings", "defeso", "defeso_ficha", "consulta_rgp"].includes(screen || "");
+    return ![
+      "home", "login", "settings", "defeso", "defeso_ficha", "consulta_rgp", "informe_mensal",
+    ].includes(screen || "");
   }
 
   function isPublicScreen(screen) {
@@ -429,6 +431,7 @@
     }
     state.screen = screen;
     document.body.classList.toggle("screen-rgp", screen === "consulta_rgp");
+    document.body.classList.toggle("screen-informe", screen === "informe_mensal");
     renderTabs(tab);
     renderHeader();
     renderScreen();
@@ -517,7 +520,7 @@
       return;
     }
 
-    if (state.screen === "consulta_rgp") {
+    if (state.screen === "consulta_rgp" || state.screen === "informe_mensal") {
       headerActions.appendChild(mkBtn("← Módulos", "btn-outline", () => navigate("home", { push: false })));
       if (state.loggedIn) {
         headerActions.appendChild(mkBtn("Sair", "btn-outline", doLogout));
@@ -573,8 +576,23 @@
       defeso: renderDefesoLista,
       defeso_ficha: renderDefesoFicha,
       consulta_rgp: renderConsultaRgp,
+      informe_mensal: renderInformeMensal,
     };
     (fns[state.screen] || renderHome)();
+  }
+
+  function renderInformeMensal() {
+    if (window.SinapescInforme && window.SinapescInforme.render) {
+      window.SinapescInforme.render();
+      return;
+    }
+    setPage(`<div class="empty-msg">Módulo Informe Mensal indisponível (arquivo informe_mensal.js não carregou).</div>`);
+  }
+
+  function goInformeMensal() {
+    if (!requireLogin("informe_mensal")) return;
+    navigate("informe_mensal");
+    if (window.SinapescInforme && window.SinapescInforme.load) window.SinapescInforme.load();
   }
 
   function goDefeso() {
@@ -609,8 +627,11 @@
       <div class="home-cards">
         <div class="home-card">
           <h3>Secretaria</h3>
-          <p>Cadastre sócios, marque REAPs e importe lotes na planilha Google.</p>
-          <button type="button" class="btn btn-primary" id="go-reap">Abrir REAP</button>
+          <p>Cadastre sócios, marque REAPs e importe lotes na planilha Google. Informe Mensal gera o REAP de cada mês por sócio.</p>
+          <div class="home-card-actions">
+            <button type="button" class="btn btn-primary" id="go-reap">Abrir REAP</button>
+            <button type="button" class="btn btn-primary" id="go-informe">Informe Mensal</button>
+          </div>
         </div>
         <div class="home-card">
           <h3>Defeso Fácil</h3>
@@ -631,6 +652,7 @@
       <div class="tip-box">Login único ativo: troque de módulo com ← Módulos sem digitar a senha de novo. Use Sair só para encerrar a sessão.</div>
     `);
     $("#go-reap").addEventListener("click", goReap);
+    $("#go-informe").addEventListener("click", goInformeMensal);
     $("#go-defeso").addEventListener("click", goDefeso);
     $("#go-lista").addEventListener("click", () => {
       if (!requireLogin("lista")) return;
@@ -686,6 +708,9 @@
         maybeBackupReminder();
       } else if (dest === "lista") {
         navigate("lista", { push: false });
+      } else if (dest === "informe_mensal") {
+        navigate("informe_mensal", { push: false });
+        if (window.SinapescInforme && window.SinapescInforme.load) window.SinapescInforme.load();
       } else {
         navigate("home", { push: false });
         maybeBackupReminder();
@@ -3990,6 +4015,10 @@
   async function init() {
     window.sinapescToast = toast;
     window.sinapescCreateModal = createModal;
+    window.sinapescConfirm = confirmModal;
+    window.sinapescSetPage = setPage;
+    window.sinapescSessionExpired = sessionExpired;
+    window.sinapescCurrentScreen = () => state.screen;
     window.sinapescOpenConsultaAutomatica = openConsultaAutomaticaModal;
     wireEvents();
     if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.wireFuncoesEvents) {
