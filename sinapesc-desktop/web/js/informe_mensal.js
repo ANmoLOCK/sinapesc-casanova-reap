@@ -408,7 +408,8 @@
         </div>
         <div class="modal-body">
           <p class="im-det-help">Marque os peixes que podem ser usados ao <strong>Gerar REAP</strong>.
-          Precisa de pelo menos <strong>${min}</strong>. Se marcar menos de 8, o mês com 8 espécies não entra no plano.</p>
+          Precisa de pelo menos <strong>${min}</strong>. Catálogo inclui Pacu, Pirambeba e Cascudo.
+          Se marcar menos de 8, o mês com 8 espécies não entra no plano.</p>
           <div class="im-peixes-grid" id="im-peixes-grid">${boxes}</div>
           <div class="im-peixes-foot">
             <span id="im-peixes-count"></span>

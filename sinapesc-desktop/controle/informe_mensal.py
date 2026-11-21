@@ -1,11 +1,13 @@
-"""Informe Mensal — cérebro REAP (reformulação v4) adaptado para gerar mês a mês.
+"""Informe Mensal — cérebro REAP (reformulação v6 sazonal) mês a mês.
 
-Regras herdadas do cérebro ``reap-informe-mensal-v1.8.0``:
+Regras herdadas do cérebro ``reap-informe-mensal-v1.8.0`` + v6:
   - Jan / Fev / Nov / Dez = ÉPOCA DE PIRACEMA (não houve pesca)
   - Mar → Out = pesca, 16–21 dias, 4 / 5 / 6 / 8 espécies intercaladas
-  - kg inteiro (5–22) com viés sazonal por espécie
-  - VALOR = preço varejo (não multiplica por kg)
+  - kg inteiro (5–22) com viés sazonal; 22 kg é raro (teto mole ~18)
+  - VALOR = preço varejo sazonal (R$/kg; não multiplica por kg)
   - PESO ANUAL (soma kg Mar–Out) 540–650, alvo próprio de cada sócio
+  - Anti-repetição forte: peixe/kg/valor não repetem entre meses vizinhos
+  - 8 espécies só para ~20% dos sócios (no máx. 1 mês), quando o pool ≥ 8
 
 Diferença para o cérebro original: o original monta o ano inteiro de uma vez.
 Aqui o operador gera um mês por vez; cada mês novo é condicionado aos meses
@@ -27,7 +29,7 @@ from functools import lru_cache
 from itertools import combinations
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-MOTOR = "cerebro_reformulacao/v5-plano"
+MOTOR = "cerebro_reformulacao/v6-sazonal"
 
 INFORME_TAB = "InformeMensal"
 INFORME_AUDITORIA_TAB = "InformeAuditoria"
@@ -60,6 +62,9 @@ PRECOS_VAREJO: Dict[str, float] = {
     "Piranha": 15.0,
     "Piau": 14.0,
     "Pescada": 19.0,
+    "Pacu": 17.0,
+    "Pirambeba": 13.0,
+    "Cascudo": 12.0,
 }
 # ordem fixa do catálogo (configuração universal do Informe Mensal)
 ESPECIES_TODAS: Tuple[str, ...] = tuple(PRECOS_VAREJO.keys())
@@ -69,7 +74,7 @@ MIN_ESPECIES_ATIVAS = 4
 def normalizar_especies_ativas(raw: Any = None) -> List[str]:
     """Lista canônica dos peixes ativos no cérebro (universal para todos os sócios).
 
-    Vazio / inválido → todos os 8. Ordem = ``ESPECIES_TODAS``.
+    Vazio / inválido → catálogo completo. Ordem = ``ESPECIES_TODAS``.
     """
     if raw is None or raw == "" or raw == []:
         return list(ESPECIES_TODAS)
@@ -120,6 +125,8 @@ def contagens_obrigatorias_para_pool(n_pool: int) -> Tuple[int, ...]:
 
 KG_MIN = 5
 KG_MAX = 22
+# teto mole: a maioria dos peixes fica ≤ 18 kg; 19–22 só em pico + sorte
+KG_SOFT_MAX = 18
 KG_ANO_MIN = 540
 KG_ANO_MAX = 650
 ALVOS_KG_ANO = [540, 548, 555, 565, 575, 585, 595, 605, 615, 625, 635, 645, 650]
@@ -130,12 +137,13 @@ CONTAGENS_OBRIGATORIAS = (4, 5, 6)
 # máximo de meses por quantidade no ano; 8 espécies = no máximo um mês
 CONTAGEM_MAX_ANO = {4: 3, 5: 3, 6: 3, 8: 1}
 # Sorteio do plano anual de quantidades (Mar → Out) de cada sócio
-PESO_QUANTIDADE = {4: 0.40, 5: 0.33, 6: 0.27}
+PESO_QUANTIDADE = {4: 0.42, 5: 0.34, 6: 0.24}
 # cada repetição da mesma quantidade no ano multiplica o peso por este fator
-FATOR_REPETICAO = 0.45
-CHANCE_SOCIO_TER_8 = 0.35
+FATOR_REPETICAO = 0.40
+# ~1 em 5 sócios tem um mês com 8 — parece safra boa, não padrão artificial
+CHANCE_SOCIO_TER_8 = 0.20
 # mês com 8 espécies cai mais no meio da safra do que nas pontas
-PESO_POSICAO_8 = [0.55, 0.8, 1.0, 1.25, 1.25, 1.0, 0.8, 0.55]
+PESO_POSICAO_8 = [0.45, 0.7, 1.0, 1.35, 1.35, 1.0, 0.7, 0.45]
 AMOSTRAS_PROBABILIDADE = 4000
 MUNICIPIOS = ("Casa Nova", "Remanso")
 
@@ -146,24 +154,95 @@ LOCAL_PADRAO = {
     "petrecho": "Emalhe",
 }
 
-# Atividade sazonal humanizada (São Francisco / BA) — só viés de kg e escolha
+# Atividade sazonal (São Francisco / BA): abundância × época de pesca.
+# Picos deslocados entre meses vizinhos para reduzir repetição (ex.: Tucunaré
+# forte em set/out, fraco em ago; Pescada forte em jul, moderada em mai).
 ATIVIDADE: Dict[str, Dict[str, float]] = {
-    "mar": {"Curimatã": 1.35, "Tilápia": 1.25, "Piau": 1.15, "Tucunaré": 1.10,
-            "Piranha": 1.00, "Pescada": 0.90, "Tambaqui": 0.80, "Dourado-de-água-doce": 0.65},
-    "abr": {"Curimatã": 1.30, "Tilápia": 1.20, "Piau": 1.15, "Tucunaré": 1.15,
-            "Piranha": 1.05, "Pescada": 0.95, "Tambaqui": 0.85, "Dourado-de-água-doce": 0.70},
-    "mai": {"Tilápia": 1.25, "Piau": 1.20, "Curimatã": 1.10, "Pescada": 1.10,
-            "Tucunaré": 1.00, "Piranha": 0.95, "Tambaqui": 0.95, "Dourado-de-água-doce": 0.75},
-    "jun": {"Tambaqui": 1.30, "Tilápia": 1.15, "Pescada": 1.15, "Piau": 1.05,
-            "Curimatã": 0.95, "Tucunaré": 0.95, "Piranha": 0.85, "Dourado-de-água-doce": 0.90},
-    "jul": {"Tambaqui": 1.35, "Pescada": 1.20, "Tilápia": 1.10, "Piau": 1.00,
-            "Dourado-de-água-doce": 1.00, "Curimatã": 0.90, "Tucunaré": 0.90, "Piranha": 0.80},
-    "ago": {"Tambaqui": 1.25, "Pescada": 1.15, "Tilápia": 1.10, "Dourado-de-água-doce": 1.05,
-            "Piau": 1.00, "Tucunaré": 0.95, "Curimatã": 0.85, "Piranha": 0.85},
-    "set": {"Tucunaré": 1.35, "Piranha": 1.25, "Tilápia": 1.15, "Piau": 1.05,
-            "Pescada": 1.00, "Tambaqui": 0.95, "Curimatã": 0.90, "Dourado-de-água-doce": 0.80},
-    "out": {"Tucunaré": 1.40, "Piranha": 1.30, "Tilápia": 1.15, "Piau": 1.10,
-            "Pescada": 0.95, "Tambaqui": 0.90, "Curimatã": 0.85, "Dourado-de-água-doce": 0.75},
+    "mar": {
+        "Curimatã": 1.35, "Pacu": 1.28, "Cascudo": 1.18, "Piau": 1.15,
+        "Tilápia": 1.08, "Pirambeba": 1.00, "Tucunaré": 0.95, "Piranha": 0.92,
+        "Pescada": 0.85, "Tambaqui": 0.78, "Dourado-de-água-doce": 0.65,
+    },
+    "abr": {
+        "Cascudo": 1.30, "Curimatã": 1.22, "Pacu": 1.18, "Piau": 1.12,
+        "Tilápia": 1.05, "Tucunaré": 1.00, "Pirambeba": 0.95, "Piranha": 0.95,
+        "Pescada": 0.90, "Tambaqui": 0.85, "Dourado-de-água-doce": 0.72,
+    },
+    "mai": {
+        "Piau": 1.28, "Cascudo": 1.18, "Curimatã": 1.10, "Tilápia": 1.05,
+        "Pacu": 1.00, "Tambaqui": 0.98, "Tucunaré": 0.95, "Pescada": 0.92,
+        "Pirambeba": 0.90, "Piranha": 0.88, "Dourado-de-água-doce": 0.78,
+    },
+    "jun": {
+        "Tambaqui": 1.32, "Pacu": 1.15, "Tilápia": 1.08, "Cascudo": 1.05,
+        "Piau": 1.00, "Pescada": 0.98, "Dourado-de-água-doce": 0.95,
+        "Curimatã": 0.90, "Tucunaré": 0.88, "Pirambeba": 0.85, "Piranha": 0.82,
+    },
+    "jul": {
+        "Tambaqui": 1.30, "Pescada": 1.25, "Dourado-de-água-doce": 1.10,
+        "Pacu": 1.05, "Tilápia": 1.00, "Piau": 0.95, "Cascudo": 0.92,
+        "Curimatã": 0.88, "Tucunaré": 0.85, "Pirambeba": 0.82, "Piranha": 0.80,
+    },
+    "ago": {
+        "Pescada": 1.22, "Tambaqui": 1.18, "Dourado-de-água-doce": 1.12,
+        "Cascudo": 1.00, "Tilápia": 0.98, "Pacu": 0.95, "Piau": 0.92,
+        "Pirambeba": 0.90, "Tucunaré": 0.82, "Curimatã": 0.80, "Piranha": 0.85,
+    },
+    "set": {
+        "Tucunaré": 1.35, "Piranha": 1.22, "Pirambeba": 1.20, "Tilápia": 1.05,
+        "Piau": 1.00, "Pacu": 0.95, "Pescada": 0.90, "Tambaqui": 0.88,
+        "Cascudo": 0.85, "Curimatã": 0.82, "Dourado-de-água-doce": 0.78,
+    },
+    "out": {
+        "Tucunaré": 1.38, "Pirambeba": 1.28, "Piranha": 1.25, "Piau": 1.08,
+        "Tilápia": 1.02, "Pacu": 0.92, "Cascudo": 0.88, "Pescada": 0.85,
+        "Tambaqui": 0.82, "Curimatã": 0.80, "Dourado-de-água-doce": 0.72,
+    },
+}
+
+# Multiplicador de preço varejo por mês (escassez ↑ preço; safra ↑ oferta ↓ preço).
+# Valores arredondados depois para 0,0 ou 0,5.
+PRECO_SAZONAL: Dict[str, Dict[str, float]] = {
+    "mar": {
+        "Curimatã": 0.92, "Pacu": 0.94, "Cascudo": 0.95, "Tilápia": 0.96,
+        "Piau": 0.97, "Tucunaré": 1.05, "Pescada": 1.08, "Tambaqui": 1.10,
+        "Dourado-de-água-doce": 1.06, "Piranha": 1.02, "Pirambeba": 1.00,
+    },
+    "abr": {
+        "Cascudo": 0.93, "Curimatã": 0.94, "Pacu": 0.95, "Piau": 0.96,
+        "Tilápia": 0.97, "Tucunaré": 1.03, "Pescada": 1.06, "Tambaqui": 1.08,
+        "Dourado-de-água-doce": 1.05, "Piranha": 1.00, "Pirambeba": 0.98,
+    },
+    "mai": {
+        "Piau": 0.94, "Cascudo": 0.95, "Curimatã": 0.97, "Tilápia": 0.98,
+        "Pacu": 1.00, "Tambaqui": 1.02, "Pescada": 1.04, "Tucunaré": 1.02,
+        "Dourado-de-água-doce": 1.03, "Piranha": 1.01, "Pirambeba": 1.00,
+    },
+    "jun": {
+        "Tambaqui": 0.93, "Pacu": 0.96, "Tilápia": 0.98, "Cascudo": 0.98,
+        "Pescada": 1.00, "Piau": 1.00, "Dourado-de-água-doce": 1.00,
+        "Curimatã": 1.02, "Tucunaré": 1.04, "Piranha": 1.03, "Pirambeba": 1.02,
+    },
+    "jul": {
+        "Tambaqui": 0.92, "Pescada": 0.94, "Dourado-de-água-doce": 0.96,
+        "Pacu": 0.98, "Tilápia": 1.00, "Cascudo": 1.00, "Piau": 1.01,
+        "Curimatã": 1.04, "Tucunaré": 1.06, "Piranha": 1.05, "Pirambeba": 1.04,
+    },
+    "ago": {
+        "Pescada": 0.95, "Tambaqui": 0.96, "Dourado-de-água-doce": 0.97,
+        "Cascudo": 1.00, "Tilápia": 1.02, "Pacu": 1.02, "Piau": 1.03,
+        "Pirambeba": 1.04, "Tucunaré": 1.08, "Curimatã": 1.06, "Piranha": 1.05,
+    },
+    "set": {
+        "Tucunaré": 0.94, "Piranha": 0.95, "Pirambeba": 0.94, "Tilápia": 0.98,
+        "Piau": 1.00, "Pacu": 1.04, "Pescada": 1.06, "Tambaqui": 1.08,
+        "Cascudo": 1.05, "Curimatã": 1.06, "Dourado-de-água-doce": 1.08,
+    },
+    "out": {
+        "Tucunaré": 0.93, "Pirambeba": 0.93, "Piranha": 0.94, "Piau": 0.98,
+        "Tilápia": 1.00, "Pacu": 1.05, "Cascudo": 1.06, "Pescada": 1.08,
+        "Tambaqui": 1.10, "Curimatã": 1.08, "Dourado-de-água-doce": 1.10,
+    },
 }
 
 INFORME_HEADER = [
@@ -478,6 +557,57 @@ def _fator(mes: str, nome: str, perfil: Dict[str, Any]) -> float:
     return (ATIVIDADE.get(mes) or {}).get(nome, 1.0) * perfil["pref"].get(nome, 1.0)
 
 
+def preco_mes(nome: str, mes: str) -> float:
+    """Preço varejo do peixe no mês (R$/kg), arredondado para 0,0 ou 0,5."""
+    base = float(PRECOS_VAREJO.get(nome, 0.0))
+    if base <= 0:
+        return 0.0
+    mult = float((PRECO_SAZONAL.get(mes) or {}).get(nome, 1.0))
+    return round(base * mult * 2) / 2.0
+
+
+def _especies_vizinhos(mes: str, salvos: Dict[str, InformeMes]) -> frozenset:
+    nomes: set = set()
+    for v in _vizinhos(mes, salvos):
+        nomes.update(e.nome for e in v.especies)
+    return frozenset(nomes)
+
+
+def _kgs_usados_especie(
+    salvos: Dict[str, InformeMes], mes: str, nome: str
+) -> set:
+    usados: set = set()
+    for m, r in salvos.items():
+        if m == mes or not r.houve_pesca:
+            continue
+        for e in r.especies:
+            if e.nome == nome:
+                usados.add(int(e.kg))
+    return usados
+
+
+def _valores_usados_mes(salvos: Dict[str, InformeMes], mes: str) -> set:
+    """Totais de faturamento (R$) já usados em outros meses do sócio."""
+    out: set = set()
+    for m, r in salvos.items():
+        if m == mes or not r.houve_pesca:
+            continue
+        out.add(round(float(r.faturamento_mes), 2))
+    return out
+
+
+def _kg_teto(rng: random.Random, mes: str, nome: str, perfil: Dict[str, Any]) -> int:
+    """Teto individual: 22 kg só em pico + sorte (evita chuva de 22)."""
+    f = _fator(mes, nome, perfil)
+    if f >= 1.28 and rng.random() < 0.08:
+        return KG_MAX
+    if f >= 1.18 and rng.random() < 0.18:
+        return min(KG_MAX, 20)
+    if f >= 1.10 and rng.random() < 0.28:
+        return min(KG_MAX, 19)
+    return KG_SOFT_MAX
+
+
 # --------------------------------------------------------------------------
 # Plano anual de quantidades de espécies (probabilístico, único por sócio)
 # --------------------------------------------------------------------------
@@ -561,7 +691,7 @@ def sortear_plano(
 
     Regras: nunca a mesma quantidade em meses vizinhos, 4/5/6 aparecem no ano
     (quando o pool de peixes permitir), no máximo 3 meses com 4/5/6 e no máximo
-    1 mês com 8 (só ~35% dos sócios, e só se houver ≥ 8 peixes ativos).
+    1 mês com 8 (só ~20% dos sócios, e só se houver ≥ 8 peixes ativos).
     ``evitar`` = planos de outros sócios (set ou dict plano → nº de sócios); tenta
     não repetir nenhum e, se o espaço esgotar, repete o plano menos usado.
     """
@@ -719,24 +849,49 @@ def _escolher_combo(
         for m, r in salvos.items()
         if m != mes and r.houve_pesca
     }
-    vizinhos = [frozenset(e.nome for e in v.especies) for v in _vizinhos(mes, salvos)]
+    # frequência de cada peixe no ano (evita o mesmo peixe em vários meses)
+    freq_ano: Dict[str, int] = {n: 0 for n in nomes}
+    for m, r in salvos.items():
+        if m == mes or not r.houve_pesca:
+            continue
+        for e in r.especies:
+            if e.nome in freq_ano:
+                freq_ano[e.nome] += 1
+    banidos = _especies_vizinhos(mes, salvos)
+    livres = [n for n in nomes if n not in banidos]
+    # prioriza pool sem peixes dos meses vizinhos (anti ago/set Tucunaré etc.)
+    base_pool = livres if len(livres) >= n_esp else list(nomes)
 
     def score(cand: Tuple[str, ...]) -> float:
         fs = frozenset(cand)
         key = assinatura_nomes(cand)
         s = sum(_fator(mes, n, perfil) for n in cand) * 1.8
-        s += rng.uniform(0, 1.5)
+        s += rng.uniform(0, 1.2)
         if key in usados_ano:
-            s -= 8.0
+            s -= 12.0
         if key in nomes_outros_socios:
-            s -= 1.2
-        for v in vizinhos:
-            s -= len(fs & v) * 2.5 / max(1, len(vizinhos))
+            s -= 1.5
+        # proibição dura de peixe do vizinho; se o pool for curto, penaliza forte
+        overlap = len(fs & banidos)
+        if overlap:
+            s -= 14.0 * overlap
+        # peixe já usado muitas vezes no ano
+        s -= sum(freq_ano.get(n, 0) * 3.5 for n in cand)
         return s
 
-    todas = list(combinations(nomes, n_esp))
+    todas = list(combinations(base_pool, n_esp))
+    if not todas:
+        todas = list(combinations(nomes, n_esp))
     rng.shuffle(todas)
     todas.sort(key=score, reverse=True)
+    # 1ª preferência: sem peixe de vizinho e conjunto novo no ano
+    for cand in todas:
+        fs = frozenset(cand)
+        if banidos and (fs & banidos):
+            continue
+        if assinatura_nomes(cand) in usados_ano:
+            continue
+        return cand
     for cand in todas:
         if assinatura_nomes(cand) not in usados_ano:
             return cand
@@ -754,10 +909,28 @@ def _escolher_dias(rng: random.Random, mes: str, salvos: Dict[str, InformeMes]) 
     return rng.choice(opcoes)
 
 
-def _kg_base(rng: random.Random, mes: str, nome: str, perfil: Dict[str, Any]) -> int:
-    centro = 11 + int(round((_fator(mes, nome, perfil) - 1.0) * 6))
-    centro += rng.choice([-2, -1, 0, 0, 1, 2])
-    return max(KG_MIN, min(KG_MAX, centro))
+def _kg_base(
+    rng: random.Random,
+    mes: str,
+    nome: str,
+    perfil: Dict[str, Any],
+    teto: int,
+    proibidos: Optional[set] = None,
+) -> int:
+    # centro mais contido (antes empurrava fácil para 20–22)
+    centro = 10 + int(round((_fator(mes, nome, perfil) - 1.0) * 4.5))
+    centro += rng.choice([-3, -2, -1, 0, 0, 1, 2])
+    kg = max(KG_MIN, min(int(teto), centro))
+    proibidos = set(proibidos or ())
+    if kg not in proibidos:
+        return kg
+    for delta in (1, -1, 2, -2, 3, -3, 4, -4):
+        alt = kg + delta
+        if KG_MIN <= alt <= teto and alt not in proibidos:
+            return alt
+    # último recurso: qualquer kg livre no intervalo
+    livres = [k for k in range(KG_MIN, teto + 1) if k not in proibidos]
+    return rng.choice(livres) if livres else kg
 
 
 def _alvo_mes(
@@ -776,17 +949,23 @@ def _alvo_mes(
         (i, m) for i, m in enumerate(MESES_PESCA) if m != mes and not (m in salvos and salvos[m].houve_pesca)
     ]
     ritmo = perfil["ritmo"]
+    # teto médio: soft no começo; sobe quando faltam poucos meses p/ fechar 540–650
+    teto_medio = KG_SOFT_MAX + 1
+    if len(pendentes) <= 1:
+        teto_medio = KG_MAX
+    elif len(pendentes) <= 3:
+        teto_medio = max(teto_medio, 20)
     if not pendentes:
-        alvo = restante
-    else:
-        peso_aqui = n_esp * ritmo[mes]
-        peso_depois = sum(plano[i] * ritmo[m] for i, m in pendentes)
-        share = peso_aqui / (peso_aqui + peso_depois)
-        alvo = int(round(restante * share * rng.uniform(0.92, 1.08)))
-        min_depois = sum(plano[i] * KG_MIN for i, _ in pendentes)
-        max_depois = sum(plano[i] * KG_MAX for i, _ in pendentes)
-        alvo = max(restante - max_depois, min(alvo, restante - min_depois))
-    return max(n_esp * KG_MIN + 1, min(n_esp * KG_MAX - 1, alvo))
+        # último mês de pesca: obriga fechar o alvo anual (teto duro)
+        return max(n_esp * KG_MIN + 1, min(n_esp * KG_MAX, int(restante)))
+    peso_aqui = n_esp * ritmo[mes]
+    peso_depois = sum(plano[i] * ritmo[m] for i, m in pendentes)
+    share = peso_aqui / (peso_aqui + peso_depois)
+    alvo = int(round(restante * share * rng.uniform(0.92, 1.06)))
+    min_depois = sum(plano[i] * KG_MIN for i, _ in pendentes)
+    max_depois = sum(plano[i] * teto_medio for i, _ in pendentes)
+    alvo = max(restante - max_depois, min(alvo, restante - min_depois))
+    return max(n_esp * KG_MIN + 1, min(n_esp * teto_medio, alvo))
 
 
 def _distribuir_kg(
@@ -795,30 +974,112 @@ def _distribuir_kg(
     combo: Sequence[str],
     alvo: int,
     perfil: Dict[str, Any],
+    salvos: Optional[Dict[str, InformeMes]] = None,
 ) -> Dict[str, int]:
-    kgs = {n: _kg_base(rng, mes, n, perfil) for n in combo}
-    for _ in range(600):
+    salvos = salvos or {}
+    tetos = {n: _kg_teto(rng, mes, n, perfil) for n in combo}
+    proib = {n: _kgs_usados_especie(salvos, mes, n) for n in combo}
+    # kg do mês vizinho da mesma espécie também fica proibido
+    for v in _vizinhos(mes, salvos):
+        for e in v.especies:
+            if e.nome in proib:
+                proib[e.nome].add(int(e.kg))
+    kgs = {
+        n: _kg_base(rng, mes, n, perfil, tetos[n], proib[n]) for n in combo
+    }
+    for _ in range(800):
         total = sum(kgs.values())
         if total == alvo:
             break
         if total < alvo:
-            cands = [n for n in combo if kgs[n] < KG_MAX]
+            cands = [n for n in combo if kgs[n] < tetos[n]]
             if not cands:
-                break
-            cands.sort(key=lambda n: (-_fator(mes, n, perfil) + rng.uniform(0, 0.35), kgs[n]))
+                # relaxa teto mole uma vez se ainda faltar peso anual
+                cands = [n for n in combo if kgs[n] < KG_MAX]
+                if not cands:
+                    break
+            def _key_up(n: str) -> Tuple[float, int]:
+                nxt = kgs[n] + 1
+                pen = 6.0 if nxt in proib[n] else 0.0
+                return (-_fator(mes, n, perfil) + pen + rng.uniform(0, 0.3), kgs[n])
+            cands.sort(key=_key_up)
             kgs[cands[0]] += 1
         else:
             cands = [n for n in combo if kgs[n] > KG_MIN]
             if not cands:
                 break
-            cands.sort(key=lambda n: (_fator(mes, n, perfil) + rng.uniform(0, 0.35), -kgs[n]))
+            def _key_dn(n: str) -> Tuple[float, int]:
+                nxt = kgs[n] - 1
+                pen = 6.0 if nxt in proib[n] else 0.0
+                return (_fator(mes, n, perfil) + pen + rng.uniform(0, 0.3), -kgs[n])
+            cands.sort(key=_key_dn)
             kgs[cands[0]] -= 1
-    if len(set(kgs.values())) < 2 and len(combo) >= 2:
-        ranked = sorted(combo, key=lambda n: _fator(mes, n, perfil), reverse=True)
-        hi, lo = ranked[0], ranked[-1]
-        if kgs[hi] < KG_MAX and kgs[lo] > KG_MIN:
-            kgs[hi] += 1
-            kgs[lo] -= 1
+    # resolve kg proibidos (já usados no ano / vizinho) e diversifica no mês
+    for _ in range(80):
+        conflito = [n for n in combo if kgs[n] in proib[n]]
+        diversificado = len(set(kgs.values())) >= min(3, len(combo))
+        if not conflito and diversificado:
+            break
+        alvo_fix = conflito[0] if conflito else None
+        if alvo_fix is None:
+            ranked = sorted(combo, key=lambda n: _fator(mes, n, perfil), reverse=True)
+            hi, lo = ranked[0], ranked[-1]
+            if kgs[hi] < tetos[hi] and kgs[lo] > KG_MIN:
+                kgs[hi] += 1
+                kgs[lo] -= 1
+            else:
+                break
+            continue
+        livres = [
+            k for k in range(KG_MIN, max(tetos[alvo_fix], KG_SOFT_MAX) + 1)
+            if k not in proib[alvo_fix] and k not in {kgs[n] for n in combo if n != alvo_fix}
+        ]
+        if not livres:
+            livres = [
+                k for k in range(KG_MIN, KG_MAX + 1)
+                if k not in proib[alvo_fix]
+            ]
+        if not livres:
+            break
+        # troca kg do conflito; compensa em outra espécie se possível
+        novo = rng.choice(livres)
+        delta = novo - kgs[alvo_fix]
+        kgs[alvo_fix] = novo
+        if delta != 0:
+            outros = [n for n in combo if n != alvo_fix]
+            outros.sort(key=lambda n: abs(kgs[n] - (kgs[n] - delta)))
+            for n in outros:
+                cand = kgs[n] - delta
+                if KG_MIN <= cand <= max(tetos[n], KG_SOFT_MAX) and cand not in proib[n]:
+                    kgs[n] = cand
+                    break
+    # fecha o alvo do mês (teto duro) sem reintroduzir kg proibido da espécie
+    for _ in range(400):
+        total = sum(kgs.values())
+        if total == alvo:
+            break
+        if total < alvo:
+            cands = [
+                n for n in combo
+                if kgs[n] < KG_MAX and (kgs[n] + 1) not in proib[n]
+            ]
+            if not cands:
+                cands = [n for n in combo if kgs[n] < KG_MAX]
+            if not cands:
+                break
+            cands.sort(key=lambda n: (-_fator(mes, n, perfil), kgs[n]))
+            kgs[cands[0]] += 1
+        else:
+            cands = [
+                n for n in combo
+                if kgs[n] > KG_MIN and (kgs[n] - 1) not in proib[n]
+            ]
+            if not cands:
+                cands = [n for n in combo if kgs[n] > KG_MIN]
+            if not cands:
+                break
+            cands.sort(key=lambda n: (_fator(mes, n, perfil), -kgs[n]))
+            kgs[cands[0]] -= 1
     return kgs
 
 
@@ -907,15 +1168,39 @@ def gerar_mes(
 
     escolhido: Optional[InformeMes] = None
     tentativa = 0
-    for tentativa in range(1, 121):
+    fat_usados = _valores_usados_mes(anteriores, mes)
+    banidos_viz = _especies_vizinhos(mes, anteriores)
+    for tentativa in range(1, 241):
         rng = random.Random(seed + tentativa * 97)
         combo = _escolher_combo(rng, mes, n_esp, anteriores, outros_nomes, perfil, pool)
+        # rejeita combo que compartilhe peixe com vizinho quando o pool permite evitar
+        overlap_viz = set(combo) & banidos_viz if banidos_viz else set()
+        if overlap_viz:
+            livres = [n for n in pool if n not in banidos_viz]
+            if len(livres) >= n_esp:
+                continue
+            # inevitável (ex.: mês de 8): só aceita depois de várias tentativas
+            if tentativa < 60:
+                continue
         dias = _escolher_dias(rng, mes, anteriores)
         alvo = _alvo_mes(rng, mes, plano, anteriores, alvo_ano, perfil)
-        kgs = _distribuir_kg(rng, mes, combo, alvo, perfil)
+        kgs = _distribuir_kg(rng, mes, combo, alvo, perfil, anteriores)
         ordem = _ordenar(rng, combo, mes, anteriores)
-        especies = [Especie(n, int(kgs[n]), float(PRECOS_VAREJO[n])) for n in ordem]
+        especies = [Especie(n, int(kgs[n]), float(preco_mes(n, mes))) for n in ordem]
         if len({e.kg for e in especies}) < 2:
+            continue
+        # (peixe, kg) idêntico ao mês vizinho — nunca
+        pares = {(e.nome, int(e.kg)) for e in especies}
+        viz_kg = set()
+        for v in _vizinhos(mes, anteriores):
+            viz_kg |= {(e.nome, int(e.kg)) for e in v.especies}
+        if pares & viz_kg:
+            continue
+        # mesmo kg da espécie em outro mês do ano — prefere evitar
+        kg_ano = any(
+            int(e.kg) in _kgs_usados_especie(anteriores, mes, e.nome) for e in especies
+        )
+        if kg_ano and tentativa < 160:
             continue
         if assinatura_conjunto(especies) in conjuntos_ano:
             continue
@@ -923,7 +1208,7 @@ def gerar_mes(
         if sig in globais:
             continue
         agora = now_stamp()
-        escolhido = InformeMes(
+        candidato = InformeMes(
             id=(atual.id if atual else str(uuid.uuid4())),
             person_id=person_id,
             cpf=cpf,
@@ -942,6 +1227,10 @@ def gerar_mes(
             atualizado_por=ator,
             plano=plano_str(plano),
         )
+        # evita repetir o mesmo faturamento mensal
+        if round(float(candidato.faturamento_mes), 2) in fat_usados and tentativa < 140:
+            continue
+        escolhido = candidato
         break
     if escolhido is None:
         raise RuntimeError(
@@ -1021,6 +1310,24 @@ def validar_ano(meses: Dict[str, InformeMes], *, alvo_ano: Optional[int] = None)
             avisos.append(
                 f"{MES_TITULO[a]} e {MES_TITULO[b]} com a mesma quantidade ({len(ra.especies)} espécies)."
             )
+        if ra and rb and ra.houve_pesca and rb.houve_pesca:
+            sa = {e.nome for e in ra.especies}
+            sb = {e.nome for e in rb.especies}
+            comuns = sa & sb
+            # aviso só quando a sobreposição era evitável (pool comporta os dois meses)
+            n_pool_est = max(len(sa | sb), max((len(meses[m].especies) for m in feitos), default=8))
+            evitavel = len(sa) + len(sb) <= n_pool_est
+            if comuns and evitavel and len(comuns) >= 1:
+                avisos.append(
+                    f"{MES_TITULO[a]} e {MES_TITULO[b]} repetem peixe(s): {', '.join(sorted(comuns))}."
+                )
+            kgs_a = {(e.nome, int(e.kg)) for e in ra.especies}
+            kgs_b = {(e.nome, int(e.kg)) for e in rb.especies}
+            mesmos_kg = sorted(n for n, _ in (kgs_a & kgs_b))
+            if mesmos_kg:
+                avisos.append(
+                    f"{MES_TITULO[a]} e {MES_TITULO[b]} com o mesmo kg em: {', '.join(mesmos_kg)}."
+                )
     peso = peso_anual(meses)
     if len(feitos) == len(MESES_PESCA):
         # A mistura 4/5/6 só é exigida quando o pool de peixes ativos permite.

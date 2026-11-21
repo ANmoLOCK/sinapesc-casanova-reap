@@ -393,24 +393,29 @@ def itens_defeso_para_relatorio(
         if len(cpf) != 11:
             continue
         f = by_cpf.get(cpf)
-        if f is None:
+        # Sem ficha Defeso = entrada pendente. Antes o relatório sumia ao filtrar
+        # «só pendentes» / desmarcar confirmadas, porque só listava quem já tinha ficha.
+        if f is None and fcfg["entrada"] == "sim":
             continue
+
         mun_reap = str(municipios_reap.get(cpf) or "").strip()
-        mun_defeso = str(f.municipio or "").strip()
+        mun_defeso = str(f.municipio or "").strip() if f else ""
         mun_filtro = mun_reap or mun_defeso
         if loc and mun_filtro.lower() != loc:
             continue
-        if fcfg["uf"] and str(f.uf or "").strip().upper()[:2] != fcfg["uf"]:
-            continue
+        if fcfg["uf"]:
+            uf_ficha = str(f.uf or "").strip().upper()[:2] if f else ""
+            if uf_ficha != fcfg["uf"]:
+                continue
 
-        ent = entrada_confirmada_flag(f)
+        ent = entrada_confirmada_flag(f) if f else False
         if fcfg["entrada"] == "sim" and not ent:
             continue
         if fcfg["entrada"] == "nao" and ent:
             continue
 
-        parcelas = parse_parcelas(f.parcelas_recebidas or "")
-        tem_parc = tem_parcela_preenchida(f)
+        parcelas = parse_parcelas(f.parcelas_recebidas or "") if f else ["", "", "", ""]
+        tem_parc = tem_parcela_preenchida(f) if f else False
         parc_mode = fcfg["parcela"]
         if parc_mode == "com" and not tem_parc:
             continue
@@ -421,7 +426,7 @@ def itens_defeso_para_relatorio(
             if not str(parcelas[idx] or "").strip():
                 continue
 
-        nome = str(nomes.get(cpf) or f.nome or "").strip()
+        nome = str(nomes.get(cpf) or (f.nome if f else "") or "").strip()
         if not nome:
             continue
         tel = telefone_relatorio(f, telefones_reap.get(cpf, ""))
@@ -430,24 +435,26 @@ def itens_defeso_para_relatorio(
         if fcfg["telefone"] == "sem" and tel:
             continue
 
-        end_ok = _endereco_completo(f)
+        end_ok = _endereco_completo(f) if f else False
         if fcfg["endereco"] == "completo" and not end_ok:
             continue
         if fcfg["endereco"] == "incompleto" and end_ok:
             continue
 
-        st = str(f.status or "").strip().lower()
-        if fcfg["status"] and st != fcfg["status"]:
+        st = str(f.status or "").strip().lower() if f else "sem_ficha"
+        if fcfg["status"]:
+            # «salvo»/«rascunho» não incluem quem ainda não tem ficha
+            if st != fcfg["status"]:
+                continue
+
+        if fcfg["doc_identidade"] and not (f and _flag_doc_on(f.tem_identidade)):
+            continue
+        if fcfg["doc_carteira"] and not (f and _flag_doc_on(f.tem_carteira_pesca)):
+            continue
+        if fcfg["doc_caf"] and not (f and _flag_doc_on(f.tem_caf)):
             continue
 
-        if fcfg["doc_identidade"] and not _flag_doc_on(f.tem_identidade):
-            continue
-        if fcfg["doc_carteira"] and not _flag_doc_on(f.tem_carteira_pesca):
-            continue
-        if fcfg["doc_caf"] and not _flag_doc_on(f.tem_caf):
-            continue
-
-        obs = str(getattr(f, "observacao", "") or "").strip()
+        obs = str(getattr(f, "observacao", "") or "").strip() if f else ""
         if fcfg["observacao"] == "com" and not obs:
             continue
         if fcfg["observacao"] == "sem" and obs:
@@ -467,13 +474,14 @@ def itens_defeso_para_relatorio(
                 "cpf": cpf,
                 "telefone": tel,
                 "municipio": mun_reap or mun_defeso,
-                "endereco": endereco_defeso_relatorio(f),
-                "parcelas": parcelas_para_relatorio(f.parcelas_recebidas or ""),
+                "endereco": endereco_defeso_relatorio(f) if f else "—",
+                "parcelas": parcelas_para_relatorio(f.parcelas_recebidas or "") if f else "—",
                 "entrada_confirmada": ent,
                 "observacao": obs,
                 "status": st,
-                "atualizado_em": str(f.atualizado_em or f.criado_em or ""),
-                "uf": str(f.uf or "").strip().upper()[:2],
+                "atualizado_em": str((f.atualizado_em or f.criado_em) if f else "") or "",
+                "uf": str(f.uf or "").strip().upper()[:2] if f else "",
+                "tem_ficha": bool(f),
             }
         )
 

@@ -6,6 +6,13 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.6] — 2026-11-20 — Informe v6 sazonal + Defeso pendentes
+
+- Cérebro Informe **v6-sazonal**: Pacu, Pirambeba e Cascudo no catálogo/filtro Peixes
+- Anti-repetição reforçada (peixe, kg e valor entre meses) com abundância e preço por estação
+- Mês com 8 espécies só para ~20% dos sócios; kg 22 raro (teto mole ~18)
+- Defeso: filtro **Pendentes de entrada**; relatório HTML não some ao filtrar pendentes (inclui sócio REAP sem ficha)
+
 ## [v1.8.5] — 2026-11-05 — Informe Mensal: botão Peixes
 
 **Tag:** [`v1.8.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)  

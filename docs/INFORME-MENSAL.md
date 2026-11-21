@@ -1,9 +1,9 @@
 # Informe Mensal — REAP mês a mês por sócio
 
-**Versão:** v1.8.5 (2026-11-05)  
+**Versão:** v1.8.6 (2026-11-20)  
 **Download do EXE:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip  
 **Página da release:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5  
-**Origem do cérebro:** pacote `reap-informe-mensal-v1.8.0.zip` (`cerebro_reformulacao.py` v4), refatorado na v1.8.1 para plano probabilístico por sócio (`v5-plano`)
+**Origem do cérebro:** pacote `reap-informe-mensal-v1.8.0.zip` (`cerebro_reformulacao.py` v4) → v5-plano → **v6-sazonal** (Pacu/Pirambeba/Cascudo, preço e abundância por estação, anti-repetição peixe/kg/valor)
 
 ---
 
@@ -33,7 +33,7 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
-- Botão **Peixes**: configuração exclusiva desta aba. Marque quais dos 8 peixes podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com menos de 8, o mês de 8 espécies não entra no plano.
+- Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com menos de 8, o mês de 8 espécies não entra no plano.
 
 ![Peixes](previews/informe-mensal/informe_17_config_peixes.png)
 
@@ -164,24 +164,15 @@ Antes, todos os sócios caíam em sequências parecidas (ex.: `4,5,4,6,8,4,6,8`)
 
 Como o sorteio funciona:
 
-1. **Peso base de cada quantidade:** 4 → 40%, 5 → 33%, 6 → 27%.
-2. **Anti-repetição:** cada vez que uma quantidade já apareceu no ano do sócio, o peso dela é multiplicado por **0,45**. Quanto mais ela já saiu, menor a chance de sair de novo.
-3. **Vizinhos:** um mês nunca tem a mesma quantidade do mês anterior nem do seguinte.
-4. **8 espécies:** antes do sorteio, cada sócio tem **35% de chance** de ganhar **um único** mês com 8 espécies. Esse mês cai de preferência no meio da safra (pesos Mar 0,55 · Abr 0,8 · Mai 1,0 · Jun 1,25 · Jul 1,25 · Ago 1,0 · Set 0,8 · Out 0,55). Os outros 65% dos sócios não têm mês de 8.
+1. **Peso base de cada quantidade:** 4 → 42%, 5 → 34%, 6 → 24%.
+2. **Anti-repetição:** cada vez que uma quantidade já apareceu no ano do sócio, o peso dela é multiplicado por **0,40**. Quanto mais ela já saiu, menor a chance de sair de novo.
+3. **Vizinhos:** um mês nunca tem a mesma quantidade do mês anterior nem do seguinte; o cérebro também evita repetir o **mesmo peixe** (e o mesmo kg da espécie) entre meses vizinhos.
+4. **8 espécies:** antes do sorteio, cada sócio tem **~20% de chance** de ganhar **um único** mês com 8 espécies (parece safra boa, não padrão artificial). Esse mês cai de preferência no meio da safra. Os outros ~80% não têm mês de 8.
 5. **Fechamento do ano:** 4, 5 e 6 precisam aparecer e nenhuma quantidade passa de 3 meses.
-6. **Entre sócios:** o plano é sorteado de novo enquanto for igual ao de outro sócio do mesmo ano. As regras permitem cerca de 1.900 planos diferentes, dos quais 222 sem mês de 8. Se um sindicato muito grande esgotar os planos de uma categoria, o cérebro repete o plano **menos usado** e o caso aparece em **Padrões iguais**, em vez de forçar mais sócios para o 8.
+6. **Sazonalidade:** abundância e preço (R$/kg) variam por mês (estação / reprodução no São Francisco). Kg altos (22) são raros — teto mole em torno de 18 kg.
+7. **Entre sócios:** o plano é sorteado de novo enquanto for igual ao de outro sócio do mesmo ano. Se o espaço esgotar, repete o plano **menos usado** e o caso aparece em **Padrões iguais**.
 
-O botão **Ver cálculo de probabilidade** mostra o resultado de 4.000 simulações desse sorteio. Com as regras atuais:
-
-| Quantidade | Mar | Abr | Mai | Jun | Jul | Ago | Set | Out |
-|-----------|----:|----:|----:|----:|----:|----:|----:|----:|
-| 4 espécies | ~38% | ~33% | ~32% | ~34% | ~32% | ~32% | ~36% | ~31% |
-| 5 espécies | ~31% | ~34% | ~32% | ~30% | ~33% | ~31% | ~32% | ~32% |
-| 6 espécies | ~27% | ~29% | ~32% | ~29% | ~30% | ~29% | ~29% | ~35% |
-| 8 espécies | ~2,5% | ~4% | ~5% | ~6% | ~5% | ~5% | ~4% | ~2% |
-
-- Chance de um sócio ter um mês de 8: **≈ 35%**.
-- Na simulação de 300 sócios gerando o ano em ordem aleatória: **300 planos diferentes**, 35% dos sócios com um mês de 8, nenhuma regra quebrada e peso anual sempre entre 540 e 650 kg.
+O botão **Ver cálculo de probabilidade** mostra o resultado de 4.000 simulações desse sorteio. Chance de um sócio ter um mês de 8: **≈ 20%**.
 
 ### 5.6 Padrões iguais
 
@@ -274,28 +265,31 @@ cd sinapesc-desktop
 python test_informe_mensal.py
 ```
 
-## 10. Mudanças da v1.8.5
+## 10. Mudanças da v1.8.6
+
+- Cérebro **v6-sazonal**: catálogo com **Pacu**, **Pirambeba** e **Cascudo**; preço e abundância por estação; anti-repetição peixe/kg/valor entre meses; 8 espécies só ~20% dos sócios; kg 22 raro.
+- Defeso: checkbox **Pendentes de entrada**; relatório HTML inclui sócio REAP sem ficha ao filtrar pendentes (antes a lista sumia).
+
+## 11. Mudanças da v1.8.5
 
 - Botão **Peixes**: seleção universal dos peixes que entram no cérebro.
-
-
 - Card **Tabela** ao lado de **Abrir** em cada sócio: HTML individual só com os meses preenchidos.
 
-## 11. Mudanças da v1.8.2
+## 12. Mudanças da v1.8.2
 
 - Botão **Abrir tabela no navegador**: HTML com tabela por sócio (Jan→Dez) e detalhe dos meses preenchidos; abre numa aba do navegador e registra na Auditoria.
 
-## 12. Mudanças da v1.8.1
+## 13. Mudanças da v1.8.1
 
 - **Plano de quantidades por sócio**, sorteado com probabilidade e gravado na planilha (coluna `planoContagens`). Acaba o padrão repetido do tipo `4,5,4,6,8,4,6,8`.
-- **8 espécies só para ~35% dos sócios**, no máximo 1 mês, de preferência no meio da safra.
-- **Anti-repetição:** a mesma quantidade nunca em meses vizinhos, e cada repetição no ano reduz a chance (×0,45). O plano não repete o de outro sócio.
+- **8 espécies só para ~35% dos sócios** (ajustado para ~20% na v1.8.6), no máximo 1 mês, de preferência no meio da safra.
+- **Anti-repetição:** a mesma quantidade nunca em meses vizinhos, e cada repetição no ano reduz a chance. O plano não repete o de outro sócio.
 - **Kg humanizados por pessoa:** preferência por espécie e ritmo do ano próprios de cada pescador.
 - **Cálculo de probabilidade** na caixa do sócio.
 - **Padrões iguais** entre sócios: faixa na lista, filtro, selo **=** e aviso ao gerar.
 - Meses pendentes mostram a quantidade prevista.
 
-## 13. Mudanças da v1.8.0
+## 14. Mudanças da v1.8.0
 
 - Botão **Informe Mensal** ao lado de **Abrir REAP**.
 - Lista de sócios com busca, filtros, ano e progresso Jan → Dez.
