@@ -23,6 +23,7 @@ USUARIOS_HEADER = [
     "criadoEm",
     "ultimoLogin",
     "atualizadoEm",
+    "permissoes",
 ]
 
 PAPEIS = ("admin", "operador", "leitura")
@@ -31,6 +32,24 @@ PAPEL_OPERADOR = "operador"
 PAPEL_LEITURA = "leitura"
 
 MODULOS_TODOS = ("reap", "defeso", "informe", "consulta_rgp", "lista")
+
+# Permissões finas (além do papel). Admin ignora e tem tudo.
+PERM_CADASTRAR = "cadastrar"
+PERM_EDITAR = "editar"
+PERM_PEDIR_EXCLUSAO = "pedir_exclusao"
+PERM_EXCLUIR_DIRETO = "excluir_direto"
+PERMISSOES_TODAS = (
+    PERM_CADASTRAR,
+    PERM_EDITAR,
+    PERM_PEDIR_EXCLUSAO,
+    PERM_EXCLUIR_DIRETO,
+)
+PERMISSOES_PADRAO = {
+    PAPEL_ADMIN: list(PERMISSOES_TODAS),
+    PAPEL_OPERADOR: [PERM_CADASTRAR, PERM_EDITAR, PERM_PEDIR_EXCLUSAO],
+    PAPEL_LEITURA: [],
+}
+
 PBKDF2_ROUNDS = 200_000
 PBKDF2_PREFIX = "pbkdf2_sha256"
 
@@ -92,6 +111,52 @@ def modulos_para_celula(modulos: Sequence[str]) -> str:
     return ",".join(normalizar_modulos(modulos))
 
 
+def normalizar_permissoes(raw: Any = None, *, papel: str = PAPEL_OPERADOR) -> List[str]:
+    """Lista canônica. ``None``/omitido → padrão do papel. ``[]`` explícito = nenhuma."""
+    papel_n = normalizar_papel(papel)
+    if raw is None:
+        return list(PERMISSOES_PADRAO.get(papel_n, []))
+    if raw == "" or raw == []:
+        # string vazia na planilha = usar padrão do papel; lista vazia explícita = nenhuma
+        if raw == "":
+            return list(PERMISSOES_PADRAO.get(papel_n, []))
+        return []
+    if isinstance(raw, str):
+        # marcador especial na planilha para "nenhuma"
+        if raw.strip().lower() in ("nenhuma", "none", "-"):
+            return []
+        partes = [p.strip().lower() for p in raw.replace(";", ",").split(",") if p.strip()]
+    elif isinstance(raw, (list, tuple, set)):
+        partes = [str(p).strip().lower() for p in raw if str(p).strip()]
+    else:
+        return list(PERMISSOES_PADRAO.get(papel_n, []))
+    out: List[str] = []
+    for p in PERMISSOES_TODAS:
+        if p in partes and p not in out:
+            out.append(p)
+    # aliases
+    for p in partes:
+        if p in ("cadastro", "criar") and PERM_CADASTRAR not in out:
+            out.append(PERM_CADASTRAR)
+        if p in ("alterar", "update") and PERM_EDITAR not in out:
+            out.append(PERM_EDITAR)
+        if p in ("excluir", "delete", "pedir_excluir") and PERM_PEDIR_EXCLUSAO not in out:
+            out.append(PERM_PEDIR_EXCLUSAO)
+        if p in ("excluir_agora", "hard_delete") and PERM_EXCLUIR_DIRETO not in out:
+            out.append(PERM_EXCLUIR_DIRETO)
+    return out
+
+
+def permissoes_para_celula(perms: Sequence[str], *, papel: str = PAPEL_OPERADOR) -> str:
+    lista = normalizar_permissoes(list(perms), papel=papel)
+    padrao = PERMISSOES_PADRAO.get(normalizar_papel(papel), [])
+    if lista == padrao:
+        return ""  # vazio na planilha = padrão do papel
+    if not lista:
+        return "nenhuma"
+    return ",".join(lista)
+
+
 def hash_senha(senha: str) -> str:
     """PBKDF2-SHA256 com salt aleatório (nativo, sem dependência)."""
     plain = str(senha or "")
@@ -141,6 +206,9 @@ class Usuario:
     criado_em: str = ""
     ultimo_login: str = ""
     atualizado_em: str = ""
+    # None = ainda não resolvido (usa padrão do papel no __post_init__)
+    permissoes: List[str] = field(default_factory=list)
+    _perms_explicit: bool = field(default=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.email = normalizar_email(self.email)
@@ -148,6 +216,17 @@ class Usuario:
         self.papel = normalizar_papel(self.papel)
         self.modulos = normalizar_modulos(self.modulos)
         self.ativo = bool(self.ativo)
+        if not self._perms_explicit and not self.permissoes:
+            self.permissoes = list(PERMISSOES_PADRAO.get(self.papel, []))
+        else:
+            self.permissoes = normalizar_permissoes(self.permissoes, papel=self.papel)
+
+    def tem_permissao(self, perm: str) -> bool:
+        if not self.ativo:
+            return False
+        if self.papel == PAPEL_ADMIN:
+            return True
+        return str(perm or "").strip().lower() in self.permissoes
 
     @property
     def pode_admin_usuarios(self) -> bool:
@@ -155,7 +234,29 @@ class Usuario:
 
     @property
     def pode_escrever(self) -> bool:
-        return self.ativo and self.papel in (PAPEL_ADMIN, PAPEL_OPERADOR)
+        return self.ativo and (
+            self.papel == PAPEL_ADMIN
+            or self.tem_permissao(PERM_CADASTRAR)
+            or self.tem_permissao(PERM_EDITAR)
+            or self.tem_permissao(PERM_PEDIR_EXCLUSAO)
+            or self.tem_permissao(PERM_EXCLUIR_DIRETO)
+        )
+
+    @property
+    def pode_cadastrar(self) -> bool:
+        return self.tem_permissao(PERM_CADASTRAR)
+
+    @property
+    def pode_editar(self) -> bool:
+        return self.tem_permissao(PERM_EDITAR)
+
+    @property
+    def pode_pedir_exclusao(self) -> bool:
+        return self.tem_permissao(PERM_PEDIR_EXCLUSAO)
+
+    @property
+    def pode_excluir_direto(self) -> bool:
+        return self.tem_permissao(PERM_EXCLUIR_DIRETO)
 
     def permite_modulo(self, modulo: str) -> bool:
         if not self.ativo:
@@ -182,6 +283,7 @@ class Usuario:
             self.criado_em,
             self.ultimo_login,
             self.atualizado_em,
+            permissoes_para_celula(self.permissoes, papel=self.papel),
         ]
 
     def to_public_dict(self) -> Dict[str, Any]:
@@ -194,10 +296,16 @@ class Usuario:
             "papel": self.papel,
             "modulos": list(self.modulos),
             "modulos_texto": modulos_para_celula(self.modulos) or "(todos)",
+            "permissoes": list(self.permissoes),
+            "permissoes_texto": ",".join(self.permissoes) or "(nenhuma)",
             "criado_em": self.criado_em,
             "ultimo_login": self.ultimo_login,
             "atualizado_em": self.atualizado_em,
             "pode_escrever": self.pode_escrever,
+            "pode_cadastrar": self.pode_cadastrar,
+            "pode_editar": self.pode_editar,
+            "pode_pedir_exclusao": self.pode_pedir_exclusao,
+            "pode_excluir_direto": self.pode_excluir_direto,
             "pode_admin_usuarios": self.pode_admin_usuarios,
         }
 
@@ -217,17 +325,21 @@ def row_to_usuario(row: Sequence[Any] | None) -> Optional[Usuario]:
     email = normalizar_email(cells[1])
     if not uid or uid.lower() == "id" or not email:
         return None
+    papel = normalizar_papel(cells[5])
+    raw_perms = cells[10].strip() if len(cells) > 10 else ""
     return Usuario(
         id=uid,
         email=email,
         nome=cells[2].strip(),
         senha_hash=cells[3].strip(),
         ativo=normalizar_ativo(cells[4]),
-        papel=normalizar_papel(cells[5]),
+        papel=papel,
         modulos=normalizar_modulos(cells[6]),
         criado_em=cells[7].strip(),
         ultimo_login=cells[8].strip(),
         atualizado_em=cells[9].strip(),
+        permissoes=normalizar_permissoes(raw_perms if raw_perms != "" else None, papel=papel),
+        _perms_explicit=bool(raw_perms),
     )
 
 
@@ -239,19 +351,23 @@ def novo_usuario(
     papel: str = PAPEL_OPERADOR,
     ativo: bool = True,
     modulos: Any = None,
+    permissoes: Any = None,
 ) -> Usuario:
     agora = now_stamp()
+    papel_n = normalizar_papel(papel)
     return Usuario(
         id=str(uuid.uuid4()),
         email=normalizar_email(email),
         nome=(nome or "").strip() or normalizar_email(email),
         senha_hash=hash_senha(senha),
         ativo=ativo,
-        papel=papel,
+        papel=papel_n,
         modulos=normalizar_modulos(modulos),
         criado_em=agora,
         ultimo_login="",
         atualizado_em=agora,
+        permissoes=normalizar_permissoes(permissoes, papel=papel_n),
+        _perms_explicit=permissoes is not None,
     )
 
 

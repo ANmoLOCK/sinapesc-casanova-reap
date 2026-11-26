@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 from .client import (
     AUDITORIA_TAB,
     CONFIG_TAB,
+    EXCLUSOES_TAB,
     PESSOAS_TAB,
     REAP_TAB,
     USUARIOS_TAB,
@@ -664,7 +665,7 @@ class SheetsService:
         from controle.usuarios import Usuario, row_to_usuario
 
         self.client.ensure_tabs()
-        rows = self.client.get_values(f"{USUARIOS_TAB}!A2:J")
+        rows = self.client.get_values(f"{USUARIOS_TAB}!A2:K")
         out: List[Usuario] = []
         for r in rows:
             u = row_to_usuario(r)
@@ -733,11 +734,19 @@ class SheetsService:
         if row < 0:
             raise ValueError("Usuário não encontrado.")
         user.atualizado_em = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        self.client.update_values(f"{USUARIOS_TAB}!A{row}:J{row}", [user.to_row()])
+        self.client.update_values(f"{USUARIOS_TAB}!A{row}:K{row}", [user.to_row()])
         self._registrar_auditoria(
             "usuario_atualizar",
             f"Atualizou usuário {user.email} (ativo={user.ativo}, papel={user.papel}).",
         )
+        return user
+
+    def _gravar_usuario_silencioso(self, user) -> object:
+        """Atualiza linha sem registrar auditoria (login/rehash)."""
+        row = self._linha_usuario_por_id(user.id)
+        if row < 0:
+            return user
+        self.client.update_values(f"{USUARIOS_TAB}!A{row}:K{row}", [user.to_row()])
         return user
 
     def marcar_ultimo_login(self, user) -> object:
@@ -749,16 +758,73 @@ class SheetsService:
         agora = now_stamp()
         user.ultimo_login = agora
         user.atualizado_em = agora
-        self.client.update_values(f"{USUARIOS_TAB}!A{row}:J{row}", [user.to_row()])
-        return user
+        return self._gravar_usuario_silencioso(user)
 
     def rehash_senha_se_preciso(self, user, senha_plana: str) -> object:
-        from controle.usuarios import hash_senha, senha_precisa_rehash
+        from controle.usuarios import hash_senha, now_stamp, senha_precisa_rehash
 
         if not senha_precisa_rehash(user.senha_hash):
             return user
         user.senha_hash = hash_senha(senha_plana)
-        return self.atualizar_usuario(user)
+        user.atualizado_em = now_stamp()
+        return self._gravar_usuario_silencioso(user)
+
+    # ---- exclusões pendentes (aba ExclusoesPendentes) --------------------
+
+    def listar_pedidos_exclusao(self, *, somente_pendentes: bool = False) -> List:
+        from controle.exclusoes import PedidoExclusao, STATUS_PENDENTE, row_to_pedido
+
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{EXCLUSOES_TAB}!A2:J")
+        out: List[PedidoExclusao] = []
+        for r in rows:
+            p = row_to_pedido(r)
+            if not p:
+                continue
+            if somente_pendentes and p.status != STATUS_PENDENTE:
+                continue
+            out.append(p)
+        out.sort(key=lambda p: p.pedido_em or "", reverse=True)
+        return out
+
+    def _linha_pedido_por_id(self, pedido_id: str) -> int:
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{EXCLUSOES_TAB}!A2:A")
+        alvo = str(pedido_id or "").strip()
+        for i, r in enumerate(rows):
+            if r and str(r[0]).strip() == alvo:
+                return i + 2
+        return -1
+
+    def pedido_exclusao_pendente_para(self, person_id: str):
+        from controle.exclusoes import STATUS_PENDENTE
+
+        pid = str(person_id or "").strip()
+        for p in self.listar_pedidos_exclusao(somente_pendentes=True):
+            if p.person_id == pid and p.status == STATUS_PENDENTE:
+                return p
+        return None
+
+    def criar_pedido_exclusao(self, pedido) -> object:
+        if self.pedido_exclusao_pendente_para(pedido.person_id):
+            raise ValueError("Já existe pedido de exclusão pendente para este sócio.")
+        self.client.ensure_tabs()
+        self.client.append_values(f"{EXCLUSOES_TAB}!A2", [pedido.to_row()])
+        self._registrar_auditoria(
+            "exclusao_pedir",
+            f"Pediu exclusão de {pedido.nome or pedido.person_id}"
+            + (f" — {pedido.motivo}" if pedido.motivo else ""),
+            person_id=pedido.person_id,
+            nome=pedido.nome,
+        )
+        return pedido
+
+    def atualizar_pedido_exclusao(self, pedido) -> object:
+        row = self._linha_pedido_por_id(pedido.id)
+        if row < 0:
+            raise ValueError("Pedido de exclusão não encontrado.")
+        self.client.update_values(f"{EXCLUSOES_TAB}!A{row}:J{row}", [pedido.to_row()])
+        return pedido
 
     # ---- auditoria / config / backup (planilha compartilhada) ---------
 

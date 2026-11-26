@@ -10,6 +10,7 @@
     { id: "backup", label: "Backup", screen: "backup" },
     { id: "auditoria", label: "Auditoria", screen: "auditoria" },
     { id: "usuarios", label: "Usuários", screen: "usuarios" },
+    { id: "aprovacoes", label: "Aprovações", screen: "aprovacoes" },
     { id: "atalhos", label: "Config.Atalhos", screen: "atalhos" },
     { id: "lista", label: "Lista pública", screen: "lista" },
   ];
@@ -27,8 +28,15 @@
     modulos: [],
     podeEscrever: true,
     podeAdminUsuarios: false,
+    podeCadastrar: true,
+    podeEditar: true,
+    podePedirExclusao: true,
+    podeExcluirDireto: false,
+    permissoes: [],
     usuarios: [],
     usuariosSearch: "",
+    exclusoesPendentes: [],
+    exclusoesRecentes: [],
     audUserFilter: "",
     pessoas: [],
     expanded: new Set(),
@@ -131,8 +139,13 @@
     state.adminNome = data.admin_nome || data.admin_user || state.adminNome || "";
     state.papel = data.papel || "";
     state.modulos = Array.isArray(data.modulos) ? data.modulos : [];
-    state.podeEscrever = data.pode_escrever !== false;
+    state.permissoes = Array.isArray(data.permissoes) ? data.permissoes : [];
+    state.podeEscrever = !!data.pode_escrever;
     state.podeAdminUsuarios = !!data.pode_admin_usuarios;
+    state.podeCadastrar = !!data.pode_cadastrar;
+    state.podeEditar = !!data.pode_editar;
+    state.podePedirExclusao = !!data.pode_pedir_exclusao;
+    state.podeExcluirDireto = !!data.pode_excluir_direto || state.papel === "admin";
   }
 
   function podeModulo(mod) {
@@ -434,10 +447,13 @@
 
   function sessionExpired(msg) {
     const text = String(msg || "");
-    if (!/faça login|faca login|não autenticado|nao autenticado|administrador/i.test(text)) {
-      return false;
+    const inactive = /sessão encerrada|sessao encerrada|usuário inativo|usuario inativo|removido/i.test(text);
+    if (!inactive) {
+      if (!/faça login|faca login|não autenticado|nao autenticado|administrador/i.test(text)) {
+        return false;
+      }
+      if (!/login/i.test(text)) return false;
     }
-    if (!/login/i.test(text)) return false;
     state.loggedIn = false;
     state.adminUser = "";
     state.connLabel = "";
@@ -483,6 +499,7 @@
       backup: "backup",
       auditoria: "auditoria",
       usuarios: "usuarios",
+      aprovacoes: "aprovacoes",
       atalhos: "atalhos",
       lista: "lista",
     };
@@ -490,7 +507,10 @@
   }
 
   function visibleTabs() {
-    return TABS.filter((t) => t.id !== "usuarios" || state.podeAdminUsuarios);
+    return TABS.filter((t) => {
+      if (t.id === "usuarios" || t.id === "aprovacoes") return state.podeAdminUsuarios;
+      return true;
+    });
   }
 
   function renderTabs(activeTab) {
@@ -595,7 +615,14 @@
     state.modulos = [];
     state.podeEscrever = true;
     state.podeAdminUsuarios = false;
+    state.podeCadastrar = true;
+    state.podeEditar = true;
+    state.podePedirExclusao = true;
+    state.podeExcluirDireto = false;
+    state.permissoes = [];
     state.usuarios = [];
+    state.exclusoesPendentes = [];
+    state.exclusoesRecentes = [];
     state.navHistory = [];
     state.expanded.clear();
     state.connLabel = "";
@@ -610,6 +637,7 @@
       login: renderLogin,
       settings: renderSettings,
       usuarios: renderUsuarios,
+      aprovacoes: renderAprovacoes,
       admin: renderAdmin,
       pendencias: renderPendencias,
       relatorio: renderRelatorio,
@@ -709,7 +737,7 @@
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
-      <div class="tip-box">Login online (aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
+      <div class="tip-box">Login online (aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
     `);
     $("#go-reap").addEventListener("click", goReap);
     $("#go-informe").addEventListener("click", goInformeMensal);
@@ -820,9 +848,9 @@
         <input id="cfg-site" value="${esc(s.public_site_url || "")}" placeholder="https://anmolock.github.io/sinapesc-casanova-reap" />
         <label>E-mail bootstrap (1º admin / fallback)</label>
         <input id="cfg-email" value="${esc(s.admin_email || "")}" />
-        <label>Senha bootstrap (só cria o 1º usuário na aba Usuarios)</label>
-        <input id="cfg-pass" type="password" value="${esc(s.admin_password || "")}" />
-        <p class="page-sub">O login do dia a dia valida a aba <strong>Usuarios</strong> na planilha. Use a tela Usuários (papel admin) para cadastrar/bloquear operadores.</p>
+        <label>Senha bootstrap (só cria o 1º usuário; deixe vazio para manter a atual)</label>
+        <input id="cfg-pass" type="password" value="" placeholder="${s.admin_password_set ? "•••••••• (inalterada se vazio)" : "Definir senha bootstrap"}" autocomplete="new-password" />
+        <p class="page-sub">O login do dia a dia valida a aba <strong>Usuarios</strong> na planilha. Use a tela Usuários (papel admin) para cadastrar/bloquear operadores. A senha bootstrap não é exibida após salvar.</p>
         <div class="cred-label" id="cfg-cred">${esc(s.credentials_label || "")}</div>
         <input type="file" id="cfg-json" accept=".json,application/json" hidden />
         <button type="button" class="btn btn-primary btn-sm" id="cfg-import">Importar JSON da Conta de Serviço…</button>
@@ -929,8 +957,8 @@
             </select>
           </label>
           <button type="button" class="btn btn-outline-dark btn-sm" id="admin-refresh">↻ Atualizar</button>
-          <button type="button" class="btn btn-outline-dark btn-sm" id="admin-lote">⇪ Cadastro em lote</button>
-          <button type="button" class="btn btn-primary btn-sm" id="admin-new">+ Novo sócio</button>
+          ${state.podeCadastrar ? `<button type="button" class="btn btn-outline-dark btn-sm" id="admin-lote">⇪ Cadastro em lote</button>` : ""}
+          ${state.podeCadastrar ? `<button type="button" class="btn btn-primary btn-sm" id="admin-new">+ Novo sócio</button>` : ""}
         </div>
       </div>
       <div id="admin-list"></div>
@@ -955,8 +983,14 @@
       });
     }
     $("#admin-refresh").addEventListener("click", loadPessoas);
-    $("#admin-new").addEventListener("click", () => openPessoaModal());
-    $("#admin-lote").addEventListener("click", () => openLoteModal());
+    $("#admin-new")?.addEventListener("click", () => {
+      if (!state.podeCadastrar) { toast("Sem permissão para cadastrar."); return; }
+      openPessoaModal();
+    });
+    $("#admin-lote")?.addEventListener("click", () => {
+      if (!state.podeCadastrar) { toast("Sem permissão para cadastrar."); return; }
+      openLoteModal();
+    });
     renderAdminList();
     if (!state.pessoas.length) loadPessoas();
   }
@@ -1048,8 +1082,9 @@
       list.innerHTML = `<div class="empty-msg">${emptyMsg}</div>`;
       return;
     }
-    list.innerHTML = pessoas.map((p) => pessoaCardHtml(p, true)).join("");
-    bindPessoaCards(list, true);
+    const editable = !!state.podeEditar;
+    list.innerHTML = pessoas.map((p) => pessoaCardHtml(p, editable)).join("");
+    bindPessoaCards(list, editable || state.podePedirExclusao || state.podeExcluirDireto);
   }
 
   function touchBadgeHtml(p) {
@@ -1081,11 +1116,15 @@
         </div>` : "";
       detail = `<div class="card-detail">${contact ? `<p class="card-contact">${contact}</p>` : ""}${anos}${addAno}</div>`;
     }
-    const actions = editable ? `
+    const canEdit = !!state.podeEditar;
+    const canDel = !!state.podeExcluirDireto;
+    const canAsk = !canDel && !!state.podePedirExclusao;
+    const actions = `
       <button type="button" class="icon-btn" data-qr="${p.id}">▦ QR</button>
-      <button type="button" class="icon-btn" data-edit="${p.id}">✎ Editar</button>
-      <button type="button" class="icon-btn danger" data-del="${p.id}">🗑 Excluir</button>
-    ` : "";
+      ${canEdit ? `<button type="button" class="icon-btn" data-edit="${p.id}">✎ Editar</button>` : ""}
+      ${canDel ? `<button type="button" class="icon-btn danger" data-del="${p.id}">🗑 Excluir</button>` : ""}
+      ${canAsk ? `<button type="button" class="icon-btn danger" data-del-ask="${p.id}">🗑 Pedir exclusão</button>` : ""}
+    `;
     return `
       <div class="card" data-id="${p.id}">
         <div class="card-head">
@@ -1143,9 +1182,10 @@
         else renderAdminList();
       });
     });
-    if (!editable) return;
     root.querySelectorAll("[data-qr]").forEach((b) => b.addEventListener("click", () => showQr("pessoa", b.dataset.qr)));
+    if (!editable) return;
     root.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+      if (!state.podeEditar) { toast("Sem permissão para editar."); return; }
       const p = state.pessoas.find((x) => x.id === b.dataset.edit);
       if (p) openPessoaModal(p);
     }));
@@ -1155,7 +1195,17 @@
       if (!(await confirmModal("Excluir sócio", `Remover ${p.nome_display} e todo o histórico REAP?`))) return;
       api("delete_pessoa", p.id);
     }));
+    root.querySelectorAll("[data-del-ask]").forEach((b) => b.addEventListener("click", async () => {
+      const p = state.pessoas.find((x) => x.id === b.dataset.delAsk);
+      if (!p) return;
+      if (!(await confirmModal(
+        "Pedir exclusão",
+        `Enviar pedido para o admin excluir ${p.nome_display}? O sócio só some após aprovação.`
+      ))) return;
+      api("pedir_exclusao", JSON.stringify({ person_id: p.id }));
+    }));
     root.querySelectorAll("[data-pill]").forEach((b) => b.addEventListener("click", () => {
+      if (!state.podeEditar) { toast("Sem permissão para editar REAP."); return; }
       const [pid, ano, mes, novo] = b.dataset.pill.split("|");
       const wantOn = novo === "1";
       paintPill(b, wantOn);
@@ -1179,6 +1229,7 @@
       });
     }));
     root.querySelectorAll("[data-add-ano]").forEach((b) => b.addEventListener("click", () => {
+      if (!state.podeEditar) { toast("Sem permissão para editar."); return; }
       const id = b.dataset.addAno;
       const inp = document.getElementById(`ano-new-${id}`);
       if (inp) api("add_ano", id, parseInt(inp.value, 10));
@@ -1971,6 +2022,7 @@
           <div class="card-info">
             <p class="card-name">${esc(u.nome || u.email)} ${u.ativo ? "" : "<span class=\"page-meta\">(inativo)</span>"}</p>
             <p class="card-cpf">${esc(u.email)} · ${esc(u.papel)} · módulos: ${esc(u.modulos_texto || "(todos)")}</p>
+            <p class="card-cpf">Permissões: ${esc(u.permissoes_texto || "(nenhuma)")}</p>
             <p class="card-cpf">Último login: ${esc(u.ultimo_login || "—")}</p>
           </div>
           <div class="card-actions">
@@ -2004,7 +2056,9 @@
     const isNew = !u.id;
     const papeis = (state.bootstrap?.papeis || ["admin", "operador", "leitura"]);
     const modsAll = state.bootstrap?.modulos_todos || ["reap", "defeso", "informe", "consulta_rgp", "lista"];
+    const permsAll = state.bootstrap?.permissoes_todas || ["cadastrar", "editar", "pedir_exclusao", "excluir_direto"];
     const modsSel = new Set(u.modulos || []);
+    const permsSel = new Set(u.permissoes || (u.papel === "leitura" ? [] : ["cadastrar", "editar", "pedir_exclusao"]));
     const backdrop = createModal(`
       <div class="modal-head">${isNew ? "Novo usuário" : "Editar usuário"}</div>
       <div class="modal-body">
@@ -2028,6 +2082,14 @@
             </label>
           `).join("")}
         </div>
+        <p class="page-sub" style="margin:10px 0 6px">Permissões (admin ignora e tem tudo). <code>excluir_direto</code> só se você quiser que o operador apague sem aprovação.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+          ${permsAll.map((p) => `
+            <label class="pacote-check filter-check">
+              <input type="checkbox" class="usr-m-perm" value="${esc(p)}" ${permsSel.has(p) ? "checked" : ""} /> ${esc(p)}
+            </label>
+          `).join("")}
+        </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
@@ -2036,6 +2098,7 @@
     `);
     backdrop.querySelector("#usr-m-save")?.addEventListener("click", () => {
       const mods = [...backdrop.querySelectorAll(".usr-m-mod:checked")].map((c) => c.value);
+      const perms = [...backdrop.querySelectorAll(".usr-m-perm:checked")].map((c) => c.value);
       const payload = {
         id: u.id || "",
         nome: backdrop.querySelector("#usr-m-nome")?.value || "",
@@ -2043,6 +2106,7 @@
         papel: backdrop.querySelector("#usr-m-papel")?.value || "operador",
         ativo: !!backdrop.querySelector("#usr-m-ativo")?.checked,
         modulos: mods,
+        permissoes: perms,
       };
       if (isNew) {
         payload.senha = backdrop.querySelector("#usr-m-senha")?.value || "";
@@ -2052,6 +2116,83 @@
       }
       backdrop._close(false);
     });
+  }
+
+  function renderAprovacoes() {
+    if (!state.podeAdminUsuarios) {
+      toast("Só o admin aprova exclusões.");
+      navigate("admin", { tab: "socies" });
+      return;
+    }
+    setPage(`
+      <div>
+        <span class="page-title">Aprovações</span>
+        <span class="page-meta" id="apr-hint">Carregando…</span>
+        <p class="page-sub">Pedidos de exclusão de sócios (operador pede → admin aceita ou recusa). Aba <strong>ExclusoesPendentes</strong>.</p>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn btn-ghost btn-sm" id="apr-refresh">Atualizar</button>
+      </div>
+      <h3 class="page-sub" style="margin-top:8px">Pendentes</h3>
+      <div id="apr-pendentes"></div>
+      <h3 class="page-sub" style="margin-top:16px">Recentes</h3>
+      <div id="apr-recentes"></div>
+    `);
+    $("#apr-refresh")?.addEventListener("click", () => api("list_exclusoes_pendentes"));
+    paintAprovacoes();
+    api("list_exclusoes_pendentes");
+  }
+
+  function paintAprovacoes() {
+    const hint = $("#apr-hint");
+    const pend = $("#apr-pendentes");
+    const rec = $("#apr-recentes");
+    if (!pend || !rec) return;
+    const pendentes = state.exclusoesPendentes || [];
+    const recentes = state.exclusoesRecentes || [];
+    if (hint) hint.textContent = `${pendentes.length} pendente(s)`;
+    if (!pendentes.length) {
+      pend.innerHTML = `<div class="empty-msg">Nenhum pedido aguardando.</div>`;
+    } else {
+      pend.innerHTML = pendentes.map((p) => `
+        <div class="card">
+          <div class="card-head">
+            <div class="card-info">
+              <p class="card-name">${esc(p.nome || p.person_id)}</p>
+              <p class="card-cpf">CPF: ${esc(p.cpf || "—")} · pedido por ${esc(p.pedido_por)} em ${esc(p.pedido_em)}</p>
+              ${p.motivo ? `<p class="card-cpf">Motivo: ${esc(p.motivo)}</p>` : ""}
+            </div>
+            <div class="card-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-apr-ok="${esc(p.id)}">Aprovar e excluir</button>
+              <button type="button" class="btn btn-outline-dark btn-sm" data-apr-no="${esc(p.id)}">Recusar</button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+      pend.querySelectorAll("[data-apr-ok]").forEach((b) => {
+        b.addEventListener("click", async () => {
+          if (!(await confirmModal("Aprovar exclusão", "Excluir o sócio e o histórico REAP definitivamente?"))) return;
+          api("decidir_exclusao", JSON.stringify({ id: b.dataset.aprOk, decisao: "aprovar" }));
+        });
+      });
+      pend.querySelectorAll("[data-apr-no]").forEach((b) => {
+        b.addEventListener("click", async () => {
+          if (!(await confirmModal("Recusar", "Recusar este pedido de exclusão?"))) return;
+          api("decidir_exclusao", JSON.stringify({ id: b.dataset.aprNo, decisao: "recusar" }));
+        });
+      });
+    }
+    const outros = recentes.filter((p) => p.status !== "pendente").slice(0, 20);
+    if (!outros.length) {
+      rec.innerHTML = `<div class="empty-msg">Nenhuma decisão recente.</div>`;
+    } else {
+      rec.innerHTML = outros.map((p) => `
+        <div class="audit-card">
+          <div class="audit-meta">${esc(p.status)} · ${esc(p.nome)} · ${esc(p.decidido_em || "")} por ${esc(p.decidido_por || "")}</div>
+          <div class="audit-text">Pedido por ${esc(p.pedido_por)} em ${esc(p.pedido_em)}${p.motivo ? ` — ${esc(p.motivo)}` : ""}</div>
+        </div>
+      `).join("");
+    }
   }
 
   function openResetSenhaModal(userId) {
@@ -3999,6 +4140,9 @@
         state.usuarios = r.data?.itens || [];
         if (r.data?.papeis && state.bootstrap) state.bootstrap.papeis = r.data.papeis;
         if (r.data?.modulos_todos && state.bootstrap) state.bootstrap.modulos_todos = r.data.modulos_todos;
+        if (r.data?.permissoes_todas && state.bootstrap) {
+          state.bootstrap.permissoes_todas = r.data.permissoes_todas;
+        }
         if (state.screen === "usuarios") paintUsuarios();
       } else if (!sessionExpired(r.error)) toast(r.error);
     });
@@ -4006,6 +4150,25 @@
       if (r.ok) {
         toast("Usuário salvo.");
         api("list_usuarios");
+      } else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("exclusoes", (r) => {
+      if (r.ok) {
+        state.exclusoesPendentes = r.data?.pendentes || [];
+        state.exclusoesRecentes = r.data?.recentes || [];
+        if (state.screen === "aprovacoes") paintAprovacoes();
+      } else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("exclusao_pedida", (r) => {
+      if (r.ok) {
+        toast("Pedido de exclusão enviado ao admin.");
+      } else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("exclusao_decidida", (r) => {
+      if (r.ok) {
+        toast(r.data?.excluido ? "Exclusão aprovada." : "Pedido recusado.");
+        api("list_exclusoes_pendentes");
+        loadPessoas();
       } else if (!sessionExpired(r.error)) toast(r.error);
     });
     AppEvents.on("qrs", (r) => {

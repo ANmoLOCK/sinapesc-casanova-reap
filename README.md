@@ -11,7 +11,7 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | **v1.8.7** (código) · EXE ainda [v1.8.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5) |
+| Versão atual | **v1.8.8** (código) · EXE ainda [v1.8.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
@@ -51,7 +51,13 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.8.7
+## O que há na v1.8.8
+
+- Permissões finas: cadastrar / editar / pedir exclusão / excluir direto
+- Fila de exclusão: operador pede → admin aprova ou recusa (tela **Aprovações**)
+- Correções de segurança: escrita exige permissão; senha bootstrap não volta na API; sessão de usuário desativado encerra
+
+## O que havia na v1.8.7
 
 - Login online multi-usuário (aba **Usuarios** + PBKDF2), papéis admin/operador/leitura
 - Tela **Usuários**: ativar/desativar, editar, reset senha

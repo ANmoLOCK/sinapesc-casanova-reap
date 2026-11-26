@@ -6,6 +6,13 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.8] — 2026-11-26 — Permissões finas + fila de exclusão
+
+- Coluna **permissoes** na aba Usuarios: `cadastrar`, `editar`, `pedir_exclusao`, `excluir_direto` (admin tem tudo)
+- Operador padrão cadastra/edita e **pede exclusão**; sócio só some quando o admin **aprova**
+- Tela **Aprovações** (admin): aceitar/recusar pedidos (aba ExclusoesPendentes)
+- Correções: delete/toggle/lote exigem permissão; UI respeita pode cadastrar/editar; rehash de senha sem poluir auditoria; senha bootstrap não volta no get_settings; sessão de usuário desativado é encerrada na próxima escrita
+
 ## [v1.8.7] — 2026-11-26 — Login online multi-usuário (aba Usuarios)
 
 - Login valida a aba **Usuarios** no Google Sheets (PBKDF2); bootstrap do 1º admin pelo config.json

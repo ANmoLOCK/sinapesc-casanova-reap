@@ -185,6 +185,12 @@ class SinapescApi:
         self._modulos: List[str] = []
         self._pode_escrever = False
         self._pode_admin_usuarios = False
+        self._pode_cadastrar = False
+        self._pode_editar = False
+        self._pode_pedir_exclusao = False
+        self._pode_excluir_direto = False
+        self._permissoes: List[str] = []
+        self._usuario_id = ""
         self._service: Optional[SheetsService] = None
         self._defeso_service: Optional[DefesoService] = None
         self._consulta_rgp_service: Optional[ConsultaRgpService] = None
@@ -219,8 +225,15 @@ class SinapescApi:
                 "modulos": list(self._modulos),
                 "pode_escrever": bool(self._pode_escrever),
                 "pode_admin_usuarios": bool(self._pode_admin_usuarios),
+                "pode_cadastrar": bool(self._pode_cadastrar),
+                "pode_editar": bool(self._pode_editar),
+                "pode_pedir_exclusao": bool(self._pode_pedir_exclusao),
+                "pode_excluir_direto": bool(self._pode_excluir_direto),
+                "permissoes": list(self._permissoes),
                 "papeis": list(usuarios_mod.PAPEIS),
                 "modulos_todos": list(usuarios_mod.MODULOS_TODOS),
+                "permissoes_todas": list(usuarios_mod.PERMISSOES_TODAS),
+
                 "spreadsheet_id": str(cfg.get("spreadsheet_id") or ""),
                 "defeso_spreadsheet_id": str(cfg.get("defeso_spreadsheet_id") or ""),
                 "defeso_anexos_dir": str(cfg.get("defeso_anexos_dir") or ""),
@@ -255,16 +268,28 @@ class SinapescApi:
             self._admin_nome = ""
             self._papel = ""
             self._modulos = []
+            self._permissoes = []
+            self._usuario_id = ""
             self._pode_escrever = False
             self._pode_admin_usuarios = False
+            self._pode_cadastrar = False
+            self._pode_editar = False
+            self._pode_pedir_exclusao = False
+            self._pode_excluir_direto = False
             return
         self._logged_in = True
         self._admin_user = user.email or email.strip()
         self._admin_nome = user.nome or user.email
         self._papel = user.papel
         self._modulos = list(user.modulos)
+        self._permissoes = list(user.permissoes)
+        self._usuario_id = user.id
         self._pode_escrever = user.pode_escrever
         self._pode_admin_usuarios = user.pode_admin_usuarios
+        self._pode_cadastrar = user.pode_cadastrar
+        self._pode_editar = user.pode_editar
+        self._pode_pedir_exclusao = user.pode_pedir_exclusao
+        self._pode_excluir_direto = user.pode_excluir_direto
 
     def _sessao_payload(self) -> Dict[str, Any]:
         return {
@@ -272,19 +297,51 @@ class SinapescApi:
             "admin_nome": self._admin_nome or self._admin_user,
             "papel": self._papel,
             "modulos": list(self._modulos),
+            "permissoes": list(self._permissoes),
             "pode_escrever": bool(self._pode_escrever),
             "pode_admin_usuarios": bool(self._pode_admin_usuarios),
+            "pode_cadastrar": bool(self._pode_cadastrar),
+            "pode_editar": bool(self._pode_editar),
+            "pode_pedir_exclusao": bool(self._pode_pedir_exclusao),
+            "pode_excluir_direto": bool(self._pode_excluir_direto),
         }
 
-    def _require_escrita(self) -> None:
-        if not self._logged_in:
+    def _revalidar_sessao(self) -> None:
+        """Garante que o usuário ainda existe e está ativo (evita sessão fantasma)."""
+        if not self._logged_in or not self._admin_user:
             raise SheetsConfigError("Faça login como administrador.")
+        try:
+            svc = self._ensure_service(require_login=False)
+            atual = svc.obter_usuario_email(self._admin_user)
+        except Exception as exc:  # noqa: BLE001
+            raise SheetsConfigError(f"Não foi possível validar a sessão: {exc}") from exc
+        if atual is None or not atual.ativo:
+            self._set_sessao(None)
+            raise SheetsConfigError("Sessão encerrada: usuário inativo ou removido.")
+        self._set_sessao(atual)
+
+    def _require_escrita(self) -> None:
+        self._revalidar_sessao()
         if not self._pode_escrever:
             raise SheetsConfigError("Seu usuário é só leitura — não pode alterar dados.")
 
-    def _require_admin_usuarios(self) -> None:
+    def _require_perm(self, perm: str) -> None:
+        self._revalidar_sessao()
+        if self._papel == usuarios_mod.PAPEL_ADMIN:
+            return
         if not self._logged_in:
             raise SheetsConfigError("Faça login como administrador.")
+        flag = {
+            usuarios_mod.PERM_CADASTRAR: self._pode_cadastrar,
+            usuarios_mod.PERM_EDITAR: self._pode_editar,
+            usuarios_mod.PERM_PEDIR_EXCLUSAO: self._pode_pedir_exclusao,
+            usuarios_mod.PERM_EXCLUIR_DIRETO: self._pode_excluir_direto,
+        }.get(perm, False)
+        if not flag:
+            raise SheetsConfigError(f"Sem permissão: {perm}.")
+
+    def _require_admin_usuarios(self) -> None:
+        self._revalidar_sessao()
         if not self._pode_admin_usuarios:
             raise SheetsConfigError("Só o papel admin gerencia usuários.")
 
@@ -382,7 +439,9 @@ class SinapescApi:
                     cfg.get("public_site_url") or cfg.get("public_base_url") or ""
                 ),
                 "admin_email": str(cfg.get("admin_email") or ""),
-                "admin_password": str(cfg.get("admin_password") or ""),
+                # Nunca devolver a senha em claro — UI envia só se for alterar
+                "admin_password": "",
+                "admin_password_set": bool(str(cfg.get("admin_password") or "").strip()),
                 "credentials_label": (
                     f"JSON: {cred.get('client_email')}"
                     if isinstance(cred, dict)
@@ -435,7 +494,10 @@ class SinapescApi:
         if "admin_email" in payload:
             cfg["admin_email"] = str(payload.get("admin_email") or "").strip()
         if "admin_password" in payload:
-            cfg["admin_password"] = str(payload.get("admin_password") or "")
+            nova = str(payload.get("admin_password") or "")
+            # Vazio = manter senha atual (get_settings não devolve o valor)
+            if nova.strip():
+                cfg["admin_password"] = nova
         save_config(cfg)
         self._service = None
         self._defeso_service = None
@@ -614,6 +676,13 @@ class SinapescApi:
             return err("Informe o nome completo.")
         if len(cpf) != 11:
             return err("CPF deve conter 11 dígitos.")
+        try:
+            if person_id:
+                self._require_perm(usuarios_mod.PERM_EDITAR)
+            else:
+                self._require_perm(usuarios_mod.PERM_CADASTRAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
             svc = self._ensure_service(require_write=True)
@@ -662,19 +731,147 @@ class SinapescApi:
     def delete_pessoa(self, person_id: str) -> Dict[str, Any]:
         if not person_id:
             return err("Sócio inválido.")
+        try:
+            self._revalidar_sessao()
+        except SheetsConfigError as exc:
+            return err(str(exc))
+        # Exclusão direta só com permissão; senão vira pedido
+        if self._pode_excluir_direto or self._papel == usuarios_mod.PAPEL_ADMIN:
+            def work_del():
+                self._ensure_service(require_write=True).delete_pessoa(person_id)
+                return {"excluido": True}
+
+            return self._run_async("pessoa_deleted", work_del, "Excluindo…")
+        if not self._pode_pedir_exclusao:
+            return err("Sem permissão para excluir ou pedir exclusão.")
+        return self.pedir_exclusao({"person_id": person_id})
+
+    def pedir_exclusao(self, payload: Any = None) -> Dict[str, Any]:
+        data = payload if isinstance(payload, dict) else {}
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return err("Payload inválido.")
+        person_id = str(data.get("person_id") or "").strip()
+        motivo = str(data.get("motivo") or "").strip()
+        if not person_id:
+            return err("Sócio inválido.")
+        try:
+            self._require_perm(usuarios_mod.PERM_PEDIR_EXCLUSAO)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
-            self._ensure_service().delete_pessoa(person_id)
-            return True
+            from controle.exclusoes import novo_pedido
 
-        return self._run_async("pessoa_deleted", work, "Excluindo…")
+            svc = self._ensure_service(require_write=True)
+            pessoa = svc.get_pessoa_com_reap(person_id)
+            if pessoa is None:
+                raise ValueError("Sócio não encontrado.")
+            pedido = novo_pedido(
+                person_id=person_id,
+                nome=pessoa.nome,
+                cpf=getattr(pessoa, "cpf", "") or "",
+                pedido_por=self._admin_user,
+                motivo=motivo,
+            )
+            svc.criar_pedido_exclusao(pedido)
+            return {"pedido": pedido.to_dict()}
+
+        return self._run_async("exclusao_pedida", work, "Registrando pedido de exclusão…")
+
+    def list_exclusoes_pendentes(self) -> Dict[str, Any]:
+        self._require_admin_usuarios()
+
+        def work():
+            svc = self._ensure_service()
+            pendentes = [p.to_dict() for p in svc.listar_pedidos_exclusao(somente_pendentes=True)]
+            recentes = [p.to_dict() for p in svc.listar_pedidos_exclusao()[:40]]
+            return {"pendentes": pendentes, "recentes": recentes}
+
+        return self._run_async("exclusoes", work, "Carregando pedidos de exclusão…")
+
+    def decidir_exclusao(self, payload: Any = None) -> Dict[str, Any]:
+        """Admin aprova (exclui sócio) ou recusa o pedido."""
+        self._require_admin_usuarios()
+        data = payload if isinstance(payload, dict) else {}
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return err("Payload inválido.")
+        pedido_id = str(data.get("id") or "").strip()
+        decisao = str(data.get("decisao") or data.get("status") or "").strip().lower()
+        motivo = str(data.get("motivo") or "").strip()
+        if not pedido_id:
+            return err("Pedido inválido.")
+        if decisao not in ("aprovado", "aprovar", "recusado", "recusar"):
+            return err("Decisão deve ser aprovar ou recusar.")
+        aprovar = decisao in ("aprovado", "aprovar")
+
+        def work():
+            from controle.exclusoes import (
+                STATUS_APROVADO,
+                STATUS_PENDENTE,
+                STATUS_RECUSADO,
+                now_stamp,
+            )
+
+            svc = self._ensure_service(require_write=True)
+            pedido = next(
+                (p for p in svc.listar_pedidos_exclusao() if p.id == pedido_id),
+                None,
+            )
+            if pedido is None:
+                raise ValueError("Pedido não encontrado.")
+            if pedido.status != STATUS_PENDENTE:
+                raise ValueError(f"Pedido já está {pedido.status}.")
+            pedido.decidido_em = now_stamp()
+            pedido.decidido_por = self._admin_user
+            if motivo:
+                pedido.motivo = (
+                    f"{pedido.motivo} | decisão: {motivo}".strip(" |")
+                    if pedido.motivo
+                    else motivo
+                )
+            if aprovar:
+                pedido.status = STATUS_APROVADO
+                svc.atualizar_pedido_exclusao(pedido)
+                svc.delete_pessoa(pedido.person_id)
+                svc.registrar_evento(
+                    "exclusao_aprovar",
+                    f"Aprovou exclusão de {pedido.nome or pedido.person_id}",
+                    person_id=pedido.person_id,
+                    nome=pedido.nome,
+                )
+                return {"pedido": pedido.to_dict(), "excluido": True}
+            pedido.status = STATUS_RECUSADO
+            svc.atualizar_pedido_exclusao(pedido)
+            svc.registrar_evento(
+                "exclusao_recusar",
+                f"Recusou exclusão de {pedido.nome or pedido.person_id}",
+                person_id=pedido.person_id,
+                nome=pedido.nome,
+            )
+            return {"pedido": pedido.to_dict(), "excluido": False}
+
+        return self._run_async(
+            "exclusao_decidida",
+            work,
+            "Aprovando exclusão…" if aprovar else "Recusando pedido…",
+        )
 
     def toggle_mes(self, person_id: str, ano: int, mes: str, novo: bool) -> Dict[str, Any]:
         if mes not in MESES:
             return err("Mês inválido.")
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
-            svc = self._ensure_service()
+            svc = self._ensure_service(require_write=True)
             pessoa = svc.get_pessoa_com_reap(person_id)
             nome = pessoa.nome if pessoa else ""
             svc.toggle_mes(person_id, int(ano), mes, bool(novo), nome=nome)  # type: ignore[arg-type]
@@ -683,8 +880,13 @@ class SinapescApi:
         return self._run_async("mes_toggled", work, f"Atualizando {mes}/{ano}…")
 
     def add_ano(self, person_id: str, ano: int) -> Dict[str, Any]:
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
+
         def work():
-            svc = self._ensure_service()
+            svc = self._ensure_service(require_write=True)
             pessoa = svc.get_pessoa_com_reap(person_id)
             nome = pessoa.nome if pessoa else ""
             svc.add_ano(person_id, int(ano), nome=nome)
@@ -696,9 +898,13 @@ class SinapescApi:
         itens = parse_lote_lines(raw)
         if not itens:
             return err("Nenhuma linha válida (Nome + CPF).")
+        try:
+            self._require_perm(usuarios_mod.PERM_CADASTRAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
-            return self._ensure_service().add_pessoas_lote(
+            return self._ensure_service(require_write=True).add_pessoas_lote(
                 itens,
                 ano=int(ano),
                 meses_on=meses_on,
@@ -717,9 +923,13 @@ class SinapescApi:
             ano_i = int(ano)
         except (TypeError, ValueError):
             ano_i = datetime.now().year
+        try:
+            self._require_perm(usuarios_mod.PERM_CADASTRAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
-            return self._ensure_service().add_pessoas_lote(
+            return self._ensure_service(require_write=True).add_pessoas_lote(
                 itens,
                 ano=ano_i,
                 meses_on=meses_on or [],
@@ -733,8 +943,13 @@ class SinapescApi:
         ano_destino: int,
         person_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
+
         def work():
-            return self._ensure_service().copiar_reap_ano(
+            return self._ensure_service(require_write=True).copiar_reap_ano(
                 int(ano_origem),
                 int(ano_destino),
                 person_ids=person_ids,
@@ -761,9 +976,13 @@ class SinapescApi:
     ) -> Dict[str, Any]:
         if not meses_on:
             return err("Escolha pelo menos um mês.")
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
-            svc = self._ensure_service()
+            svc = self._ensure_service(require_write=True)
             if person_ids:
                 return svc.marcar_meses_em_massa(
                     ano=int(ano),
@@ -1065,6 +1284,7 @@ class SinapescApi:
                 "itens": itens,
                 "papeis": list(usuarios_mod.PAPEIS),
                 "modulos_todos": list(usuarios_mod.MODULOS_TODOS),
+                "permissoes_todas": list(usuarios_mod.PERMISSOES_TODAS),
             }
 
         return self._run_async("usuarios", work, "Carregando usuários…")
@@ -1093,6 +1313,7 @@ class SinapescApi:
                 papel=str(data.get("papel") or usuarios_mod.PAPEL_OPERADOR),
                 ativo=usuarios_mod.normalizar_ativo(data.get("ativo", True)),
                 modulos=data.get("modulos"),
+                permissoes=data.get("permissoes") if "permissoes" in data else None,
             )
             svc.criar_usuario(user)
             return {"usuario": user.to_public_dict()}
@@ -1151,6 +1372,15 @@ class SinapescApi:
             atual.ativo = novo_ativo
             if "modulos" in data:
                 atual.modulos = usuarios_mod.normalizar_modulos(data.get("modulos"))
+            if "permissoes" in data:
+                atual.permissoes = usuarios_mod.normalizar_permissoes(
+                    data.get("permissoes"), papel=novo_papel
+                )
+                atual._perms_explicit = True
+            elif "papel" in data:
+                # troca de papel sem permissões explícitas → padrão do novo papel
+                atual.permissoes = usuarios_mod.normalizar_permissoes(None, papel=novo_papel)
+                atual._perms_explicit = False
             svc.atualizar_usuario(atual)
             return {"usuario": atual.to_public_dict()}
 

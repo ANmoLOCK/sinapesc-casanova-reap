@@ -15,6 +15,8 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v1.8.8** — Permissões finas (cadastrar/editar/pedir exclusão), fila de exclusão com painel Aprovações (admin), correções de escrita só-leitura e senha bootstrap.
+
 **v1.8.7** — Login online multi-usuário (aba Usuarios + PBKDF2), papéis admin/operador/leitura, tela Usuários (ativar/desativar/reset senha), filtro por usuário na auditoria.
 
 **v1.8.5** — **Peixes** (seleção universal). Card **Tabela**. Plano probabilístico. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)

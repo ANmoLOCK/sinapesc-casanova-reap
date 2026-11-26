@@ -98,6 +98,7 @@ REAP_TAB = "Reap"
 AUDITORIA_TAB = "Auditoria"
 CONFIG_TAB = "Config"
 USUARIOS_TAB = "Usuarios"
+EXCLUSOES_TAB = "ExclusoesPendentes"
 
 PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm", "municipio", "telefone"]
 REAP_HEADER = ["id", "personId", "ano", *MESES, "atualizadoEm"]
@@ -124,6 +125,19 @@ USUARIOS_HEADER = [
     "criadoEm",
     "ultimoLogin",
     "atualizadoEm",
+    "permissoes",
+]
+EXCLUSOES_HEADER = [
+    "id",
+    "personId",
+    "nome",
+    "cpf",
+    "pedidoEm",
+    "pedidoPor",
+    "status",
+    "decididoEm",
+    "decididoPor",
+    "motivo",
 ]
 
 
@@ -218,6 +232,7 @@ class GoogleSheetsClient:
             (AUDITORIA_TAB, AUDITORIA_HEADER),
             (CONFIG_TAB, CONFIG_HEADER),
             (USUARIOS_TAB, USUARIOS_HEADER),
+            (EXCLUSOES_TAB, EXCLUSOES_HEADER),
         )
         requests: List[dict] = []
         for title, _header in wanted:
@@ -255,6 +270,19 @@ class GoogleSheetsClient:
                 changed = True
             if changed:
                 self.update_values(f"{PESSOAS_TAB}!A1:F1", [row[:6]])
+
+        # Planilhas antigas: coluna permissoes em Usuarios
+        u_header = self.get_values(f"{USUARIOS_TAB}!A1:K1")
+        if u_header and u_header[0]:
+            row = list(u_header[0])
+            while len(row) < 10:
+                row.append("")
+            if len(row) == 10:
+                row.append("permissoes")
+                self.update_values(f"{USUARIOS_TAB}!A1:K1", [row[:11]])
+            elif len(row) >= 11 and not str(row[10]).strip():
+                row[10] = "permissoes"
+                self.update_values(f"{USUARIOS_TAB}!A1:K1", [row[:11]])
 
         self._tabs_ready = True
 
