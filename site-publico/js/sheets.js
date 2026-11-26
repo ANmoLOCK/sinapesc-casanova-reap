@@ -9,6 +9,22 @@
     return String(v || "").replace(/\D/g, "").slice(0, 11);
   }
 
+  function cpfDigits(v) {
+    // Célula numérica perde zeros à esquerda; texto pode vir com apóstrofo.
+    const d = String(v || "").replace(/\D/g, "");
+    if (d.length >= 8 && d.length < 11) return d.padStart(11, "0");
+    return d.slice(0, 11);
+  }
+
+  function escHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function maskCpf(digits) {
     const d = onlyDigits(digits);
     if (d.length !== 11) return d;
@@ -104,7 +120,7 @@
       // gviz às vezes devolve o cabeçalho como 1ª linha (id/nome/cpf)
       const id = String(r[0] || "").trim();
       const nome = String(r[1] || "").trim();
-      const cpf = onlyDigits(r[2] || "");
+      const cpf = cpfDigits(r[2] || "");
       if (!id || id.toLowerCase() === "id") continue;
       if (!nome || nome.toLowerCase() === "nome") continue;
       pessoas.push({
@@ -179,13 +195,15 @@
       return '<p class="empty">Nenhum ano registrado.</p>';
     }
     return pessoa.anos
-      .map((a) => `<div class="year"><h3>${a.ano}</h3>${monthsHtml(a.meses)}</div>`)
+      .map((a) => `<div class="year"><h3>${escHtml(a.ano)}</h3>${monthsHtml(a.meses)}</div>`)
       .join("");
   }
 
   window.SinapescSheets = {
     MESES,
     onlyDigits,
+    cpfDigits,
+    escHtml,
     maskCpf,
     loadAll,
     monthsHtml,

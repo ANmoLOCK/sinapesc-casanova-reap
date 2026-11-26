@@ -42,12 +42,12 @@
         document.title = p.nome + " — REAP";
         box.innerHTML =
           "<img class='fish-float' src='assets/fish.svg' alt='' />" +
-          "<h2 style='margin:0 0 6px'>" + p.nome + "</h2>" +
+          "<h2 style='margin:0 0 6px'>" + SinapescSheets.escHtml(p.nome) + "</h2>" +
           '<p class="cpf">CPF: ' + SinapescSheets.maskCpf(p.cpf) + "</p>" +
           SinapescSheets.yearsHtml(p);
       })
       .catch((err) => {
-        box.innerHTML = '<p class="err">' + (err.message || err) + "</p>";
+        box.innerHTML = '<p class="err">' + SinapescSheets.escHtml(err.message || err) + "</p>";
       });
   </script>
 </body>

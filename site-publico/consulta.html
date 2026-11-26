@@ -73,11 +73,11 @@
       }
       resultEl.innerHTML =
         '<div style="margin-top:18px">' +
-        "<h2 style='margin:0 0 6px;font-size:1.2rem'>" + pessoa.nome + "</h2>" +
+        "<h2 style='margin:0 0 6px;font-size:1.2rem'>" + SinapescSheets.escHtml(pessoa.nome) + "</h2>" +
         '<p class="cpf">CPF: ' + SinapescSheets.maskCpf(pessoa.cpf) + "</p>" +
         SinapescSheets.yearsHtml(pessoa) +
         "</div>";
-      history.replaceState(null, "", "?cpf=" + cpf);
+      history.replaceState(null, "", location.pathname);
     });
 
     if (params.get("cpf") && params.get("cpf").replace(/\D/g, "").length === 11) {
