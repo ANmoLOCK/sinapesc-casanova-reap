@@ -68,7 +68,7 @@ PRECOS_VAREJO: Dict[str, float] = {
 }
 # ordem fixa do catálogo (configuração universal do Informe Mensal)
 ESPECIES_TODAS: Tuple[str, ...] = tuple(PRECOS_VAREJO.keys())
-MIN_ESPECIES_ATIVAS = 4
+MIN_ESPECIES_ATIVAS = 6
 
 
 def normalizar_especies_ativas(raw: Any = None) -> List[str]:

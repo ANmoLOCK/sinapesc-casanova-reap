@@ -33,7 +33,7 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
-- Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com menos de 8, o mês de 8 espécies não entra no plano.
+- Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 6 peixes (com 4 ou 5 o plano anual não fecha). Com menos de 8, o mês de 8 espécies não entra no plano.
 
 ![Peixes](previews/informe-mensal/informe_17_config_peixes.png)
 

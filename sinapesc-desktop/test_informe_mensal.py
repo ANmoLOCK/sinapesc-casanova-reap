@@ -349,7 +349,9 @@ def test_api_gerar_editar_excluir() -> None:
     api = api_mod.SinapescApi()
     api._logged_in = True
     api._admin_user = "operador@sinapesc"
-    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    api._pode_escrever = True
+    api._revalidar_sessao = lambda: None  # type: ignore[assignment]
+    api._ensure_service = lambda require_login=True, require_write=False: FakeSheets()  # type: ignore[assignment]
     eventos = []
     api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
 
@@ -514,7 +516,9 @@ def test_api_abrir_tabela(tmp_path=None) -> None:
     api = api_mod.SinapescApi()
     api._logged_in = True
     api._admin_user = "operador@sinapesc"
-    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    api._pode_escrever = True
+    api._revalidar_sessao = lambda: None  # type: ignore[assignment]
+    api._ensure_service = lambda require_login=True, require_write=False: FakeSheets()  # type: ignore[assignment]
     eventos = []
     api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
 
@@ -610,7 +614,9 @@ def test_api_abrir_tabela_socio() -> None:
     api = api_mod.SinapescApi()
     api._logged_in = True
     api._admin_user = "operador@sinapesc"
-    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    api._pode_escrever = True
+    api._revalidar_sessao = lambda: None  # type: ignore[assignment]
+    api._ensure_service = lambda require_login=True, require_write=False: FakeSheets()  # type: ignore[assignment]
     eventos = []
     api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
 
@@ -703,7 +709,9 @@ def test_api_salvar_informe_especies() -> None:
     api = api_mod.SinapescApi()
     api._logged_in = True
     api._admin_user = "operador@sinapesc"
-    api._ensure_service = lambda require_login=True: FakeSheets()  # type: ignore[assignment]
+    api._pode_escrever = True
+    api._revalidar_sessao = lambda: None  # type: ignore[assignment]
+    api._ensure_service = lambda require_login=True, require_write=False: FakeSheets()  # type: ignore[assignment]
     eventos = []
     api._dispatch = lambda ev, payload: eventos.append((ev, payload))  # type: ignore[assignment]
     def sync_run(op, work, busy=""):
