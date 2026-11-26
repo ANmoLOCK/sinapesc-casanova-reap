@@ -175,6 +175,85 @@ def test_js_ui_usuarios_e_filtro() -> None:
     assert "garantir_admin_bootstrap" in api or "listar_usuarios" in api
 
 
+def _api_leitura():
+    from webapp import api as api_mod
+
+    api = api_mod.SinapescApi()
+    api._logged_in = True
+    api._admin_user = "leitor@x.com"
+    api._papel = "leitura"
+    api._pode_escrever = False
+    api._revalidar_sessao = lambda: None  # type: ignore[assignment]
+    eventos = []
+
+    def sync_run(op, work, busy=""):
+        try:
+            eventos.append((op, {"ok": True, "data": work()}))
+        except Exception as exc:  # noqa: BLE001
+            eventos.append((op, {"ok": False, "error": str(exc)}))
+        return {"ok": True, "pending": True}
+
+    api._run_async = sync_run  # type: ignore[assignment]
+    return api, eventos
+
+
+def test_leitura_nao_escreve_em_nenhum_modulo() -> None:
+    api, eventos = _api_leitura()
+    assert api.save_settings({"spreadsheet_id": "x"})["ok"] is False
+    assert api.import_credentials_json("{}")["ok"] is False
+    assert api.set_defeso_fonte("padrao")["ok"] is False
+    assert api.set_defeso_atalhos_contato([], [])["ok"] is False
+    seis = ["Tilápia", "Piau", "Pescada", "Tucunaré", "Tambaqui", "Piranha"]
+    import json as _json
+    assert api.salvar_informe_especies(_json.dumps({"especies": seis}))["ok"] is False
+    assert api.delete_pessoa("p1")["ok"] is False
+    assert api.toggle_mes("p1", 2026, "mar", True)["ok"] is False
+    assert api.save_pessoa({"nome": "Ana Maria", "cpf": "52998224725"})["ok"] is False
+
+    chamadas = [
+        lambda: api.save_calendario(2026, ["mar"]),
+        lambda: api.sync_planilhas_municipio(),
+        lambda: api.save_defeso_ficha({"nome": "Ana", "cpf": "52998224725"}),
+        lambda: api.excluir_consulta_rgp({"ids": ["1"]}),
+        lambda: api.cadastrar_consulta_rgp({"nome": "Ana", "cpf": "52998224725"}),
+        lambda: api.excluir_informe_mes('{"person_id": "p1", "ano": 2026, "mes": "mar"}'),
+    ]
+    for fn in chamadas:
+        antes = len(eventos)
+        res = fn()
+        if len(eventos) > antes:
+            assert eventos[-1][1]["ok"] is False, eventos[-1]
+        else:
+            assert res.get("ok") is False, res
+
+
+def test_operador_nao_altera_config_local() -> None:
+    api, _ = _api_leitura()
+    api._papel = "operador"
+    api._pode_escrever = True
+    assert api.save_settings({"spreadsheet_id": "x"})["ok"] is False
+    assert api.pick_defeso_anexos_dir()["ok"] is False
+
+
+def test_proxy_consulta_sem_senha() -> None:
+    from webapp.api import _ConsultaRgpSemSenha
+
+    class Reg:
+        def __init__(self) -> None:
+            self.govbr_senha = "segredo"
+
+    class Svc:
+        def listar(self):
+            return [Reg()]
+
+        def get_govbr_senha(self):
+            return "geral"
+
+    p = _ConsultaRgpSemSenha(Svc())
+    assert p.listar()[0].govbr_senha == ""
+    assert p.get_govbr_senha() == ""
+
+
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
     assert 'APP_VERSION = "2.0.0.0"' in theme
@@ -189,5 +268,8 @@ if __name__ == "__main__":
     test_row_roundtrip()
     test_client_tem_aba_usuarios_e_exclusoes()
     test_js_ui_usuarios_e_filtro()
+    test_leitura_nao_escreve_em_nenhum_modulo()
+    test_operador_nao_altera_config_local()
+    test_proxy_consulta_sem_senha()
     test_version()
     print("OK usuarios_online")

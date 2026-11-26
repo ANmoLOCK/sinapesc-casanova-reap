@@ -592,7 +592,7 @@
       if (state.navHistory.length) {
         headerActions.appendChild(mkBtn("← Voltar", "btn-outline", goBack));
       }
-      if (state.screen === "admin") {
+      if (state.screen === "admin" && state.podeEscrever) {
         headerActions.appendChild(mkBtn("Sinc. Planilhas", "btn-outline", () => {
           api("sync_planilhas_municipio");
         }));
@@ -614,11 +614,11 @@
     state.adminNome = "";
     state.papel = "";
     state.modulos = [];
-    state.podeEscrever = true;
+    state.podeEscrever = false;
     state.podeAdminUsuarios = false;
-    state.podeCadastrar = true;
-    state.podeEditar = true;
-    state.podePedirExclusao = true;
+    state.podeCadastrar = false;
+    state.podeEditar = false;
+    state.podePedirExclusao = false;
     state.podeExcluirDireto = false;
     state.permissoes = [];
     state.usuarios = [];
@@ -738,7 +738,7 @@
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
-      <div class="tip-box">Login online (aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
+      <div class="tip-box">Login único ativo (online, aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
     `);
     $("#go-reap").addEventListener("click", goReap);
     $("#go-informe").addEventListener("click", goInformeMensal);
@@ -759,7 +759,7 @@
     setPage(`
       <div class="form-panel" style="max-width:400px;margin:28px auto">
         <h2 style="margin:0 0 2px;font-size:16px">Acesso unificado</h2>
-        <p class="page-sub">Login online na planilha (aba Usuarios). Depois escolha o módulo sem digitar a senha de novo.</p>
+        <p class="page-sub">Login único no início, validado online na planilha (aba Usuarios). Depois escolha o módulo sem digitar a senha de novo.</p>
         <p class="page-sub" style="margin-top:6px">${esc(state.bootstrap?.org_full || "")}</p>
         <label>E-mail</label>
         <input type="email" id="login-email" value="${esc(email)}" />
@@ -2210,7 +2210,7 @@
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="usr-rs-ok">Salvar senha</button>
+        <button type="button" class="btn btn-primary" id="usr-rs-ok">Redefinir senha</button>
       </div>
     `);
     backdrop.querySelector("#usr-rs-ok")?.addEventListener("click", () => {
@@ -4172,6 +4172,10 @@
     AppEvents.on("usuario_salvo", (r) => {
       if (r.ok) {
         toast("Usuário salvo.");
+        if (r.data?.sessao && r.data?.usuario?.email === r.data.sessao.admin_user) {
+          applySessao(r.data.sessao);
+          setFooter();
+        }
         api("list_usuarios");
       } else if (!sessionExpired(r.error)) toast(r.error);
     });
@@ -4189,7 +4193,7 @@
     });
     AppEvents.on("exclusao_decidida", (r) => {
       if (r.ok) {
-        toast(r.data?.excluido ? "Exclusão aprovada." : "Pedido recusado.");
+        toast(r.data?.aviso || (r.data?.excluido ? "Exclusão aprovada." : "Pedido recusado."));
         api("list_exclusoes_pendentes");
         loadPessoas();
       } else if (!sessionExpired(r.error)) toast(r.error);

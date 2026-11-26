@@ -340,6 +340,13 @@ class SinapescApi:
         if not flag:
             raise SheetsConfigError(f"Sem permissão: {perm}.")
 
+    def _erro_sem_escrita(self) -> Optional[Dict[str, Any]]:
+        try:
+            self._require_escrita()
+        except SheetsConfigError as exc:
+            return err(str(exc))
+        return None
+
     def _require_admin_usuarios(self) -> None:
         self._revalidar_sessao()
         if not self._pode_admin_usuarios:
@@ -450,7 +457,18 @@ class SinapescApi:
             }
         )
 
+    def _bloqueio_config_local(self) -> Optional[Dict[str, Any]]:
+        """Sem login a config fica aberta (instalação/conserto); logado, só admin altera."""
+        if self._logged_in and self._papel != usuarios_mod.PAPEL_ADMIN:
+            return err("Só o admin altera as Configurações deste computador.")
+        return None
+
     def save_settings(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        bloqueio = self._bloqueio_config_local()
+        if bloqueio:
+            return bloqueio
+        if not isinstance(payload, dict):
+            return err("Payload inválido.")
         cfg = load_config()
         if "spreadsheet_id" in payload:
             cfg["spreadsheet_id"] = normalize_sheet_id(str(payload.get("spreadsheet_id") or ""))
@@ -506,6 +524,9 @@ class SinapescApi:
         return ok()
 
     def import_credentials_json(self, raw_json: str) -> Dict[str, Any]:
+        bloqueio = self._bloqueio_config_local()
+        if bloqueio:
+            return bloqueio
         try:
             data = json.loads(raw_json)
         except json.JSONDecodeError:
@@ -656,7 +677,7 @@ class SinapescApi:
 
     def load_pessoas(self) -> Dict[str, Any]:
         def work():
-            svc = self._ensure_service(require_login=False)
+            svc = self._ensure_service()
             ultimo = _ultimo_toggle_map(svc)
             pessoas = svc.get_all_pessoas_com_reap()
             # Só dados da planilha REAP — Defeso não altera o que aparece aqui
@@ -722,8 +743,8 @@ class SinapescApi:
         """Sincroniza município REAP ↔ Defeso (botão no módulo Sócios/REAP)."""
 
         def work():
-            reap = self._ensure_service()
-            defeso = self._ensure_defeso()
+            reap = self._ensure_service(require_write=True)
+            defeso = self._ensure_defeso(require_write=True)
             return sync_municipios_bidirecional(reap, defeso)
 
         return self._run_async("sync_planilhas", work, "Sincronizando planilhas…")
@@ -782,7 +803,10 @@ class SinapescApi:
         return self._run_async("exclusao_pedida", work, "Registrando pedido de exclusão…")
 
     def list_exclusoes_pendentes(self) -> Dict[str, Any]:
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
             svc = self._ensure_service()
@@ -794,7 +818,10 @@ class SinapescApi:
 
     def decidir_exclusao(self, payload: Any = None) -> Dict[str, Any]:
         """Admin aprova (exclui sócio) ou recusa o pedido."""
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
         data = payload if isinstance(payload, dict) else {}
         if isinstance(payload, str) and payload.strip()[:1] in "{[":
             try:
@@ -837,15 +864,22 @@ class SinapescApi:
                 )
             if aprovar:
                 pedido.status = STATUS_APROVADO
+                existe = svc.get_pessoa_com_reap(pedido.person_id) is not None
                 svc.atualizar_pedido_exclusao(pedido)
-                svc.delete_pessoa(pedido.person_id)
+                if existe:
+                    svc.delete_pessoa(pedido.person_id)
                 svc.registrar_evento(
                     "exclusao_aprovar",
-                    f"Aprovou exclusão de {pedido.nome or pedido.person_id}",
+                    f"Aprovou exclusão de {pedido.nome or pedido.person_id}"
+                    + ("" if existe else " (sócio já não existia)"),
                     person_id=pedido.person_id,
                     nome=pedido.nome,
                 )
-                return {"pedido": pedido.to_dict(), "excluido": True}
+                return {
+                    "pedido": pedido.to_dict(),
+                    "excluido": existe,
+                    "aviso": "" if existe else "Sócio já tinha sido removido; pedido encerrado.",
+                }
             pedido.status = STATUS_RECUSADO
             svc.atualizar_pedido_exclusao(pedido)
             svc.registrar_evento(
@@ -1019,7 +1053,7 @@ class SinapescApi:
 
     def save_calendario(self, ano: int, meses: List[str]) -> Dict[str, Any]:
         def work():
-            cal = self._ensure_service().set_calendario(meses, ano=int(ano))
+            cal = self._ensure_service(require_write=True).set_calendario(meses, ano=int(ano))
             return {"calendario": cal, "texto": meses_para_texto(cal)}
 
         return self._run_async("calendario_saved", work, "Salvando calendário…")
@@ -1275,7 +1309,10 @@ class SinapescApi:
     # ---- Usuários online (aba Usuarios) ----------------------------------
 
     def list_usuarios(self) -> Dict[str, Any]:
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
 
         def work():
             svc = self._ensure_service()
@@ -1290,7 +1327,10 @@ class SinapescApi:
         return self._run_async("usuarios", work, "Carregando usuários…")
 
     def create_usuario(self, payload: Any = None) -> Dict[str, Any]:
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
         data = payload if isinstance(payload, dict) else {}
         if isinstance(payload, str) and payload.strip()[:1] in "{[":
             try:
@@ -1321,7 +1361,10 @@ class SinapescApi:
         return self._run_async("usuario_salvo", work, "Cadastrando usuário…")
 
     def update_usuario(self, payload: Any = None) -> Dict[str, Any]:
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
         data = payload if isinstance(payload, dict) else {}
         if isinstance(payload, str) and payload.strip()[:1] in "{[":
             try:
@@ -1382,7 +1425,9 @@ class SinapescApi:
                 atual.permissoes = usuarios_mod.normalizar_permissoes(None, papel=novo_papel)
                 atual._perms_explicit = False
             svc.atualizar_usuario(atual)
-            return {"usuario": atual.to_public_dict()}
+            if atual.id == self._usuario_id:
+                self._set_sessao(atual)
+            return {"usuario": atual.to_public_dict(), "sessao": self._sessao_payload()}
 
         return self._run_async("usuario_salvo", work, "Salvando usuário…")
 
@@ -1390,7 +1435,10 @@ class SinapescApi:
         return self.update_usuario({"id": user_id, "ativo": bool(ativo)})
 
     def reset_usuario_senha(self, payload: Any = None) -> Dict[str, Any]:
-        self._require_admin_usuarios()
+        try:
+            self._require_admin_usuarios()
+        except SheetsConfigError as exc:
+            return err(str(exc))
         data = payload if isinstance(payload, dict) else {}
         if isinstance(payload, str) and payload.strip()[:1] in "{[":
             try:
@@ -1449,7 +1497,7 @@ class SinapescApi:
                 url = urls_for(base)["lista"]
                 subtitle = "Lista pública"
             elif kind == "pessoa" and person_id:
-                pessoa = self._ensure_service(require_login=False).get_pessoa_com_reap(person_id)
+                pessoa = self._ensure_service().get_pessoa_com_reap(person_id)
                 if not pessoa:
                     return err("Sócio não encontrado.")
                 url = urls_for(base, pessoa)["pessoa"]
@@ -1479,7 +1527,7 @@ class SinapescApi:
                 subtitle = "Lista pública"
                 slug = "lista"
             elif kind == "pessoa" and person_id:
-                pessoa = self._ensure_service(require_login=False).get_pessoa_com_reap(person_id)
+                pessoa = self._ensure_service().get_pessoa_com_reap(person_id)
                 if not pessoa:
                     return err("Sócio não encontrado.")
                 url = urls_for(base, pessoa)["pessoa"]
@@ -1538,6 +1586,9 @@ class SinapescApi:
 
     def pick_defeso_anexos_dir(self) -> Dict[str, Any]:
         """Abre diálogo para escolher pasta sincronizada (ex.: D:\\Meu Drive\\Sinapesc-Defeso)."""
+        bloqueio = self._bloqueio_config_local()
+        if bloqueio:
+            return bloqueio
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -1809,7 +1860,7 @@ class SinapescApi:
             pid = str(local.get("person_id") or "").strip()
             p_mun = ""
             try:
-                for p in self._ensure_service().get_all_pessoas():
+                for p in self._ensure_service(require_write=True).get_all_pessoas():
                     if (pid and p.id == pid) or only_digits(p.cpf) == cpf:
                         if not str(local.get("telefone_reap") or "").strip():
                             tel = str(getattr(p, "telefone", "") or "").strip()
@@ -1820,7 +1871,7 @@ class SinapescApi:
             except Exception:
                 pass
 
-            ficha = self._ensure_defeso().salvar(local)
+            ficha = self._ensure_defeso(require_write=True).salvar(local)
             d = ficha.to_dict()
             d["municipio_reap"] = p_mun
             d["entrada_confirmada"] = entrada_confirmada_flag(ficha)
@@ -1843,7 +1894,7 @@ class SinapescApi:
 
         def work():
             defeso = self._ensure_defeso()
-            if data:
+            if data and self._pode_escrever:
                 local = dict(data)
                 if fid and not local.get("id"):
                     local["id"] = fid
@@ -1885,7 +1936,7 @@ class SinapescApi:
 
         def work():
             defeso = self._ensure_defeso()
-            if data:
+            if data and self._pode_escrever:
                 local = dict(data)
                 if fid and not local.get("id"):
                     local["id"] = fid
@@ -1925,6 +1976,9 @@ class SinapescApi:
         )
 
     def set_defeso_fonte(self, fonte_id: str = "") -> Dict[str, Any]:
+        bloqueio = self._erro_sem_escrita()
+        if bloqueio:
+            return bloqueio
         cfg = load_config()
         fonte = normalize_fonte(fonte_id)
         from controle.defeso_declaracao import FONTES, _resolve_font_file
@@ -1949,6 +2003,9 @@ class SinapescApi:
         self, telefones: Any = None, emails: Any = None
     ) -> Dict[str, Any]:
         """Grava até 3 telefones e 3 e-mails rápidos para a declaração Defeso."""
+        bloqueio = self._erro_sem_escrita()
+        if bloqueio:
+            return bloqueio
         cfg = load_config()
         tels = _normalize_atalhos_lista(telefones)
         mails = _normalize_atalhos_lista(emails)
@@ -1967,7 +2024,7 @@ class SinapescApi:
     ) -> Dict[str, Any]:
         def work():
             cfg = load_config()
-            defeso = self._ensure_defeso()
+            defeso = self._ensure_defeso(require_write=True)
             ficha = defeso.por_id(ficha_id)
             if not ficha:
                 raise ValueError("Salve a ficha antes de anexar documentos.")
@@ -2055,8 +2112,14 @@ class SinapescApi:
                 govbr_senha = svc.get_govbr_senha()
             except Exception:  # noqa: BLE001
                 govbr_senha = str(cfg.get("consulta_rgp_govbr_senha") or "")
+            itens = [r.to_dict() for r in regs]
+            if not self._pode_escrever:
+                for it in itens:
+                    it["govbr_senha_set"] = bool(str(it.get("govbr_senha") or "").strip())
+                    it["govbr_senha"] = ""
+                govbr_senha = ""
             return {
-                "itens": [r.to_dict() for r in regs],
+                "itens": itens,
                 "kpis": resumo_kpis(regs),
                 "importar_auto": bool(cfg.get("consulta_rgp_importar_auto", True)),
                 "govbr_opcional": bool(govbr_senha) or bool(
@@ -2076,7 +2139,7 @@ class SinapescApi:
         data = _js_payload_to_dict(payload)
 
         def work():
-            svc = self._ensure_consulta_rgp()
+            svc = self._ensure_consulta_rgp(require_write=True)
             govbr_senha = None
             if "govbr_senha" in data:
                 govbr_senha = svc.set_govbr_senha(str(data.get("govbr_senha") or ""))
@@ -2122,7 +2185,7 @@ class SinapescApi:
         itens = _lote_itens_from_rows(rows)
 
         def work():
-            return importar_lote_batch_payload(self._ensure_consulta_rgp(), itens)
+            return importar_lote_batch_payload(self._ensure_consulta_rgp(require_write=True), itens)
 
         return self._run_async("consulta_rgp_lote", work, "Importando para Consulta RGP…")
 
@@ -2135,7 +2198,7 @@ class SinapescApi:
             return err("Informe o caminho do arquivo.")
 
         def work():
-            return importar_arquivo_payload(self._ensure_consulta_rgp(), arquivo)
+            return importar_arquivo_payload(self._ensure_consulta_rgp(require_write=True), arquivo)
 
         return self._run_async(
             "consulta_rgp_lote",
@@ -2187,7 +2250,7 @@ class SinapescApi:
                 raise ValueError("Informe o nome.")
             if len(cpf) != 11:
                 raise ValueError("CPF inválido (11 dígitos).")
-            svc = self._ensure_consulta_rgp()
+            svc = self._ensure_consulta_rgp(require_write=True)
             # Senha Gov.br individual do sócio (coluna na planilha ConsultaRGP)
             senha = None
             if "govbr_senha" in local:
@@ -2222,7 +2285,7 @@ class SinapescApi:
         local = _js_payload_to_dict(payload)
 
         def work():
-            svc = self._ensure_consulta_rgp()
+            svc = self._ensure_consulta_rgp(require_write=True)
             if not str(local.get("id") or "").strip():
                 senha = None
                 if "govbr_senha" in local:
@@ -2279,7 +2342,7 @@ class SinapescApi:
         rid, cpf_digits = _parse_consulta_rgp_args(registro_id, cpf)
 
         def work():
-            svc = self._ensure_consulta_rgp()
+            svc = self._ensure_consulta_rgp(require_write=True)
             reg = svc.por_id(rid) if rid else None
             if reg is None and cpf_digits:
                 reg = svc.por_cpf(cpf_digits)
@@ -2419,7 +2482,7 @@ class SinapescApi:
 
         def work():
             self._consulta_rgp_lote_cancel = False
-            svc = self._ensure_consulta_rgp()
+            svc = self._ensure_consulta_rgp(require_write=True)
             return executar_lote(
                 svc=svc,
                 regs=svc.listar(),
@@ -2455,6 +2518,13 @@ class SinapescApi:
             "consulta_rgp_vencidos", work, "Listando vencidos…"
         )
 
+    def _consulta_rgp_para_export(self):
+        """Só-leitura exporta sem senhas Gov.br."""
+        svc = self._ensure_consulta_rgp()
+        if self._pode_escrever:
+            return svc
+        return _ConsultaRgpSemSenha(svc)
+
     def exportar_consulta_rgp(self, payload: Any = None) -> Dict[str, Any]:
         """Função 3 — exporta CSV + HTML (imprimir PDF) com filtros."""
         from webapp.consulta_rgp_ext import exportar_payload
@@ -2463,7 +2533,7 @@ class SinapescApi:
 
         def work():
             return exportar_payload(
-                self._ensure_consulta_rgp(),
+                self._consulta_rgp_para_export(),
                 municipio=str(local.get("municipio") or ""),
                 situacao=str(local.get("situacao") or ""),
                 ultima_de=str(local.get("ultima_de") or ""),
@@ -2491,7 +2561,7 @@ class SinapescApi:
 
         def work():
             return exportar_payload(
-                self._ensure_consulta_rgp(),
+                self._consulta_rgp_para_export(),
                 municipio=str(local.get("municipio") or ""),
                 situacao=str(local.get("situacao") or ""),
                 ultima_de=str(local.get("ultima_de") or ""),
@@ -2524,7 +2594,7 @@ class SinapescApi:
 
         def work():
             return editar_lote_payload(
-                self._ensure_consulta_rgp(),
+                self._ensure_consulta_rgp(require_write=True),
                 itens if isinstance(itens, list) else [],
                 govbr_senha=govbr,
                 atualizar_govbr=atualizar_govbr,
@@ -2546,7 +2616,7 @@ class SinapescApi:
             ids = [local.get("id")]
 
         def work():
-            return excluir_payload(self._ensure_consulta_rgp(), ids)
+            return excluir_payload(self._ensure_consulta_rgp(require_write=True), ids)
 
         return self._run_async(
             "consulta_rgp_excluir",
@@ -2782,13 +2852,16 @@ class SinapescApi:
         if erros:
             return err(" ".join(erros))
         ativas = im.normalizar_especies_ativas(data.get("especies"))
+        bloqueio = self._erro_sem_escrita()
+        if bloqueio:
+            return bloqueio
 
         def work():
             cfg = load_config()
             cfg["informe_especies"] = ativas
             save_config(cfg)
             try:
-                self._ensure_informe().registrar_auditoria(
+                self._ensure_informe(require_write=True).registrar_auditoria(
                     "config_especies_informe",
                     f"Configurou peixes ({len(ativas)}): {', '.join(ativas)}",
                 )
@@ -2989,7 +3062,7 @@ class SinapescApi:
             return err(str(exc))
 
         def work():
-            inf = self._ensure_informe()
+            inf = self._ensure_informe(require_write=True)
             pessoa = self._informe_pessoa(pid)
             removido = inf.excluir(pid, ano_i, mes)
             if not removido:
@@ -3272,6 +3345,30 @@ def _lote_itens_from_rows(rows: Any) -> List[tuple]:
 
 
 AUDIT_ULTIMO_LIMITE = 2000
+
+
+class _ConsultaRgpSemSenha:
+    """Proxy de leitura do ConsultaRgpService que nunca expõe senhas Gov.br."""
+
+    def __init__(self, svc: Any) -> None:
+        self._svc = svc
+
+    def listar(self, *args: Any, **kwargs: Any) -> List[Any]:
+        import copy
+
+        out = []
+        for reg in self._svc.listar(*args, **kwargs):
+            limpo = copy.copy(reg)
+            if hasattr(limpo, "govbr_senha"):
+                limpo.govbr_senha = ""
+            out.append(limpo)
+        return out
+
+    def get_govbr_senha(self) -> str:
+        return ""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._svc, name)
 
 
 def _ultimo_toggle_map(svc: SheetsService) -> Dict[str, Dict[str, str]]:

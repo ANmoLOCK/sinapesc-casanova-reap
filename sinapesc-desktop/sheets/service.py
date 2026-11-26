@@ -944,7 +944,7 @@ class SheetsService:
     def exportar_abas(self) -> dict:
         """Linhas brutas (com cabeçalho) para backup CSV."""
         self.client.ensure_tabs()
-        pessoas = self.client.get_values(f"{PESSOAS_TAB}!A1:E")
+        pessoas = self.client.get_values(f"{PESSOAS_TAB}!A1:F")
         last_col = _col_letter(3 + len(MESES))
         reap = self.client.get_values(f"{REAP_TAB}!A1:{last_col}")
         if not pessoas:

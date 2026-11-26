@@ -344,7 +344,7 @@ def test_lote_50_socios_e_ponte_json() -> None:
     assert result["erros"] == []
     assert len(svc.client.pessoas) == 50
     assert len(svc.client.reap) == 50
-    assert svc.client.pessoas[0][2] == "000.000.000-01"
+    assert svc.client.pessoas[0][2] == "'00000000001"
     assert len(svc.client.pessoas[0]) >= 6
 
     rich = _lote_itens_from_rows(
