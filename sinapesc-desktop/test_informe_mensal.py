@@ -86,7 +86,8 @@ def test_cerebro_ano_completo_qualquer_ordem() -> None:
         assert len(ordens) == 8
         for r in salvos.values():
             for e in r.especies:
-                assert e.valor == im.preco_mes(e.nome, r.mes)
+                lo, hi = im.faixa_preco(e.nome, r.mes)
+                assert lo <= e.valor <= hi and e.valor == int(e.valor) and e.valor >= 11
                 assert isinstance(e.kg, int)
                 assert im.KG_MIN <= e.kg <= im.KG_MAX
             assert im.DIAS_MIN <= r.dias <= im.DIAS_MAX
@@ -108,6 +109,109 @@ def test_catalogo_novos_peixes() -> None:
     # preço sazonal muda entre meses de safra vs escassez
     assert im.preco_mes("Tucunaré", "set") <= im.preco_mes("Tucunaré", "ago")
     assert im.preco_mes("Pescada", "jul") <= im.preco_mes("Pescada", "mar")
+
+
+def test_precos_inteiros_piso_e_epoca() -> None:
+    for m in im.MESES_PESCA:
+        for n in im.ESPECIES_TODAS:
+            ref = im.preco_mes(n, m)
+            lo, hi = im.faixa_preco(n, m)
+            assert ref == int(ref) and ref >= 11 and lo >= 11 and lo < hi
+    # cada peixe tem época cara e época barata de verdade (≥ R$ 3 de diferença)
+    for n in ("Tucunaré", "Tambaqui", "Pescada", "Dourado-de-água-doce"):
+        precos = [im.preco_mes(n, m) for m in im.MESES_PESCA]
+        assert max(precos) - min(precos) >= 3, (n, precos)
+    rng = random.Random(3)
+    vistos = {im.sortear_preco(rng, "Tambaqui", "jul") for _ in range(200)}
+    assert len(vistos) >= 4 and all(v == int(v) for v in vistos)
+
+
+def _associacao(pool, n_socios=25, seed=0):
+    regs: dict = {}
+    for mes in im.MESES_PESCA:
+        for i in range(n_socios):
+            pid = f"s{i}"
+            salvos = regs.setdefault(pid, {})
+            do_mes = [ms[mes] for q, ms in regs.items() if q != pid and mes in ms]
+            peixes, precos = {}, {}
+            for r in do_mes:
+                for e in r.especies:
+                    peixes[e.nome] = peixes.get(e.nome, 0) + 1
+                    precos.setdefault(e.nome, []).append(e.valor)
+            planos: dict = {}
+            for q, ms in regs.items():
+                pl = im.plano_do_socio(ms) if q != pid else None
+                if pl:
+                    planos[im.plano_str(pl)] = planos.get(im.plano_str(pl), 0) + 1
+            res = im.gerar_mes(
+                person_id=pid, cpf=f"{seed * 1000 + i + 1:011d}", nome=pid, telefone="",
+                ano=2026, mes=mes, salvos=salvos, especies_ativas=pool, outros_planos=planos,
+                peixes_outros_socios=peixes, precos_outros_socios=precos,
+                seed=seed * 7919 + i * 131 + im.MESES_PESCA.index(mes),
+            )
+            salvos[mes] = res.informe
+    return regs
+
+
+def test_pool_curto_4_e_5_fecha_o_ano() -> None:
+    for n in (4, 5):
+        pool = list(im.ESPECIES_TODAS)[:n]
+        regs = _associacao(pool, n_socios=12, seed=n)
+        for pid, ms in regs.items():
+            assert len(ms) == 8
+            assert im.validar_ano(ms, n_pool=n) == [], (n, pid, im.validar_ano(ms, n_pool=n))
+            assert im.KG_ANO_MIN <= im.peso_anual(ms) <= im.KG_ANO_MAX
+
+
+def test_associacao_sem_padrao_de_robo() -> None:
+    regs = _associacao(list(im.ESPECIES_TODAS), n_socios=25, seed=9)
+    planos = {im.plano_str([len(ms[m].especies) for m in im.MESES_PESCA]) for ms in regs.values()}
+    assert len(planos) == 25
+    vaivem = total = 0
+    for ms in regs.values():
+        for a, c in zip(im.MESES_PESCA, im.MESES_PESCA[2:]):
+            total += 1
+            vaivem += {e.nome for e in ms[a].especies} == {e.nome for e in ms[c].especies}
+        for a, b in zip(im.MESES_PESCA, im.MESES_PESCA[1:]):
+            pa = {e.nome: e.valor for e in ms[a].especies}
+            assert all(pa.get(e.nome) != e.valor for e in ms[b].especies)
+    assert vaivem / total < 0.05
+    for m in im.MESES_PESCA:
+        combos = [im.assinatura_nomes(e.nome for e in ms[m].especies) for ms in regs.values()]
+        assert max(combos.count(c) for c in combos) <= 3
+
+
+def test_peixe_cadastrado_entra_para_todos() -> None:
+    try:
+        nome, preco = im.validar_novo_peixe("  surubim ", "18,40")
+        assert (nome, preco) == ("Surubim", 18.0)
+        for ruim in (("Tucunare", 20), ("Bagre", 9), ("X", 20), ("Bagre2", 20)):
+            try:
+                im.validar_novo_peixe(*ruim)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(ruim)
+        im.definir_peixes_extras([(nome, preco), ("tucunaré", 30), ("Bagre", "abc")])
+        assert "Surubim" in im.ESPECIES_TODAS and "Bagre" not in im.ESPECIES_TODAS
+        assert im.peixes_extras() == ["Surubim"]
+        cat = {c["nome"]: c for c in im.catalogo()}
+        assert cat["Surubim"]["extra"] and not cat["Tucunaré"]["extra"]
+        # seleção antiga deste PC continua valendo, e o peixe novo já entra ligado
+        cfg = {"informe_especies": ["Tucunaré", "Tambaqui", "Tilápia", "Curimatã"]}
+        assert "Surubim" in im.especies_ativas_de_config(cfg)
+        cfg = im.config_especies(["Tucunaré", "Tambaqui", "Tilápia", "Curimatã"])
+        assert "Surubim" not in im.especies_ativas_de_config(cfg)
+        precos = [im.preco_mes("Surubim", m) for m in im.MESES_PESCA]
+        assert min(precos) >= 11 and len(set(precos)) >= 3
+        res = im.gerar_mes(
+            person_id="p", cpf="12345678901", nome="", telefone="", ano=2026, mes="mar",
+            salvos={}, especies_ativas=list(im.ESPECIES_TODAS), seed=5,
+        )
+        assert res.informe.especies
+    finally:
+        im.definir_peixes_extras([])
+    assert "Surubim" not in im.ESPECIES_TODAS
 
 
 def test_probabilidade_plano() -> None:
@@ -727,6 +831,14 @@ def test_api_salvar_informe_especies() -> None:
 
     pool_in = ["Tilápia", "Piau", "Pescada", "Tucunaré", "Tambaqui", "Piranha"]
     pool = im.normalizar_especies_ativas(pool_in)
+    # operador com escrita não mexe nos peixes: só o admin
+    api._papel = "operador"
+    r = api.salvar_informe_especies(json.dumps({"especies": pool_in}))
+    assert r["ok"] is False and "admin" in r["error"]
+    r = api.cadastrar_informe_peixe(json.dumps({"nome": "Surubim", "preco": 20}))
+    assert r["ok"] is False and "admin" in r["error"]
+    assert im.PEIXES_TAB not in cli.tabs
+    api._papel = "admin"
     try:
         api.salvar_informe_especies(json.dumps({"especies": pool_in}))
         ev, res = eventos[-1]
@@ -739,9 +851,26 @@ def test_api_salvar_informe_especies() -> None:
         assert eventos[-1][1]["ok"]
         nomes = [e["nome"] for e in eventos[-1][1]["data"]["socio"]["meses"]["mar"]["especies"]]
         assert all(n in pool for n in nomes)
+
+        api.cadastrar_informe_peixe(json.dumps({"nome": "surubim", "preco": "9"}))
+        assert eventos[-1][0] == "informe_peixe_cadastrado" and not eventos[-1][1]["ok"]
+        api.cadastrar_informe_peixe(json.dumps({"nome": "surubim", "preco": "21"}))
+        ev, res = eventos[-1]
+        assert ev == "informe_peixe_cadastrado" and res["ok"], res
+        assert res["data"]["nome"] == "Surubim" and "Surubim" in res["data"]["especies_ativas"]
+        assert cli.tabs[im.PEIXES_TAB][0] == im.PEIXES_HEADER
+        assert cli.tabs[im.PEIXES_TAB][-1][:2] == ["Surubim", "21"]
+        api.cadastrar_informe_peixe(json.dumps({"nome": "SURUBIM", "preco": "25"}))
+        assert not eventos[-1][1]["ok"] and "catálogo" in eventos[-1][1]["error"]
+        # outro PC (catálogo zerado) lê o peixe da planilha ao abrir o Informe
+        im.definir_peixes_extras([])
+        api.load_informe_mensal(2026)
+        assert eventos[-1][1]["ok"] and "Surubim" in eventos[-1][1]["data"]["especies_todas"]
     finally:
+        im.definir_peixes_extras([])
         cfg2 = load_config()
         cfg2["informe_especies"] = antigo
+        cfg2.pop("informe_especies_off", None)
         save_config(cfg2)
 
 

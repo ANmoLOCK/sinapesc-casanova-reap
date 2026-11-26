@@ -2673,7 +2673,24 @@ class SinapescApi:
 
     @staticmethod
     def _informe_especies_cfg() -> List[str]:
-        return im.normalizar_especies_ativas(load_config().get("informe_especies"))
+        return im.especies_ativas_de_config(load_config())
+
+    @staticmethod
+    def _carregar_peixes_informe(inf: InformeMensalService) -> None:
+        """Peixes cadastrados na planilha entram no catálogo de todos os PCs."""
+        try:
+            im.definir_peixes_extras(inf.listar_peixes())
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _erro_nao_admin_informe(self) -> Optional[Dict[str, Any]]:
+        try:
+            self._revalidar_sessao()
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
+        if not self._logged_in or self._papel != usuarios_mod.PAPEL_ADMIN:
+            return err("Só o admin cadastra ou configura os peixes do Informe Mensal.")
+        return None
 
     @classmethod
     def _informe_meta(cls) -> Dict[str, Any]:
@@ -2733,6 +2750,7 @@ class SinapescApi:
         def work():
             svc = self._ensure_service()
             inf = self._ensure_informe()
+            self._carregar_peixes_informe(inf)
             por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
             for r in inf.listar(ano_i):
                 por_pessoa.setdefault(r.person_id, {})[r.mes] = r
@@ -2759,6 +2777,7 @@ class SinapescApi:
         def work():
             svc = self._ensure_service()
             inf = self._ensure_informe()
+            self._carregar_peixes_informe(inf)
             por_pessoa: Dict[str, Dict[str, im.InformeMes]] = {}
             for r in inf.listar(ano_i):
                 por_pessoa.setdefault(r.person_id, {})[r.mes] = r
@@ -2852,13 +2871,13 @@ class SinapescApi:
         if erros:
             return err(" ".join(erros))
         ativas = im.normalizar_especies_ativas(data.get("especies"))
-        bloqueio = self._erro_sem_escrita()
+        bloqueio = self._erro_nao_admin_informe()
         if bloqueio:
             return bloqueio
 
         def work():
             cfg = load_config()
-            cfg["informe_especies"] = ativas
+            cfg.update(im.config_especies(ativas))
             save_config(cfg)
             try:
                 self._ensure_informe(require_write=True).registrar_auditoria(
@@ -2880,6 +2899,26 @@ class SinapescApi:
             "informe_especies_salvas", work, "Salvando peixes do Informe Mensal…"
         )
 
+    def cadastrar_informe_peixe(self, payload: Any = None) -> Dict[str, Any]:
+        """Admin cadastra um peixe novo (aba InformePeixes); aparece para todos."""
+        data = _informe_args(payload)
+        bloqueio = self._erro_nao_admin_informe()
+        if bloqueio:
+            return bloqueio
+
+        def work():
+            inf = self._ensure_informe(require_write=True)
+            self._carregar_peixes_informe(inf)
+            nome, preco = im.validar_novo_peixe(data.get("nome"), data.get("preco"))
+            inf.cadastrar_peixe(nome, preco)
+            self._carregar_peixes_informe(inf)
+            inf.registrar_auditoria(
+                "cadastrar_peixe_informe", f"Cadastrou peixe {nome} (R$ {preco:.0f}/kg)"
+            )
+            return {"nome": nome, "preco": preco, **self._informe_meta()}
+
+        return self._run_async("informe_peixe_cadastrado", work, "Cadastrando peixe…")
+
     def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
         data = _informe_args(payload)
         pid = str(data.get("person_id") or "").strip()
@@ -2896,12 +2935,21 @@ class SinapescApi:
 
         def work():
             inf = self._ensure_informe(require_write=True)
+            self._carregar_peixes_informe(inf)
             pessoa = self._informe_pessoa(pid)
             todos = inf.listar()
             do_ano = [r for r in todos if r.ano == ano_i]
             salvos = {r.mes: r for r in do_ano if r.person_id == pid}
             anterior = salvos.get(mes)
             globais = {r.assinatura for r in todos if r.assinatura}
+            peixes_outros: Dict[str, int] = {}
+            precos_outros: Dict[str, List[float]] = {}
+            for r in do_ano:
+                if r.person_id == pid or r.mes != mes or not r.houve_pesca:
+                    continue
+                for e in r.especies:
+                    peixes_outros[e.nome] = peixes_outros.get(e.nome, 0) + 1
+                    precos_outros.setdefault(e.nome, []).append(float(e.valor))
             nomes_outros = {
                 im.assinatura_nomes(e.nome for e in r.especies)
                 for r in do_ano
@@ -2937,6 +2985,8 @@ class SinapescApi:
                 municipio=municipio,
                 ator=self._admin_user,
                 especies_ativas=self._informe_especies_cfg(),
+                peixes_outros_socios=peixes_outros,
+                precos_outros_socios=precos_outros,
             )
             reg = res.informe
             if anterior:
@@ -2981,7 +3031,7 @@ class SinapescApi:
             mes = im.normalizar_mes(data.get("mes"))
         except ValueError as exc:
             return err(str(exc))
-        especies = im.especies_de_payload(data.get("especies"))
+        especies = im.especies_de_payload(data.get("especies"), mes)
         dias = data.get("dias")
         erros = im.validar_mes(mes, dias, especies)
         if erros:
@@ -3030,7 +3080,7 @@ class SinapescApi:
                     "ano": ano_i,
                     "mes": mes,
                     "sem_mudanca": True,
-                    "avisos": im.validar_ano(salvos),
+                    "avisos": im.validar_ano(salvos, n_pool=len(self._informe_especies_cfg())),
                     "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
                 }
             inf.salvar(reg)
@@ -3046,7 +3096,7 @@ class SinapescApi:
             return {
                 "ano": ano_i,
                 "mes": mes,
-                "avisos": im.validar_ano(salvos),
+                "avisos": im.validar_ano(salvos, n_pool=len(self._informe_especies_cfg())),
                 "socio": self._informe_socio_dict(pessoa, salvos, ano_i),
             }
 

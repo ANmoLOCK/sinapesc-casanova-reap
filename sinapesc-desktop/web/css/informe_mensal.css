@@ -118,6 +118,22 @@ body.screen-informe .tab-bar { display: none; }
   padding-top: 10px;
 }
 .im-peixes-btns { display: flex; gap: 6px; }
+.im-peixes-novo {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px dashed #9FD3B4;
+  background: #F8FCFA;
+}
+.im-peixes-novo input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.im-peixes-novo input[type="text"] { flex: 1; min-width: 0; }
+.im-peixes-novo input[type="number"] { width: 90px; }
 .im-peixes-warn { color: #A82E26; font-weight: 600; }
 .im-row-ok .im-nome { color: #1F7A4A; }
 .im-nome { font-weight: 600; color: var(--primary); }

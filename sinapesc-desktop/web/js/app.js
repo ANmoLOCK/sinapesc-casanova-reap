@@ -4494,6 +4494,7 @@
     window.sinapescSetPage = setPage;
     window.sinapescSessionExpired = sessionExpired;
     window.sinapescCurrentScreen = () => state.screen;
+    window.sinapescIsAdmin = () => state.papel === "admin";
     window.sinapescOpenConsultaAutomatica = openConsultaAutomaticaModal;
     wireEvents();
     if (window.SinapescRgpFuncoes && window.SinapescRgpFuncoes.wireFuncoesEvents) {

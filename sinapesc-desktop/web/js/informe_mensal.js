@@ -228,6 +228,7 @@
               <option value="abrir_tabela_informe" ${S.audAcao === "abrir_tabela_informe" ? "selected" : ""}>Abriu tabela geral</option>
               <option value="abrir_tabela_socio" ${S.audAcao === "abrir_tabela_socio" ? "selected" : ""}>Tabela do sócio</option>
               <option value="config_especies_informe" ${S.audAcao === "config_especies_informe" ? "selected" : ""}>Peixes</option>
+              <option value="cadastrar_peixe_informe" ${S.audAcao === "cadastrar_peixe_informe" ? "selected" : ""}>Peixe cadastrado</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -400,14 +401,19 @@
     const ativas = new Set(S.meta.especies_ativas || todas);
     const min = S.meta.especies_minimo || 4;
     const precos = {};
-    (S.meta.catalogo || []).forEach((c) => { precos[c.nome] = c.preco; });
+    const extras = new Set();
+    (S.meta.catalogo || []).forEach((c) => {
+      precos[c.nome] = c.preco;
+      if (c.extra) extras.add(c.nome);
+    });
     if (S.modalPeixes && S.modalPeixes.isConnected) S.modalPeixes.remove();
     const boxes = todas.map((n) => `
       <label class="im-peixe-item">
         <input type="checkbox" data-im-peixe="${esc(n)}" ${ativas.has(n) ? "checked" : ""} />
         <span class="im-peixe-nome">${esc(n)}</span>
-        <span class="im-peixe-preco">R$ ${fmtMoney(precos[n] || 0)}/kg</span>
+        <span class="im-peixe-preco">R$ ${fmtMoney(precos[n] || 0)}/kg${extras.has(n) ? " · novo" : ""}</span>
       </label>`).join("");
+    const admin = ehAdmin();
     S.modalPeixes = window.sinapescCreateModal(`
       <div class="im-peixes-box">
         <div class="modal-head im-head">
@@ -419,14 +425,21 @@
         </div>
         <div class="modal-body">
           <p class="im-det-help">Marque os peixes que podem ser usados ao <strong>Gerar REAP</strong>.
-          Precisa de pelo menos <strong>${min}</strong>. Catálogo inclui Pacu, Pirambeba e Cascudo.
-          Se marcar menos de 8, o mês com 8 espécies não entra no plano.</p>
+          Precisa de pelo menos <strong>${min}</strong>. Se marcar menos de 8, o mês com 8 espécies não entra no plano.
+          O preço muda conforme a época de cada peixe (nunca abaixo de R$ 11/kg).
+          ${admin ? "" : "<br><strong>Só o admin altera a seleção e cadastra peixes.</strong>"}</p>
           <div class="im-peixes-grid" id="im-peixes-grid">${boxes}</div>
+          ${admin ? `
+          <div class="im-peixes-novo">
+            <input type="text" id="im-peixe-novo-nome" maxlength="40" placeholder="Nome do peixe novo" />
+            <input type="number" id="im-peixe-novo-preco" min="11" max="200" step="1" placeholder="R$/kg" />
+            <button type="button" class="btn btn-ghost btn-sm" id="im-peixe-novo-btn">+ Cadastrar peixe</button>
+          </div>` : ""}
           <div class="im-peixes-foot">
             <span id="im-peixes-count"></span>
             <div class="im-peixes-btns">
-              <button type="button" class="btn btn-ghost btn-sm" id="im-peixes-todos">Marcar todos</button>
-              <button type="button" class="btn btn-primary" id="im-peixes-salvar">Salvar seleção</button>
+              ${admin ? `<button type="button" class="btn btn-ghost btn-sm" id="im-peixes-todos">Marcar todos</button>
+              <button type="button" class="btn btn-primary" id="im-peixes-salvar">Salvar seleção</button>` : ""}
             </div>
           </div>
         </div>
@@ -453,7 +466,28 @@
       syncCount();
     });
     S.modalPeixes.querySelectorAll("[data-im-peixe]").forEach((c) => {
+      if (!admin) c.disabled = true;
       c.addEventListener("change", syncCount);
+    });
+    S.modalPeixes.querySelector("#im-peixe-novo-btn")?.addEventListener("click", () => {
+      const nome = (S.modalPeixes.querySelector("#im-peixe-novo-nome")?.value || "").trim();
+      const preco = (S.modalPeixes.querySelector("#im-peixe-novo-preco")?.value || "").trim();
+      if (nome.length < 2) {
+        toast("Digite o nome do peixe.", 3600);
+        return;
+      }
+      const p = Number(preco.replace(",", "."));
+      if (!Number.isFinite(p) || p < 11) {
+        toast("Preço por kg precisa ser de R$ 11 para cima.", 4200);
+        return;
+      }
+      if (S.busy) return;
+      S.busy = true;
+      toast("Cadastrando peixe…", 2000);
+      api("cadastrar_informe_peixe", JSON.stringify({ nome, preco: Math.round(p) })).catch((e) => {
+        S.busy = false;
+        toast(String(e));
+      });
     });
     S.modalPeixes.querySelector("#im-peixes-salvar")?.addEventListener("click", () => {
       const sel = [...S.modalPeixes.querySelectorAll("[data-im-peixe]:checked")].map((c) => c.dataset.imPeixe);
@@ -676,7 +710,7 @@
       S.edit = {
         dias: r.dias,
         municipio: r.municipio,
-        especies: (r.especies || []).map((e) => ({ nome: e.nome, kg: e.kg })),
+        especies: (r.especies || []).map((e) => ({ nome: e.nome, kg: e.kg, valor: e.valor })),
       };
       paintDetalhe();
     });
@@ -810,7 +844,7 @@
         mes: m,
         dias: parseInt(ed.dias, 10),
         municipio: ed.municipio,
-        especies: ed.especies.map((e) => ({ nome: e.nome, kg: parseInt(e.kg, 10) })),
+        especies: ed.especies.map((e) => ({ nome: e.nome, kg: parseInt(e.kg, 10), valor: e.valor })),
       };
       api("salvar_informe_mes", JSON.stringify(payload))
         .then((res) => { if (res && res.ok === false) { S.busy = false; paintDetalhe(); failed(res, "Falha ao salvar."); } })
@@ -859,7 +893,12 @@
     abrir_tabela_informe: "Abriu tabela",
     abrir_tabela_socio: "Tabela sócio",
     config_especies_informe: "Peixes",
+    cadastrar_peixe_informe: "Peixe cadastrado",
   };
+
+  function ehAdmin() {
+    return typeof window.sinapescIsAdmin === "function" && window.sinapescIsAdmin();
+  }
 
   function paintAuditoria() {
     const list = document.querySelector("#im-aud-list");
@@ -990,6 +1029,25 @@
           5200
         );
       }
+    });
+    window.AppEvents.on("informe_peixe_cadastrado", (r) => {
+      S.busy = false;
+      if (!r.ok) {
+        failed(r, "Falha ao cadastrar peixe.");
+        return;
+      }
+      const d = r.data || {};
+      Object.assign(S.meta, {
+        catalogo: d.catalogo || S.meta.catalogo,
+        especies_ativas: d.especies_ativas || S.meta.especies_ativas,
+        especies_todas: d.especies_todas || S.meta.especies_todas,
+        contagens: d.contagens || S.meta.contagens,
+        permite_8: !!d.permite_8,
+        probabilidades: d.probabilidades || S.meta.probabilidades,
+      });
+      toast(`${d.nome} cadastrado (R$ ${fmtMoney(d.preco)}/kg) — já aparece para todos.`, 5200);
+      if (S.modalPeixes) openConfigPeixes();
+      if (onScreen() && S.tab === "socios") paintTable();
     });
     window.AppEvents.on("informe_especies_salvas", (r) => {
       S.busy = false;

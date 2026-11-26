@@ -1,10 +1,10 @@
-"""Abas InformeMensal + InformeAuditoria dentro da planilha do REAP."""
+"""Abas InformeMensal, InformeAuditoria e InformePeixes dentro da planilha do REAP."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from controle.auditoria import AUDITORIA_COLUNAS, EventoAuditoria, evento_para_row, row_to_evento
 from controle.informe_mensal import (
@@ -13,6 +13,8 @@ from controle.informe_mensal import (
     INFORME_HEADER,
     INFORME_HEADER_RANGE,
     INFORME_TAB,
+    PEIXES_HEADER,
+    PEIXES_TAB,
     InformeMes,
     row_to_informe,
 )
@@ -41,7 +43,7 @@ class InformeMensalService:
         }
         to_add = [
             {"addSheet": {"properties": {"title": title}}}
-            for title in (INFORME_TAB, INFORME_AUDITORIA_TAB)
+            for title in (INFORME_TAB, INFORME_AUDITORIA_TAB, PEIXES_TAB)
             if title not in existing
         ]
         if to_add:
@@ -54,7 +56,25 @@ class InformeMensalService:
         aud = self.client.get_values(f"{INFORME_AUDITORIA_TAB}!A1:I1")
         if not aud or not aud[0]:
             self.client.update_values(f"{INFORME_AUDITORIA_TAB}!A1", [AUDITORIA_COLUNAS])
+
+        px = self.client.get_values(f"{PEIXES_TAB}!A1:D1")
+        if not px or not px[0]:
+            self.client.update_values(f"{PEIXES_TAB}!A1", [PEIXES_HEADER])
         self._ready = True
+
+    def listar_peixes(self) -> List[Tuple[str, Any]]:
+        """Peixes cadastrados pelo admin: [(nome, preço R$/kg)]."""
+        self.ensure()
+        rows = self.client.get_values(f"{PEIXES_TAB}!A2:B")
+        return [(str(r[0]).strip(), r[1] if len(r) > 1 else "") for r in rows if r and str(r[0]).strip()]
+
+    def cadastrar_peixe(self, nome: str, preco: float) -> None:
+        self.ensure()
+        agora = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        self.client.append_values(
+            f"{PEIXES_TAB}!A2",
+            [[nome, str(int(round(float(preco)))), agora, (self.actor or "").strip()]],
+        )
 
     def _linhas(self) -> List[tuple]:
         """[(row_idx, InformeMes)] — 1 GET."""
