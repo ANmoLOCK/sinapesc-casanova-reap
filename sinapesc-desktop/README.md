@@ -15,17 +15,15 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v2.0.0.0** — Versão consolidada: login online + permissões + Aprovações de exclusão, Informe v6-sazonal, Defeso pendentes e revisão de segurança em todos os módulos (só-leitura não grava em lugar nenhum; Configurações só admin; Gov.br oculta para leitura). Guia Informe: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
+
+**Download:** [SinapescREAP-Windows-v2.0.0.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip)
+
 **v1.8.8** — Permissões finas (cadastrar/editar/pedir exclusão), fila de exclusão com painel Aprovações (admin), correções de escrita só-leitura e senha bootstrap.
 
 **v1.8.7** — Login online multi-usuário (aba Usuarios + PBKDF2), papéis admin/operador/leitura, tela Usuários (ativar/desativar/reset senha), filtro por usuário na auditoria.
 
-**v1.8.5** — **Peixes** (seleção universal). Card **Tabela**. Plano probabilístico. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
-
-**Download (EXE ainda v1.8.5 até novo build):** [SinapescREAP-Windows-v1.8.5.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip)
-
 **v1.8.6** — Cérebro Informe **v6-sazonal**: Pacu, Pirambeba e Cascudo no filtro Peixes; anti-repetição forte (peixe/kg/valor) com preço e abundância por estação; 8 espécies só ~20% dos sócios. Defeso: filtro **Pendentes de entrada** + relatório que não some ao marcar pendentes (inclui sócio sem ficha).
-
-**Download (ainda v1.8.5 até novo build):** [SinapescREAP-Windows-v1.8.5.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip)
 
 **v1.8.5** — **Peixes** (seleção universal). Card **Tabela** ao lado de Abrir. Plano probabilístico (~35% com mês de 8).
 

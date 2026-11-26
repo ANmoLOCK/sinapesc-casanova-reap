@@ -6,6 +6,26 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v2.0.0.0] — 2026-11-26 — Versão consolidada: usuários, aprovações e revisão de bugs
+
+**Tag:** [`v2.0.0.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip
+
+Reúne v1.8.6, v1.8.7 e v1.8.8 (abaixo) e corrige:
+
+- Só-leitura conseguia gravar: calendário, sincronizar planilhas, ficha/anexos/impressão Defeso, toda a Consulta RGP (cadastrar, editar, importar, consultar, excluir), excluir mês e peixes do Informe, fonte e atalhos Defeso
+- Configurações (planilha, credenciais, senha bootstrap, pasta de anexos) podiam ser alteradas por qualquer usuário logado — agora só admin (ou antes do login, para instalação)
+- Lista de sócios e QR liam a planilha sem login
+- Senhas Gov.br iam em texto para usuário só-leitura (lista e relatórios)
+- Telas de admin (Usuários/Aprovações) quebravam sem mensagem quando a sessão caía
+- Admin que trocava o próprio e-mail era deslogado
+- Aprovar exclusão de sócio já removido dizia "excluído"
+- Informe Mensal aceitava 4–5 peixes, mas o plano anual nunca fechava — mínimo agora é 6
+- Backup não levava a coluna telefone
+- Site público: XSS no nome, CPF numérico com zero à esquerda não era encontrado, CPF completo ficava na URL
+- EXE: módulos `usuarios`, `exclusoes`, `relatorio_municipio` e `sheets.*` incluídos explicitamente; LEIA-ME com a versão certa
+- Logout deixava o cliente achando que ainda podia escrever
+
 ## [v1.8.8] — 2026-11-26 — Permissões finas + fila de exclusão
 
 - Coluna **permissoes** na aba Usuarios: `cadastrar`, `editar`, `pedir_exclusao`, `excluir_direto` (admin tem tudo)

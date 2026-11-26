@@ -11,25 +11,25 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | **v1.8.8** (código) · EXE ainda [v1.8.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5) |
+| Versão atual | **v2.0.0.0** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v1.8.5)
+## Download do EXE (v2.0.0.0)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0
 
-Versão anterior: [v1.8.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.4)
+Versão anterior: [v1.8.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
-Guia Informe Mensal (v1.8.6): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+Guia Informe Mensal: [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia numa pasta (ex.: `C:\Sinapesc\`) e coloque o `google-credentials.json` junto.
 
@@ -51,11 +51,23 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v1.8.8
+## O que há na v2.0.0.0
+
+Versão que junta tudo desde a v1.8.5 (Informe v6, Defeso pendentes, login online, permissões e aprovações) com uma revisão de bugs em todos os módulos.
+
+- **Login online multi-usuário** (aba **Usuarios**, senha PBKDF2): papéis admin / operador / leitura
+- **Permissões finas** por usuário: cadastrar, editar, pedir exclusão, excluir direto
+- **Aprovações**: operador pede exclusão de sócio → só o admin aprova ou recusa (aba **ExclusoesPendentes**)
+- **Informe Mensal v6-sazonal** (Pacu, Pirambeba, Cascudo; anti-repetição; preço por estação); botão Peixes exige no mínimo **6** peixes
+- **Defeso**: filtro Pendentes de entrada; relatório não some ao filtrar
+- **Segurança**: usuário só-leitura não grava em nenhum módulo (REAP, Defeso, Consulta RGP, Informe, calendário, sincronização); Configurações só pelo admin; senha bootstrap não é exibida; senhas Gov.br ocultas para só-leitura; sessão de usuário desativado é encerrada
+- **Site público**: nome escapado (XSS), CPF com zero à esquerda encontrado, CPF não fica mais na barra de endereço
+- Backup inclui telefone; EXE inclui todos os módulos novos
+
+## O que havia na v1.8.8
 
 - Permissões finas: cadastrar / editar / pedir exclusão / excluir direto
 - Fila de exclusão: operador pede → admin aprova ou recusa (tela **Aprovações**)
-- Correções de segurança: escrita exige permissão; senha bootstrap não volta na API; sessão de usuário desativado encerra
 
 ## O que havia na v1.8.7
 

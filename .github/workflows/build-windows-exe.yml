@@ -55,6 +55,7 @@ jobs:
       - name: Prepare release folder
         shell: pwsh
         run: |
+          if ("${{ github.ref }}" -match '^refs/tags/(v.+)$') { $ver = $Matches[1] } else { $ver = "dev" }
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item dist\SinapescREAP.exe release\
           Copy-Item config.example.json release\config.json
@@ -67,7 +68,7 @@ jobs:
             Copy-Item ..\TUTORIAL_IMPLEMENTACAO.md release\
           }
           @"
-          SINAPESC REAP — COMO USAR (v1.7.46)
+          SINAPESC REAP — COMO USAR ($ver)
           ==================================
           © Gabriel Lourran Da Silva Costa — Todos os direitos reservados.
           Software de Gabriel; Sindicato licenciado por prazo indeterminado;
@@ -96,7 +97,16 @@ jobs:
              CPF com zero a esquerda e normalizado (planilha/numero).
              Sync Consulta <-> REAP restrita nesta etapa.
 
-          12. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
+          12. USUARIOS (v2): o 1o login com o e-mail/senha de Configuracoes
+             cria o admin na aba Usuarios. Depois o admin cadastra operadores
+             na tela Usuarios (papel + permissoes: cadastrar, editar,
+             pedir_exclusao, excluir_direto). Usuario "leitura" so consulta.
+          13. APROVACOES: operador sem excluir_direto so PEDE a exclusao;
+             o socio so some quando o admin aprova na tela Aprovacoes
+             (aba ExclusoesPendentes da planilha).
+          14. Informe Mensal: botao Peixes exige no minimo 6 peixes.
+
+          15. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar
              ou modificar sem autorizacao.
 
