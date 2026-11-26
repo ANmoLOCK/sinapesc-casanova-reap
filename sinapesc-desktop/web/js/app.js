@@ -9,6 +9,7 @@
     { id: "relatorio", label: "Relatório", screen: "relatorio" },
     { id: "backup", label: "Backup", screen: "backup" },
     { id: "auditoria", label: "Auditoria", screen: "auditoria" },
+    { id: "usuarios", label: "Usuários", screen: "usuarios" },
     { id: "atalhos", label: "Config.Atalhos", screen: "atalhos" },
     { id: "lista", label: "Lista pública", screen: "lista" },
   ];
@@ -21,6 +22,14 @@
     navHistory: [],
     loggedIn: false,
     adminUser: "",
+    adminNome: "",
+    papel: "",
+    modulos: [],
+    podeEscrever: true,
+    podeAdminUsuarios: false,
+    usuarios: [],
+    usuariosSearch: "",
+    audUserFilter: "",
     pessoas: [],
     expanded: new Set(),
     search: "",
@@ -107,10 +116,32 @@
   }
 
   function setFooter() {
-    $("#footer-user").textContent = state.loggedIn ? state.adminUser : "";
+    const label = state.loggedIn
+      ? `${state.adminNome || state.adminUser}${state.papel ? ` · ${state.papel}` : ""}`
+      : "";
+    $("#footer-user").textContent = label;
     const sep = document.querySelector(".footer-conn-sep");
     if (sep) sep.style.display = state.connLabel ? "" : "none";
     $("#footer-conn").textContent = state.connLabel;
+  }
+
+  function applySessao(data) {
+    if (!data) return;
+    state.adminUser = data.admin_user || state.adminUser || "";
+    state.adminNome = data.admin_nome || data.admin_user || state.adminNome || "";
+    state.papel = data.papel || "";
+    state.modulos = Array.isArray(data.modulos) ? data.modulos : [];
+    state.podeEscrever = data.pode_escrever !== false;
+    state.podeAdminUsuarios = !!data.pode_admin_usuarios;
+  }
+
+  function podeModulo(mod) {
+    if (!state.loggedIn) return false;
+    if (state.papel === "admin") return true;
+    const mods = state.modulos || [];
+    if (!mods.length) return true;
+    const m = mod === "informe_mensal" ? "informe" : mod;
+    return mods.includes(m);
   }
 
   function setPage(html) {
@@ -451,10 +482,15 @@
       relatorio: "relatorio",
       backup: "backup",
       auditoria: "auditoria",
+      usuarios: "usuarios",
       atalhos: "atalhos",
       lista: "lista",
     };
     return map[screen] || null;
+  }
+
+  function visibleTabs() {
+    return TABS.filter((t) => t.id !== "usuarios" || state.podeAdminUsuarios);
   }
 
   function renderTabs(activeTab) {
@@ -462,8 +498,9 @@
     tabBar.hidden = !secretaria;
     if (!secretaria) return;
 
+    const tabs = visibleTabs();
     const tabId = activeTab || tabForScreen(state.screen) || "socies";
-    tabInner.innerHTML = TABS.map((t) => `
+    tabInner.innerHTML = tabs.map((t) => `
       <div class="tab-cell ${t.id === tabId ? "active" : ""}" data-tab="${t.id}">
         <div class="tab-label">${esc(t.label)}</div>
         <div class="tab-underline"></div>
@@ -472,7 +509,7 @@
 
     tabInner.querySelectorAll(".tab-cell").forEach((cell) => {
       cell.addEventListener("click", () => {
-        const tab = TABS.find((x) => x.id === cell.dataset.tab);
+        const tab = tabs.find((x) => x.id === cell.dataset.tab);
         if (tab) navigate(tab.screen, { tab: tab.id });
       });
     });
@@ -553,6 +590,12 @@
     try { await api("logout"); } catch (_e) { /* ignore */ }
     state.loggedIn = false;
     state.adminUser = "";
+    state.adminNome = "";
+    state.papel = "";
+    state.modulos = [];
+    state.podeEscrever = true;
+    state.podeAdminUsuarios = false;
+    state.usuarios = [];
     state.navHistory = [];
     state.expanded.clear();
     state.connLabel = "";
@@ -566,6 +609,7 @@
       home: renderHome,
       login: renderLogin,
       settings: renderSettings,
+      usuarios: renderUsuarios,
       admin: renderAdmin,
       pendencias: renderPendencias,
       relatorio: renderRelatorio,
@@ -591,17 +635,29 @@
 
   function goInformeMensal() {
     if (!requireLogin("informe_mensal")) return;
+    if (!podeModulo("informe")) {
+      toast("Seu usuário não tem acesso ao Informe Mensal.");
+      return;
+    }
     navigate("informe_mensal");
     if (window.SinapescInforme && window.SinapescInforme.load) window.SinapescInforme.load();
   }
 
   function goDefeso() {
     if (!requireLogin("defeso")) return;
+    if (!podeModulo("defeso")) {
+      toast("Seu usuário não tem acesso ao Defeso.");
+      return;
+    }
     navigate("defeso");
   }
 
   function goConsultaRgp() {
     if (!requireLogin("consulta_rgp")) return;
+    if (!podeModulo("consulta_rgp")) {
+      toast("Seu usuário não tem acesso à Consulta RGP.");
+      return;
+    }
     state.consultaRgpLoaded = false;
     navigate("consulta_rgp");
     loadConsultaRgp(true);
@@ -609,6 +665,10 @@
 
   function goReap() {
     if (!requireLogin("admin")) return;
+    if (!podeModulo("reap")) {
+      toast("Seu usuário não tem acesso ao REAP.");
+      return;
+    }
     navigate("admin", { tab: "socies" });
     loadPessoas();
   }
@@ -649,7 +709,7 @@
           <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
         </div>
       </div>
-      <div class="tip-box">Login único ativo: troque de módulo com ← Módulos sem digitar a senha de novo. Use Sair só para encerrar a sessão.</div>
+      <div class="tip-box">Login online (aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
     `);
     $("#go-reap").addEventListener("click", goReap);
     $("#go-informe").addEventListener("click", goInformeMensal);
@@ -670,7 +730,7 @@
     setPage(`
       <div class="form-panel" style="max-width:400px;margin:28px auto">
         <h2 style="margin:0 0 2px;font-size:16px">Acesso unificado</h2>
-        <p class="page-sub">Login único no início. Depois escolha REAP, Defeso Fácil ou Consulta RGP sem entrar de novo.</p>
+        <p class="page-sub">Login online na planilha (aba Usuarios). Depois escolha o módulo sem digitar a senha de novo.</p>
         <p class="page-sub" style="margin-top:6px">${esc(state.bootstrap?.org_full || "")}</p>
         <label>E-mail</label>
         <input type="email" id="login-email" value="${esc(email)}" />
@@ -690,6 +750,7 @@
         return;
       }
       state.loggedIn = true;
+      applySessao(res);
       state.adminUser = res.admin_user || $("#login-email").value;
       state.connLabel = "Conectado";
       setFooter();
@@ -711,6 +772,8 @@
       } else if (dest === "informe_mensal") {
         navigate("informe_mensal", { push: false });
         if (window.SinapescInforme && window.SinapescInforme.load) window.SinapescInforme.load();
+      } else if (dest === "usuarios") {
+        navigate("usuarios", { push: false });
       } else {
         navigate("home", { push: false });
         maybeBackupReminder();
@@ -755,10 +818,11 @@
         <input id="cfg-defeso-drive" value="${esc(s.defeso_drive_folder_id || "")}" placeholder="Só se usar Drive compartilhado via API" />
         <label>URL do site público (sem /consulta.html)</label>
         <input id="cfg-site" value="${esc(s.public_site_url || "")}" placeholder="https://anmolock.github.io/sinapesc-casanova-reap" />
-        <label>E-mail do administrador</label>
+        <label>E-mail bootstrap (1º admin / fallback)</label>
         <input id="cfg-email" value="${esc(s.admin_email || "")}" />
-        <label>Senha do administrador</label>
+        <label>Senha bootstrap (só cria o 1º usuário na aba Usuarios)</label>
         <input id="cfg-pass" type="password" value="${esc(s.admin_password || "")}" />
+        <p class="page-sub">O login do dia a dia valida a aba <strong>Usuarios</strong> na planilha. Use a tela Usuários (papel admin) para cadastrar/bloquear operadores.</p>
         <div class="cred-label" id="cfg-cred">${esc(s.credentials_label || "")}</div>
         <input type="file" id="cfg-json" accept=".json,application/json" hidden />
         <button type="button" class="btn btn-primary btn-sm" id="cfg-import">Importar JSON da Conta de Serviço…</button>
@@ -1790,11 +1854,27 @@
       : "";
   }
 
+  function usuariosDaAuditoria(eventos) {
+    const set = new Set();
+    (eventos || []).forEach((e) => {
+      const u = String(e.usuario || "").trim();
+      if (u) set.add(u);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }
+
   function renderAuditoria() {
+    const users = usuariosDaAuditoria(state.auditoria);
     setPage(`
       <div><span class="page-title">Auditoria</span> <span class="page-meta" id="aud-hint">Carregando…</span></div>
       <div class="toolbar">
-        <input type="search" id="aud-search" placeholder="Buscar" style="flex:0 1 260px;padding:6px 8px;border:1px solid var(--border)" />
+        <input type="search" id="aud-search" placeholder="Buscar" style="flex:0 1 220px;padding:6px 8px;border:1px solid var(--border)" />
+        <label class="filter-wrap">Usuário
+          <select id="aud-user">
+            <option value="">Todos</option>
+            ${users.map((u) => `<option value="${esc(u)}" ${state.audUserFilter === u ? "selected" : ""}>${esc(u)}</option>`).join("")}
+          </select>
+        </label>
         <button type="button" class="btn btn-ghost btn-sm" id="aud-refresh">Atualizar</button>
         <button type="button" class="btn btn-outline-dark btn-sm" id="aud-export">Exportar CSV</button>
       </div>
@@ -1802,6 +1882,10 @@
     `);
     $("#aud-refresh").addEventListener("click", () => api("load_auditoria"));
     $("#aud-search")?.addEventListener("input", () => renderAuditoriaList(state.auditoria));
+    $("#aud-user")?.addEventListener("change", (e) => {
+      state.audUserFilter = e.target.value || "";
+      renderAuditoriaList(state.auditoria);
+    });
     $("#aud-export").addEventListener("click", () => api("export_auditoria"));
     api("load_auditoria");
   }
@@ -1809,7 +1893,15 @@
   function renderAuditoriaList(eventos) {
     state.auditoria = eventos || [];
     const q = $("#aud-search")?.value || "";
-    api("filter_auditoria_local", state.auditoria, q).then((r) => {
+    const userSel = $("#aud-user");
+    if (userSel) {
+      const cur = state.audUserFilter || "";
+      const users = usuariosDaAuditoria(state.auditoria);
+      userSel.innerHTML = `<option value="">Todos</option>${users.map((u) =>
+        `<option value="${esc(u)}" ${u === cur ? "selected" : ""}>${esc(u)}</option>`
+      ).join("")}`;
+    }
+    api("filter_auditoria_local", state.auditoria, q, state.audUserFilter || "").then((r) => {
       const items = r.ok ? r.data : state.auditoria;
       const hint = $("#aud-hint");
       if (hint) hint.textContent = `${items.length} registro(s) · aba Auditoria da planilha`;
@@ -1821,10 +1913,173 @@
       }
       list.innerHTML = items.map((e) => `
         <div class="audit-card">
-          <div class="audit-meta">${esc(e.em)} · ${esc(e.usuario || "(sem usuário)")}</div>
+          <div class="audit-meta">${esc(e.em)} · <strong>${esc(e.usuario || "(sem usuário)")}</strong> · ${esc(e.acao || "")}</div>
           <div class="audit-text">${esc(e.detalhe || e.acao)}</div>
         </div>
       `).join("");
+    });
+  }
+
+  function renderUsuarios() {
+    if (!state.podeAdminUsuarios) {
+      toast("Só o papel admin gerencia usuários.");
+      navigate("admin", { tab: "socies" });
+      return;
+    }
+    setPage(`
+      <div>
+        <span class="page-title">Usuários</span>
+        <span class="page-meta" id="usr-hint">Carregando…</span>
+        <p class="page-sub">Contas online na aba <strong>Usuarios</strong> da planilha REAP. Ative, desative, defina papel e redefina senha.</p>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="usr-search" placeholder="Buscar nome ou e-mail" value="${esc(state.usuariosSearch)}" style="flex:0 1 260px;padding:6px 8px;border:1px solid var(--border)" />
+        <button type="button" class="btn btn-ghost btn-sm" id="usr-refresh">Atualizar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="usr-novo">+ Novo usuário</button>
+      </div>
+      <div id="usr-list"></div>
+    `);
+    $("#usr-refresh")?.addEventListener("click", () => api("list_usuarios"));
+    $("#usr-search")?.addEventListener("input", (e) => {
+      state.usuariosSearch = e.target.value || "";
+      paintUsuarios();
+    });
+    $("#usr-novo")?.addEventListener("click", () => openUsuarioModal());
+    paintUsuarios();
+    api("list_usuarios");
+  }
+
+  function paintUsuarios() {
+    const list = $("#usr-list");
+    const hint = $("#usr-hint");
+    if (!list) return;
+    const q = (state.usuariosSearch || "").trim().toLowerCase();
+    let itens = state.usuarios || [];
+    if (q) {
+      itens = itens.filter((u) =>
+        `${u.nome} ${u.email} ${u.papel}`.toLowerCase().includes(q)
+      );
+    }
+    if (hint) hint.textContent = `${itens.length} de ${(state.usuarios || []).length}`;
+    if (!itens.length) {
+      list.innerHTML = `<div class="empty-msg">${(state.usuarios || []).length ? "Nenhum resultado." : "Nenhum usuário. Clique em + Novo usuário."}</div>`;
+      return;
+    }
+    list.innerHTML = itens.map((u) => `
+      <div class="card">
+        <div class="card-head">
+          <div class="card-info">
+            <p class="card-name">${esc(u.nome || u.email)} ${u.ativo ? "" : "<span class=\"page-meta\">(inativo)</span>"}</p>
+            <p class="card-cpf">${esc(u.email)} · ${esc(u.papel)} · módulos: ${esc(u.modulos_texto || "(todos)")}</p>
+            <p class="card-cpf">Último login: ${esc(u.ultimo_login || "—")}</p>
+          </div>
+          <div class="card-actions">
+            <button type="button" class="btn btn-outline-dark btn-sm" data-usr-edit="${esc(u.id)}">Editar</button>
+            <button type="button" class="btn btn-outline-dark btn-sm" data-usr-senha="${esc(u.id)}">Reset senha</button>
+            <button type="button" class="btn btn-sm ${u.ativo ? "btn-outline-dark" : "btn-primary"}" data-usr-ativo="${esc(u.id)}" data-ativo="${u.ativo ? "0" : "1"}">
+              ${u.ativo ? "Desativar" : "Ativar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+    list.querySelectorAll("[data-usr-edit]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const u = (state.usuarios || []).find((x) => x.id === b.dataset.usrEdit);
+        if (u) openUsuarioModal(u);
+      });
+    });
+    list.querySelectorAll("[data-usr-senha]").forEach((b) => {
+      b.addEventListener("click", () => openResetSenhaModal(b.dataset.usrSenha));
+    });
+    list.querySelectorAll("[data-usr-ativo]").forEach((b) => {
+      b.addEventListener("click", () => {
+        api("set_usuario_ativo", b.dataset.usrAtivo, b.dataset.ativo === "1");
+      });
+    });
+  }
+
+  function openUsuarioModal(user) {
+    const u = user || {};
+    const isNew = !u.id;
+    const papeis = (state.bootstrap?.papeis || ["admin", "operador", "leitura"]);
+    const modsAll = state.bootstrap?.modulos_todos || ["reap", "defeso", "informe", "consulta_rgp", "lista"];
+    const modsSel = new Set(u.modulos || []);
+    const backdrop = createModal(`
+      <div class="modal-head">${isNew ? "Novo usuário" : "Editar usuário"}</div>
+      <div class="modal-body">
+        <label>Nome</label>
+        <input id="usr-m-nome" value="${esc(u.nome || "")}" />
+        <label>E-mail</label>
+        <input id="usr-m-email" type="email" value="${esc(u.email || "")}" ${isNew ? "" : ""} />
+        ${isNew ? `<label>Senha inicial</label><input id="usr-m-senha" type="password" autocomplete="new-password" />` : ""}
+        <label>Papel</label>
+        <select id="usr-m-papel">
+          ${papeis.map((p) => `<option value="${esc(p)}" ${u.papel === p ? "selected" : ""}>${esc(p)}</option>`).join("")}
+        </select>
+        <label class="pacote-check filter-check" style="margin-top:10px">
+          <input type="checkbox" id="usr-m-ativo" ${u.ativo !== false ? "checked" : ""} /> Ativo
+        </label>
+        <p class="page-sub" style="margin:10px 0 6px">Módulos (vazio = todos)</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+          ${modsAll.map((m) => `
+            <label class="pacote-check filter-check">
+              <input type="checkbox" class="usr-m-mod" value="${esc(m)}" ${modsSel.has(m) ? "checked" : ""} /> ${esc(m)}
+            </label>
+          `).join("")}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="usr-m-save">Salvar</button>
+      </div>
+    `);
+    backdrop.querySelector("#usr-m-save")?.addEventListener("click", () => {
+      const mods = [...backdrop.querySelectorAll(".usr-m-mod:checked")].map((c) => c.value);
+      const payload = {
+        id: u.id || "",
+        nome: backdrop.querySelector("#usr-m-nome")?.value || "",
+        email: backdrop.querySelector("#usr-m-email")?.value || "",
+        papel: backdrop.querySelector("#usr-m-papel")?.value || "operador",
+        ativo: !!backdrop.querySelector("#usr-m-ativo")?.checked,
+        modulos: mods,
+      };
+      if (isNew) {
+        payload.senha = backdrop.querySelector("#usr-m-senha")?.value || "";
+        api("create_usuario", JSON.stringify(payload));
+      } else {
+        api("update_usuario", JSON.stringify(payload));
+      }
+      backdrop._close(false);
+    });
+  }
+
+  function openResetSenhaModal(userId) {
+    const u = (state.usuarios || []).find((x) => x.id === userId);
+    if (!u) return;
+    const backdrop = createModal(`
+      <div class="modal-head">Redefinir senha</div>
+      <div class="modal-body">
+        <p class="page-sub">${esc(u.nome || "")} · ${esc(u.email)}</p>
+        <label>Nova senha</label>
+        <input id="usr-rs-senha" type="password" autocomplete="new-password" />
+        <label>Confirmar</label>
+        <input id="usr-rs-senha2" type="password" autocomplete="new-password" />
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="usr-rs-ok">Salvar senha</button>
+      </div>
+    `);
+    backdrop.querySelector("#usr-rs-ok")?.addEventListener("click", () => {
+      const s1 = backdrop.querySelector("#usr-rs-senha")?.value || "";
+      const s2 = backdrop.querySelector("#usr-rs-senha2")?.value || "";
+      if (s1 !== s2) {
+        toast("As senhas não coincidem.");
+        return;
+      }
+      api("reset_usuario_senha", JSON.stringify({ id: u.id, senha: s1 }));
+      backdrop._close(false);
     });
   }
 
@@ -1984,6 +2239,7 @@
       // Restaura sessão Python ↔ JS (evita pedir login de novo ao trocar de módulo)
       if (r.data.logged_in) {
         state.loggedIn = true;
+        applySessao(r.data);
         state.adminUser = r.data.admin_user || r.data.admin_email || state.adminUser || "";
         state.connLabel = state.connLabel || "Conectado";
         setFooter();
@@ -3296,7 +3552,12 @@
           </div>
           <div class="rgp-body-scroll">
             <div class="toolbar" style="padding:8px 20px">
-              <input type="search" id="rgp-aud-search" placeholder="Buscar na auditoria…" style="flex:0 1 280px;padding:6px 8px;border:1px solid var(--border)" />
+              <input type="search" id="rgp-aud-search" placeholder="Buscar na auditoria…" style="flex:0 1 220px;padding:6px 8px;border:1px solid var(--border)" />
+              <label class="filter-wrap">Usuário
+                <select id="rgp-aud-user">
+                  <option value="">Todos</option>
+                </select>
+              </label>
             </div>
             <div class="rgp-audit-list" id="rgp-aud-list"></div>
           </div>
@@ -3310,6 +3571,7 @@
       });
       $("#rgp-aud-refresh")?.addEventListener("click", () => api("load_consulta_rgp_auditoria"));
       $("#rgp-aud-search")?.addEventListener("input", () => paintConsultaAuditoria());
+      $("#rgp-aud-user")?.addEventListener("change", () => paintConsultaAuditoria());
       paintConsultaAuditoria();
       api("load_consulta_rgp_auditoria");
       return;
@@ -3556,7 +3818,16 @@
     const hint = $("#rgp-aud-hint");
     if (!list) return;
     const q = String($("#rgp-aud-search")?.value || "").trim().toLowerCase();
+    const userSel = $("#rgp-aud-user");
+    const users = usuariosDaAuditoria(state.consultaRgpAuditoria || []);
+    const curUser = userSel?.value || "";
+    if (userSel) {
+      userSel.innerHTML = `<option value="">Todos</option>${users.map((u) =>
+        `<option value="${esc(u)}" ${u === curUser ? "selected" : ""}>${esc(u)}</option>`
+      ).join("")}`;
+    }
     let items = state.consultaRgpAuditoria || [];
+    if (curUser) items = items.filter((e) => String(e.usuario || "") === curUser);
     if (q) {
       items = items.filter((e) => {
         const blob = `${e.em || ""} ${e.usuario || ""} ${e.acao || ""} ${e.detalhe || ""} ${e.nome || ""}`.toLowerCase();
@@ -3570,7 +3841,7 @@
     }
     list.innerHTML = items.map((e) => `
       <div class="rgp-audit-card">
-        <div class="rgp-audit-meta">${esc(e.em || "")} · ${esc(e.usuario || "(sem usuário)")}</div>
+        <div class="rgp-audit-meta">${esc(e.em || "")} · <strong>${esc(e.usuario || "(sem usuário)")}</strong></div>
         <div class="rgp-audit-text">${esc(e.detalhe || e.acao || "")}</div>
       </div>
     `).join("");
@@ -3722,6 +3993,20 @@
         toast(`CSV: ${r.data?.path}`);
         api("open_path", r.data.path);
       } else toast(r.error);
+    });
+    AppEvents.on("usuarios", (r) => {
+      if (r.ok) {
+        state.usuarios = r.data?.itens || [];
+        if (r.data?.papeis && state.bootstrap) state.bootstrap.papeis = r.data.papeis;
+        if (r.data?.modulos_todos && state.bootstrap) state.bootstrap.modulos_todos = r.data.modulos_todos;
+        if (state.screen === "usuarios") paintUsuarios();
+      } else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("usuario_salvo", (r) => {
+      if (r.ok) {
+        toast("Usuário salvo.");
+        api("list_usuarios");
+      } else if (!sessionExpired(r.error)) toast(r.error);
     });
     AppEvents.on("qrs", (r) => {
       toast(r.ok ? `QRs → ${r.data?.base}` : r.error);

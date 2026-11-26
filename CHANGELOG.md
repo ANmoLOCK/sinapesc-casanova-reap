@@ -6,6 +6,14 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v1.8.7] — 2026-11-26 — Login online multi-usuário (aba Usuarios)
+
+- Login valida a aba **Usuarios** no Google Sheets (PBKDF2); bootstrap do 1º admin pelo config.json
+- Papéis **admin / operador / leitura**; campo **ativo** liga/desliga acesso
+- Tela **Usuários** (admin): listar, ativar/desativar, editar, reset de senha
+- Filtro por usuário nas auditorias (REAP, Informe Mensal, Consulta RGP)
+- Auditoria grava o e-mail real de quem entrou (login/logout e ações)
+
 ## [v1.8.5] — 2026-11-05 — Informe Mensal: botão Peixes
 
 **Tag:** [`v1.8.5`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)  

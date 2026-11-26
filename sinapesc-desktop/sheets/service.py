@@ -16,6 +16,7 @@ from .client import (
     CONFIG_TAB,
     PESSOAS_TAB,
     REAP_TAB,
+    USUARIOS_TAB,
     GoogleSheetsClient,
     SheetsConfigError,
 )
@@ -656,6 +657,108 @@ class SheetsService:
             ano=ano,
         )
         return criado
+
+    # ---- usuarios online (aba Usuarios) --------------------------------
+
+    def listar_usuarios(self) -> List:
+        from controle.usuarios import Usuario, row_to_usuario
+
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{USUARIOS_TAB}!A2:J")
+        out: List[Usuario] = []
+        for r in rows:
+            u = row_to_usuario(r)
+            if u:
+                out.append(u)
+        out.sort(key=lambda u: (u.nome or u.email).lower())
+        return out
+
+    def _linha_usuario_por_id(self, user_id: str) -> int:
+        """Número da linha (1-based na planilha) ou -1."""
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{USUARIOS_TAB}!A2:A")
+        alvo = str(user_id or "").strip()
+        for i, r in enumerate(rows):
+            if r and str(r[0]).strip() == alvo:
+                return i + 2
+        return -1
+
+    def obter_usuario_email(self, email: str):
+        from controle.usuarios import normalizar_email
+
+        alvo = normalizar_email(email)
+        for u in self.listar_usuarios():
+            if u.email == alvo:
+                return u
+        return None
+
+    def garantir_admin_bootstrap(self, email: str, senha: str, nome: str = "") -> object:
+        """Se a aba Usuarios estiver vazia, cria o 1º admin a partir do config local."""
+        from controle.usuarios import PAPEL_ADMIN, novo_usuario
+
+        existentes = self.listar_usuarios()
+        if existentes:
+            return existentes[0]
+        user = novo_usuario(
+            email=email,
+            senha=senha,
+            nome=nome or email,
+            papel=PAPEL_ADMIN,
+            ativo=True,
+            modulos=[],
+        )
+        self.client.append_values(f"{USUARIOS_TAB}!A2", [user.to_row()])
+        self._registrar_auditoria(
+            "usuario_bootstrap",
+            f"Criou usuário admin inicial {user.email} na aba Usuarios.",
+        )
+        return user
+
+    def criar_usuario(self, user) -> object:
+        from controle.usuarios import normalizar_email
+
+        email = normalizar_email(getattr(user, "email", ""))
+        if self.obter_usuario_email(email):
+            raise ValueError(f"Já existe usuário com e-mail {email}.")
+        self.client.ensure_tabs()
+        self.client.append_values(f"{USUARIOS_TAB}!A2", [user.to_row()])
+        self._registrar_auditoria(
+            "usuario_criar",
+            f"Cadastrou usuário {user.email} ({user.papel}).",
+        )
+        return user
+
+    def atualizar_usuario(self, user) -> object:
+        row = self._linha_usuario_por_id(user.id)
+        if row < 0:
+            raise ValueError("Usuário não encontrado.")
+        user.atualizado_em = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        self.client.update_values(f"{USUARIOS_TAB}!A{row}:J{row}", [user.to_row()])
+        self._registrar_auditoria(
+            "usuario_atualizar",
+            f"Atualizou usuário {user.email} (ativo={user.ativo}, papel={user.papel}).",
+        )
+        return user
+
+    def marcar_ultimo_login(self, user) -> object:
+        from controle.usuarios import now_stamp
+
+        row = self._linha_usuario_por_id(user.id)
+        if row < 0:
+            return user
+        agora = now_stamp()
+        user.ultimo_login = agora
+        user.atualizado_em = agora
+        self.client.update_values(f"{USUARIOS_TAB}!A{row}:J{row}", [user.to_row()])
+        return user
+
+    def rehash_senha_se_preciso(self, user, senha_plana: str) -> object:
+        from controle.usuarios import hash_senha, senha_precisa_rehash
+
+        if not senha_precisa_rehash(user.senha_hash):
+            return user
+        user.senha_hash = hash_senha(senha_plana)
+        return self.atualizar_usuario(user)
 
     # ---- auditoria / config / backup (planilha compartilhada) ---------
 

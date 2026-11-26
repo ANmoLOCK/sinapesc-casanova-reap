@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from config import import_credentials_file, is_sheets_configured, load_config, save_config
 from controle.auditoria import combina_busca
+from controle import usuarios as usuarios_mod
 from controle.backup import backup_root, gravar_backup, listar_backups
 from controle.calendario import meses_para_texto
 from controle.defeso import FichaDefeso, entrada_confirmada_flag, endereco_completo, tem_parcela_preenchida
@@ -179,6 +180,11 @@ class SinapescApi:
         self._lock = threading.Lock()
         self._logged_in = False
         self._admin_user = ""
+        self._admin_nome = ""
+        self._papel = ""
+        self._modulos: List[str] = []
+        self._pode_escrever = False
+        self._pode_admin_usuarios = False
         self._service: Optional[SheetsService] = None
         self._defeso_service: Optional[DefesoService] = None
         self._consulta_rgp_service: Optional[ConsultaRgpService] = None
@@ -208,6 +214,13 @@ class SinapescApi:
                 "logged_in": self._logged_in,
                 "admin_email": str(cfg.get("admin_email") or ""),
                 "admin_user": self._admin_user,
+                "admin_nome": self._admin_nome or self._admin_user,
+                "papel": self._papel,
+                "modulos": list(self._modulos),
+                "pode_escrever": bool(self._pode_escrever),
+                "pode_admin_usuarios": bool(self._pode_admin_usuarios),
+                "papeis": list(usuarios_mod.PAPEIS),
+                "modulos_todos": list(usuarios_mod.MODULOS_TODOS),
                 "spreadsheet_id": str(cfg.get("spreadsheet_id") or ""),
                 "defeso_spreadsheet_id": str(cfg.get("defeso_spreadsheet_id") or ""),
                 "defeso_anexos_dir": str(cfg.get("defeso_anexos_dir") or ""),
@@ -235,27 +248,118 @@ class SinapescApi:
             }
         )
 
+    def _set_sessao(self, user: Optional[usuarios_mod.Usuario] = None, *, email: str = "") -> None:
+        if user is None:
+            self._logged_in = False
+            self._admin_user = ""
+            self._admin_nome = ""
+            self._papel = ""
+            self._modulos = []
+            self._pode_escrever = False
+            self._pode_admin_usuarios = False
+            return
+        self._logged_in = True
+        self._admin_user = user.email or email.strip()
+        self._admin_nome = user.nome or user.email
+        self._papel = user.papel
+        self._modulos = list(user.modulos)
+        self._pode_escrever = user.pode_escrever
+        self._pode_admin_usuarios = user.pode_admin_usuarios
+
+    def _sessao_payload(self) -> Dict[str, Any]:
+        return {
+            "admin_user": self._admin_user,
+            "admin_nome": self._admin_nome or self._admin_user,
+            "papel": self._papel,
+            "modulos": list(self._modulos),
+            "pode_escrever": bool(self._pode_escrever),
+            "pode_admin_usuarios": bool(self._pode_admin_usuarios),
+        }
+
+    def _require_escrita(self) -> None:
+        if not self._logged_in:
+            raise SheetsConfigError("Faça login como administrador.")
+        if not self._pode_escrever:
+            raise SheetsConfigError("Seu usuário é só leitura — não pode alterar dados.")
+
+    def _require_admin_usuarios(self) -> None:
+        if not self._logged_in:
+            raise SheetsConfigError("Faça login como administrador.")
+        if not self._pode_admin_usuarios:
+            raise SheetsConfigError("Só o papel admin gerencia usuários.")
+
     def login(self, email: str, password: str) -> Dict[str, Any]:
         cfg = load_config()
-        if email.strip().lower() != str(cfg.get("admin_email", "")).lower():
-            return err("E-mail ou senha incorretos.")
-        if password != str(cfg.get("admin_password", "")):
-            return err("E-mail ou senha incorretos.")
         if not is_sheets_configured(cfg):
             return err("Configure primeiro o Google Sheets.", redirect="settings")
-        self._logged_in = True
-        self._admin_user = email.strip()
+        try:
+            svc = SheetsService.from_config(cfg)
+            svc.actor = usuarios_mod.normalizar_email(email) or "login"
+            lista = svc.listar_usuarios()
+        except Exception as exc:  # noqa: BLE001
+            return err(f"Não foi possível ler a aba Usuarios: {exc}")
+
+        # Bootstrap: aba vazia → cria admin a partir do config.json local
+        if not lista:
+            cfg_email = usuarios_mod.normalizar_email(cfg.get("admin_email"))
+            cfg_pass = str(cfg.get("admin_password") or "")
+            if (
+                cfg_email
+                and cfg_pass
+                and usuarios_mod.normalizar_email(email) == cfg_email
+                and password == cfg_pass
+            ):
+                try:
+                    user = svc.garantir_admin_bootstrap(
+                        cfg_email, cfg_pass, nome=str(cfg.get("admin_email") or "")
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    return err(f"Falha ao criar usuário inicial: {exc}")
+            else:
+                return err(
+                    "Nenhum usuário na planilha ainda. Entre com o e-mail/senha "
+                    "das Configurações locais para criar o 1º admin, ou cadastre "
+                    "na aba Usuarios."
+                )
+        else:
+            user, erro = usuarios_mod.autenticar(lista, email, password)
+            if erro or user is None:
+                return err(erro or "E-mail ou senha incorretos.")
+            try:
+                if usuarios_mod.senha_precisa_rehash(user.senha_hash):
+                    svc.actor = user.email
+                    user = svc.rehash_senha_se_preciso(user, password)
+                svc.actor = user.email
+                user = svc.marcar_ultimo_login(user)
+            except Exception:
+                pass
+
         self._service = None
         self._defeso_service = None
         self._consulta_rgp_service = None
-        return ok(admin_user=self._admin_user)
+        self._informe_service = None
+        self._set_sessao(user)
+        try:
+            svc2 = self._ensure_service(require_login=False)
+            svc2.actor = self._admin_user
+            svc2.registrar_evento("login", f"Login de {self._admin_user} ({self._papel}).")
+        except Exception:
+            pass
+        return ok(**self._sessao_payload())
 
     def logout(self) -> Dict[str, Any]:
-        self._logged_in = False
-        self._admin_user = ""
+        if self._logged_in and self._admin_user:
+            try:
+                svc = self._ensure_service(require_login=False)
+                svc.actor = self._admin_user
+                svc.registrar_evento("logout", f"Logout de {self._admin_user}.")
+            except Exception:
+                pass
+        self._set_sessao(None)
         self._service = None
         self._defeso_service = None
         self._consulta_rgp_service = None
+        self._informe_service = None
         return ok()
 
     def get_settings(self) -> Dict[str, Any]:
@@ -412,9 +516,13 @@ class SinapescApi:
 
         threading.Thread(target=target, daemon=True).start()
 
-    def _ensure_service(self, *, require_login: bool = True) -> SheetsService:
+    def _ensure_service(
+        self, *, require_login: bool = True, require_write: bool = False
+    ) -> SheetsService:
         if require_login and not self._logged_in:
             raise SheetsConfigError("Faça login como administrador.")
+        if require_write:
+            self._require_escrita()
         cfg = load_config()
         if not is_sheets_configured(cfg):
             raise SheetsConfigError("Google Sheets ainda não configurado.")
@@ -424,9 +532,11 @@ class SinapescApi:
         self._service.actor = actor
         return self._service
 
-    def _ensure_defeso(self) -> DefesoService:
+    def _ensure_defeso(self, *, require_write: bool = False) -> DefesoService:
         if not self._logged_in:
             raise SheetsConfigError("Faça login como administrador.")
+        if require_write:
+            self._require_escrita()
         cfg = load_config()
         if not is_sheets_configured(cfg):
             raise SheetsConfigError("Google Sheets ainda não configurado.")
@@ -434,9 +544,11 @@ class SinapescApi:
             self._defeso_service = DefesoService.from_config(cfg)
         return self._defeso_service
 
-    def _ensure_consulta_rgp(self) -> ConsultaRgpService:
+    def _ensure_consulta_rgp(self, *, require_write: bool = False) -> ConsultaRgpService:
         if not self._logged_in:
             raise SheetsConfigError("Faça login como administrador.")
+        if require_write:
+            self._require_escrita()
         cfg = load_config()
         if not is_sheets_configured(cfg):
             raise SheetsConfigError("Google Sheets ainda não configurado.")
@@ -504,7 +616,7 @@ class SinapescApi:
             return err("CPF deve conter 11 dígitos.")
 
         def work():
-            svc = self._ensure_service()
+            svc = self._ensure_service(require_write=True)
             pid = ""
             if person_id:
                 svc.update_pessoa(person_id, nome, cpf, municipio, telefone)
@@ -513,7 +625,7 @@ class SinapescApi:
                 pid = svc.add_pessoa(nome, cpf, municipio, telefone).id
             if municipio or telefone:
                 try:
-                    defeso = self._ensure_defeso()
+                    defeso = self._ensure_defeso(require_write=True)
                     ficha = defeso.por_cpf(cpf)
                     if ficha:
                         # Município REAP NÃO sobrescreve o da declaração Defeso
@@ -914,9 +1026,15 @@ class SinapescApi:
 
         return self._run_async("auditoria_export", work, "Exportando auditoria…")
 
-    def filter_auditoria_local(self, eventos: List[Dict[str, Any]], busca: str) -> Dict[str, Any]:
+    def filter_auditoria_local(
+        self,
+        eventos: List[Dict[str, Any]],
+        busca: str,
+        usuario: str = "",
+    ) -> Dict[str, Any]:
         from controle.auditoria import EventoAuditoria
 
+        user_f = str(usuario or "").strip().lower()
         out = []
         for raw in eventos:
             evt = EventoAuditoria(
@@ -929,9 +1047,146 @@ class SinapescApi:
                 ano=str(raw.get("ano") or ""),
                 meses=str(raw.get("meses") or ""),
             )
+            if user_f and evt.usuario.strip().lower() != user_f:
+                continue
             if combina_busca(evt, busca):
                 out.append(raw)
         return ok(data=out)
+
+    # ---- Usuários online (aba Usuarios) ----------------------------------
+
+    def list_usuarios(self) -> Dict[str, Any]:
+        self._require_admin_usuarios()
+
+        def work():
+            svc = self._ensure_service()
+            itens = [u.to_public_dict() for u in svc.listar_usuarios()]
+            return {
+                "itens": itens,
+                "papeis": list(usuarios_mod.PAPEIS),
+                "modulos_todos": list(usuarios_mod.MODULOS_TODOS),
+            }
+
+        return self._run_async("usuarios", work, "Carregando usuários…")
+
+    def create_usuario(self, payload: Any = None) -> Dict[str, Any]:
+        self._require_admin_usuarios()
+        data = payload if isinstance(payload, dict) else {}
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return err("Payload inválido.")
+
+        def work():
+            svc = self._ensure_service(require_write=True)
+            emails = [u.email for u in svc.listar_usuarios()]
+            erros = usuarios_mod.validar_payload_usuario(
+                data, exige_senha=True, emails_ocupados=emails
+            )
+            if erros:
+                raise ValueError(" ".join(erros))
+            user = usuarios_mod.novo_usuario(
+                email=str(data.get("email") or ""),
+                senha=str(data.get("senha") or ""),
+                nome=str(data.get("nome") or ""),
+                papel=str(data.get("papel") or usuarios_mod.PAPEL_OPERADOR),
+                ativo=usuarios_mod.normalizar_ativo(data.get("ativo", True)),
+                modulos=data.get("modulos"),
+            )
+            svc.criar_usuario(user)
+            return {"usuario": user.to_public_dict()}
+
+        return self._run_async("usuario_salvo", work, "Cadastrando usuário…")
+
+    def update_usuario(self, payload: Any = None) -> Dict[str, Any]:
+        self._require_admin_usuarios()
+        data = payload if isinstance(payload, dict) else {}
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return err("Payload inválido.")
+
+        def work():
+            svc = self._ensure_service(require_write=True)
+            uid = str(data.get("id") or "").strip()
+            atual = next((u for u in svc.listar_usuarios() if u.id == uid), None)
+            if atual is None:
+                raise ValueError("Usuário não encontrado.")
+            emails = [u.email for u in svc.listar_usuarios()]
+            erros = usuarios_mod.validar_payload_usuario(
+                data, exige_senha=False, emails_ocupados=emails, email_atual=atual.email
+            )
+            if erros:
+                raise ValueError(" ".join(erros))
+            novo_papel = (
+                usuarios_mod.normalizar_papel(data.get("papel"))
+                if "papel" in data
+                else atual.papel
+            )
+            novo_ativo = (
+                usuarios_mod.normalizar_ativo(data.get("ativo"))
+                if "ativo" in data
+                else atual.ativo
+            )
+            if atual.papel == usuarios_mod.PAPEL_ADMIN and atual.ativo:
+                if novo_papel != usuarios_mod.PAPEL_ADMIN or not novo_ativo:
+                    outros_admin = [
+                        u
+                        for u in svc.listar_usuarios()
+                        if u.id != atual.id
+                        and u.papel == usuarios_mod.PAPEL_ADMIN
+                        and u.ativo
+                    ]
+                    if not outros_admin:
+                        raise ValueError(
+                            "Não é possível desativar ou rebaixar o único admin ativo."
+                        )
+            if "email" in data:
+                atual.email = usuarios_mod.normalizar_email(data.get("email"))
+            if "nome" in data:
+                atual.nome = str(data.get("nome") or "").strip() or atual.email
+            atual.papel = novo_papel
+            atual.ativo = novo_ativo
+            if "modulos" in data:
+                atual.modulos = usuarios_mod.normalizar_modulos(data.get("modulos"))
+            svc.atualizar_usuario(atual)
+            return {"usuario": atual.to_public_dict()}
+
+        return self._run_async("usuario_salvo", work, "Salvando usuário…")
+
+    def set_usuario_ativo(self, user_id: str, ativo: bool = True) -> Dict[str, Any]:
+        return self.update_usuario({"id": user_id, "ativo": bool(ativo)})
+
+    def reset_usuario_senha(self, payload: Any = None) -> Dict[str, Any]:
+        self._require_admin_usuarios()
+        data = payload if isinstance(payload, dict) else {}
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                return err("Payload inválido.")
+
+        def work():
+            svc = self._ensure_service(require_write=True)
+            uid = str(data.get("id") or "").strip()
+            senha = str(data.get("senha") or "")
+            erros = usuarios_mod.validar_senha_nova(senha)
+            if erros:
+                raise ValueError(" ".join(erros))
+            atual = next((u for u in svc.listar_usuarios() if u.id == uid), None)
+            if atual is None:
+                raise ValueError("Usuário não encontrado.")
+            atual.senha_hash = usuarios_mod.hash_senha(senha)
+            svc.atualizar_usuario(atual)
+            svc.registrar_evento(
+                "usuario_reset_senha",
+                f"Redefiniu a senha de {atual.email}.",
+            )
+            return {"usuario": atual.to_public_dict()}
+
+        return self._run_async("usuario_salvo", work, "Redefinindo senha…")
 
     # ---- site público / QR -----------------------------------------------
 
@@ -2109,8 +2364,8 @@ class SinapescApi:
 
     # ---- Informe Mensal (REAP mês a mês, planilha REAP) ------------------
 
-    def _ensure_informe(self) -> InformeMensalService:
-        svc = self._ensure_service()
+    def _ensure_informe(self, *, require_write: bool = False) -> InformeMensalService:
+        svc = self._ensure_service(require_write=require_write)
         if self._informe_service is None or self._informe_service.client is not svc.client:
             self._informe_service = InformeMensalService(svc.client)
         self._informe_service.actor = self._admin_user
@@ -2337,7 +2592,7 @@ class SinapescApi:
         municipio_req = str(data.get("municipio") or "").strip()
 
         def work():
-            inf = self._ensure_informe()
+            inf = self._ensure_informe(require_write=True)
             pessoa = self._informe_pessoa(pid)
             todos = inf.listar()
             do_ano = [r for r in todos if r.ano == ano_i]
@@ -2433,7 +2688,7 @@ class SinapescApi:
         municipio_req = str(data.get("municipio") or "").strip()
 
         def work():
-            inf = self._ensure_informe()
+            inf = self._ensure_informe(require_write=True)
             pessoa = self._informe_pessoa(pid)
             salvos = inf.meses_do_socio(pid, ano_i)
             anterior = salvos.get(mes)

@@ -97,6 +97,7 @@ PESSOAS_TAB = "Pessoas"
 REAP_TAB = "Reap"
 AUDITORIA_TAB = "Auditoria"
 CONFIG_TAB = "Config"
+USUARIOS_TAB = "Usuarios"
 
 PESSOAS_HEADER = ["id", "nome", "cpf", "criadoEm", "municipio", "telefone"]
 REAP_HEADER = ["id", "personId", "ano", *MESES, "atualizadoEm"]
@@ -112,6 +113,18 @@ AUDITORIA_HEADER = [
     "meses",
 ]
 CONFIG_HEADER = ["chave", "valor"]
+USUARIOS_HEADER = [
+    "id",
+    "email",
+    "nome",
+    "senhaHash",
+    "ativo",
+    "papel",
+    "modulos",
+    "criadoEm",
+    "ultimoLogin",
+    "atualizadoEm",
+]
 
 
 class SheetsConfigError(Exception):
@@ -184,7 +197,7 @@ class GoogleSheetsClient:
     # PASSO 3: garantir que as abas existem com cabeçalho correto
     # ------------------------------------------------------------------
     def ensure_tabs(self) -> None:
-        """Cria as abas Pessoas, Reap, Auditoria e Config se ainda não existirem."""
+        """Cria as abas Pessoas, Reap, Auditoria, Config e Usuarios se faltarem."""
         if self._tabs_ready:
             return
 
@@ -204,6 +217,7 @@ class GoogleSheetsClient:
             (REAP_TAB, REAP_HEADER),
             (AUDITORIA_TAB, AUDITORIA_HEADER),
             (CONFIG_TAB, CONFIG_HEADER),
+            (USUARIOS_TAB, USUARIOS_HEADER),
         )
         requests: List[dict] = []
         for title, _header in wanted:

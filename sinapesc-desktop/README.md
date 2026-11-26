@@ -15,9 +15,11 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
-**v1.8.5** — **Peixes** (seleção universal dos 8 peixes).  Card **Tabela** ao lado de Abrir (HTML individual só com meses preenchidos).  Informe Mensal com plano de quantidades probabilístico por sócio (8 espécies só para ~35%, no máx. 1 mês), kg humanizados por pescador e detecção de padrões iguais entre sócios. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
+**v1.8.7** — Login online multi-usuário (aba Usuarios + PBKDF2), papéis admin/operador/leitura, tela Usuários (ativar/desativar/reset senha), filtro por usuário na auditoria.
 
-**Download:** [SinapescREAP-Windows-v1.8.5.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip)
+**v1.8.5** — **Peixes** (seleção universal). Card **Tabela**. Plano probabilístico. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
+
+**Download (EXE ainda v1.8.5 até novo build):** [SinapescREAP-Windows-v1.8.5.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v1.8.5/SinapescREAP-Windows-v1.8.5.zip)
 
 **v1.7.56** — Relatórios: aviso/CSV respeitam colunas escolhidas.
 

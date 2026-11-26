@@ -21,6 +21,7 @@
     auditoria: [],
     audSearch: "",
     audAcao: "",
+    audUser: "",
     openId: "",
     selMes: "",
     edit: null,
@@ -212,6 +213,12 @@
           </div>
           <div class="im-toolbar">
             <input type="search" id="im-aud-search" placeholder="Buscar por sócio, operador, mês…" value="${esc(S.audSearch)}" />
+            <select id="im-aud-user">
+              <option value="">Todos os usuários</option>
+              ${(S.auditoria || []).map((e) => e.usuario).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort().map((u) =>
+                `<option value="${esc(u)}" ${S.audUser === u ? "selected" : ""}>${esc(u)}</option>`
+              ).join("")}
+            </select>
             <select id="im-aud-acao">
               <option value="">Todas as ações</option>
               <option value="gerar_informe" ${S.audAcao === "gerar_informe" ? "selected" : ""}>Gerou</option>
@@ -234,6 +241,10 @@
       });
       document.querySelector("#im-aud-acao")?.addEventListener("change", (e) => {
         S.audAcao = e.target.value || "";
+        paintAuditoria();
+      });
+      document.querySelector("#im-aud-user")?.addEventListener("change", (e) => {
+        S.audUser = e.target.value || "";
         paintAuditoria();
       });
       paintAuditoria();
@@ -856,6 +867,7 @@
     const q = S.audSearch.trim().toLowerCase();
     let items = S.auditoria || [];
     if (S.audAcao) items = items.filter((e) => e.acao === S.audAcao);
+    if (S.audUser) items = items.filter((e) => String(e.usuario || "") === S.audUser);
     if (q) {
       items = items.filter((e) => {
         const blob = `${e.em} ${e.usuario} ${e.acao} ${e.detalhe} ${e.nome} ${e.ano} ${titulo(e.mes)}`.toLowerCase();
