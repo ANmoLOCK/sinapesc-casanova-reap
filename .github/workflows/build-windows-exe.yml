@@ -104,7 +104,7 @@ jobs:
           13. APROVACOES: operador sem excluir_direto so PEDE a exclusao;
              o socio so some quando o admin aprova na tela Aprovacoes
              (aba ExclusoesPendentes da planilha).
-          14. Informe Mensal: botao Peixes exige no minimo 6 peixes.
+          14. Informe Mensal: botao Peixes (minimo 4). So o admin escolhe e cadastra peixe novo; precos em real inteiro, nunca abaixo de R$ 11.
 
           15. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar

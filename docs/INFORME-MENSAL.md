@@ -33,7 +33,8 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - **Meses (Jan → Dez):** quadradinho verde = gerado, branco = pendente, cinza = piracema.
 - **Gerados:** quantos dos 8 meses de pesca já têm REAP. **Kg ano:** soma dos kg já gerados.
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
-- Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 6 peixes (com 4 ou 5 o plano anual não fecha). Com menos de 8, o mês de 8 espécies não entra no plano.
+- Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com 4 ou 5 peixes a alternância 4/5/6 é impossível: o plano usa só as quantidades que cabem, nunca 3 meses seguidos iguais, e o alvo de kg do ano se ajusta. Com menos de 8, o mês de 8 espécies não entra no plano. **Só o admin** altera a seleção.
+- **Cadastrar peixe** (só admin, dentro da janela Peixes): nome + preço R$/kg (inteiro, mínimo R$ 11). O peixe vai para a aba `InformePeixes` da planilha REAP e aparece para **todos** os computadores na próxima vez que abrirem o Informe Mensal, já ligado no cérebro. Fica registrado na auditoria ("Peixe cadastrado").
 
 ![Peixes](previews/informe-mensal/informe_17_config_peixes.png)
 
@@ -105,7 +106,7 @@ O sistema **não salva** se a edição quebrar uma regra do mês:
 - os kg não podem ser todos iguais;
 - o conjunto espécies + kg não pode ser igual ao de outro mês do mesmo sócio.
 
-O **valor** é sempre o preço varejo da espécie (não se digita).
+O **valor** não se digita: ao editar, o preço gerado é mantido se estiver na faixa do mês; senão volta ao preço de referência do mês.
 
 ## 5. Regras do cérebro
 
@@ -117,6 +118,8 @@ O **valor** é sempre o preço varejo da espécie (não se digita).
 | Mar → Out | SIM nos 8 meses |
 
 ### 5.2 Preços varejo (VALOR no site = preço, não multiplica por kg)
+
+Valores abaixo são a **base**. O preço de cada mês muda conforme a época do peixe (safra barateia, escassez encarece — ex.: Tucunaré cai em set/out, Tambaqui em jun–ago) e cada sócio/mês sorteia em volta dessa referência (±12%). Sempre **real inteiro** (sem centavos), **nunca abaixo de R$ 11/kg**, e o mesmo peixe nunca repete o valor do mês vizinho. Peixes cadastrados pelo admin ganham época cara/barata própria.
 
 | Peixe | R$/kg |
 |-------|------:|
@@ -166,7 +169,7 @@ Como o sorteio funciona:
 
 1. **Peso base de cada quantidade:** 4 → 42%, 5 → 34%, 6 → 24%.
 2. **Anti-repetição:** cada vez que uma quantidade já apareceu no ano do sócio, o peso dela é multiplicado por **0,40**. Quanto mais ela já saiu, menor a chance de sair de novo.
-3. **Vizinhos:** um mês nunca tem a mesma quantidade do mês anterior nem do seguinte; o cérebro também evita repetir o **mesmo peixe** (e o mesmo kg da espécie) entre meses vizinhos.
+3. **Vizinhos:** um mês nunca tem a mesma quantidade do mês anterior nem do seguinte. Os peixes são **sorteados com peso** (não "o melhor da lista"): pode repetir no máximo ~1/4 dos peixes do mês vizinho (como pescador real), o mesmo (peixe, kg) nunca repete, e o vaivém "Março = Maio = Julho" é penalizado. Peixes que já saíram muito no mesmo mês para outros sócios perdem prioridade, para a associação não ficar toda com a mesma lista.
 4. **8 espécies:** antes do sorteio, cada sócio tem **~20% de chance** de ganhar **um único** mês com 8 espécies (parece safra boa, não padrão artificial). Esse mês cai de preferência no meio da safra. Os outros ~80% não têm mês de 8.
 5. **Fechamento do ano:** 4, 5 e 6 precisam aparecer e nenhuma quantidade passa de 3 meses.
 6. **Sazonalidade:** abundância e preço (R$/kg) variam por mês (estação / reprodução no São Francisco). Kg altos (22) são raros — teto mole em torno de 18 kg.

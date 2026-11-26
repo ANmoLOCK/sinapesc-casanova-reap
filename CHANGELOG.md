@@ -6,6 +6,17 @@ Formato: mais recente primeiro.
 
 ---
 
+## [Não lançado] — Informe Mensal: cadastro de peixes e anti-repetição
+
+- **Cadastrar peixe** (só admin) na janela Peixes do Informe Mensal: grava na aba `InformePeixes` e aparece para todos os computadores
+- Seleção de peixes do Informe agora é só do admin
+- Mínimo de peixes volta a ser **4**; com 4 ou 5 o ano fecha sem avisos (plano e alvo de kg se ajustam)
+- Preços em **real inteiro**, nunca abaixo de **R$ 11/kg**, com época cara/barata mais forte por peixe e variação por sócio/mês (±12%); o mesmo peixe não repete o valor no mês vizinho
+- Fim do vaivém de peixes (Mar = Mai = Jul, Abr = Jun = Ago): sorteio com peso, até ~1/4 dos peixes podem repetir do mês vizinho, e peixes muito usados pelos outros sócios no mesmo mês perdem prioridade
+- Edição manual mantém o preço gerado
+
+---
+
 ## [v2.0.0.0] — 2026-11-26 — Versão consolidada: usuários, aprovações e revisão de bugs
 
 **Tag:** [`v2.0.0.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0)  
