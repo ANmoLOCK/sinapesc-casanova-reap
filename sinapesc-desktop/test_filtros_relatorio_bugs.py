@@ -8,6 +8,58 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 
 
+def test_defeso_pendentes_inclui_sem_ficha() -> None:
+    """Filtro entrada=nao deve listar sócio REAP sem ficha Defeso (antes sumia)."""
+    from controle.defeso import FichaDefeso
+    from controle.defeso_relatorio import itens_defeso_para_relatorio
+
+    confirmada = FichaDefeso(
+        nome="Ana Confirmada",
+        cpf="12345678901",
+        status="salvo",
+        entrada_confirmada="sim",
+    )
+    pendente_ficha = FichaDefeso(
+        nome="Bruno Pendente",
+        cpf="10987654321",
+        status="rascunho",
+        entrada_confirmada="",
+    )
+    base = dict(
+        telefones_reap={
+            "12345678901": "",
+            "10987654321": "",
+            "11122233344": "",
+        },
+        municipios_reap={
+            "12345678901": "Casa Nova",
+            "10987654321": "Casa Nova",
+            "11122233344": "Remanso",
+        },
+        nomes_reap={
+            "12345678901": "Ana Confirmada",
+            "10987654321": "Bruno Pendente",
+            "11122233344": "Carla Sem Ficha",
+        },
+        cpfs_reap=["12345678901", "10987654321", "11122233344"],
+    )
+    pend = itens_defeso_para_relatorio(
+        [confirmada, pendente_ficha], **base, filtros={"entrada": "nao"}
+    )
+    nomes = [x["nome"] for x in pend]
+    assert "Ana Confirmada" not in nomes
+    assert "Bruno Pendente" in nomes
+    assert "Carla Sem Ficha" in nomes
+    conf = itens_defeso_para_relatorio(
+        [confirmada, pendente_ficha], **base, filtros={"entrada": "sim"}
+    )
+    assert [x["nome"] for x in conf] == ["Ana Confirmada"]
+    todas = itens_defeso_para_relatorio(
+        [confirmada, pendente_ficha], **base, filtros={"entrada": "todas"}
+    )
+    assert len(todas) == 3
+
+
 def test_defeso_sem_municipio_nao_agrupa() -> None:
     from controle.defeso import FichaDefeso, format_parcelas
     from controle.defeso_relatorio import itens_defeso_para_relatorio, montar_html_defeso
@@ -170,7 +222,7 @@ def test_csv_respeita_colunas() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.8"' in theme
+    assert 'APP_VERSION = "2.0.0.0"' in theme
 
 
 if __name__ == "__main__":

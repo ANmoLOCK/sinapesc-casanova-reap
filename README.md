@@ -29,7 +29,7 @@ Versão anterior: [v1.8.4](https://github.com/ANmoLOCK/sinapesc-casanova-reap/re
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
-Guia Informe Mensal (v1.8.5): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
+Guia Informe Mensal (v1.8.6): [`docs/INFORME-MENSAL.md`](./docs/INFORME-MENSAL.md)
 
 O ZIP traz `SinapescREAP.exe`, `config.json`, `LEIA-ME.txt` e tutoriais. Extraia numa pasta (ex.: `C:\Sinapesc\`) e coloque o `google-credentials.json` junto.
 
@@ -62,6 +62,11 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 - Login online multi-usuário (aba **Usuarios** + PBKDF2), papéis admin/operador/leitura
 - Tela **Usuários**: ativar/desativar, editar, reset senha
 - Filtro por usuário na auditoria (REAP / Informe / Consulta RGP)
+
+## O que havia na v1.8.6
+
+- Cérebro Informe **v6-sazonal**: Pacu, Pirambeba e Cascudo no filtro Peixes; anti-repetição peixe/kg/valor; preço e abundância por estação; 8 espécies só ~20% dos sócios
+- Defeso: filtro **Pendentes de entrada**; relatório HTML não some ao marcar pendentes (inclui sócio sem ficha)
 
 ## O que havia na v1.8.5
 

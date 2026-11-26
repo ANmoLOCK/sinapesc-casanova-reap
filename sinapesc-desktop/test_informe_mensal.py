@@ -86,12 +86,28 @@ def test_cerebro_ano_completo_qualquer_ordem() -> None:
         assert len(ordens) == 8
         for r in salvos.values():
             for e in r.especies:
-                assert e.valor == im.PRECOS_VAREJO[e.nome]
+                assert e.valor == im.preco_mes(e.nome, r.mes)
                 assert isinstance(e.kg, int)
+                assert im.KG_MIN <= e.kg <= im.KG_MAX
             assert im.DIAS_MIN <= r.dias <= im.DIAS_MAX
-    # cada sócio com plano próprio; 8 espécies só para uma parte deles
+        # meses vizinhos: sem o mesmo (peixe, kg); sobreposição de nomes só se inevitável
+        for a, b in zip(im.MESES_PESCA, im.MESES_PESCA[1:]):
+            sa, sb = salvos[a].especies, salvos[b].especies
+            assert not ({(e.nome, e.kg) for e in sa} & {(e.nome, e.kg) for e in sb})
+    # cada sócio com plano próprio; 8 espécies só para ~20%
     assert len(planos) == 120
-    assert 0.2 <= com8 / 120 <= 0.5, com8
+    assert 0.08 <= com8 / 120 <= 0.35, com8
+
+
+def test_catalogo_novos_peixes() -> None:
+    for nome in ("Pacu", "Pirambeba", "Cascudo"):
+        assert nome in im.PRECOS_VAREJO
+        assert nome in im.ESPECIES_TODAS
+    assert len(im.ESPECIES_TODAS) >= 11
+    assert im.MOTOR.startswith("cerebro_reformulacao/v6")
+    # preço sazonal muda entre meses de safra vs escassez
+    assert im.preco_mes("Tucunaré", "set") <= im.preco_mes("Tucunaré", "ago")
+    assert im.preco_mes("Pescada", "jul") <= im.preco_mes("Pescada", "mar")
 
 
 def test_probabilidade_plano() -> None:
@@ -99,7 +115,7 @@ def test_probabilidade_plano() -> None:
     for m in im.MESES_PESCA:
         assert abs(sum(p["por_mes"][m].values()) - 1) < 0.01
         assert p["por_mes"][m]["8"] < p["por_mes"][m]["4"]
-    assert 0.3 <= p["chance_ter_8"] <= 0.4
+    assert 0.12 <= p["chance_ter_8"] <= 0.28
     # meio da safra tem mais chance de 8 que as pontas
     assert p["por_mes"]["jun"]["8"] > p["por_mes"]["mar"]["8"]
     regras = im.regras_probabilidade()
@@ -724,7 +740,9 @@ def test_api_salvar_informe_especies() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "1.8.8"' in theme
+    assert 'APP_VERSION = "2.0.0.0"' in theme
+    assert "Pacu" in (ROOT / "controle" / "informe_mensal.py").read_text(encoding="utf-8")
+    assert "defeso-pendentes" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

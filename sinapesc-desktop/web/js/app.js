@@ -52,6 +52,7 @@
     defesoSearch: "",
     defesoLocalidade: "",
     defesoSomenteConfirmadas: false,
+    defesoSomentePendentesEntrada: false,
     defesoSomenteParcelas: false,
     defesoLocalidades: [],
     adminLocalidade: "",
@@ -2424,6 +2425,10 @@
             Entradas confirmadas
           </label>
           <label class="pacote-check filter-check">
+            <input type="checkbox" id="defeso-pendentes" ${state.defesoSomentePendentesEntrada ? "checked" : ""} />
+            Pendentes de entrada
+          </label>
+          <label class="pacote-check filter-check">
             <input type="checkbox" id="defeso-parcelas" ${state.defesoSomenteParcelas ? "checked" : ""} />
             Com parcela disponível
           </label>
@@ -2443,6 +2448,20 @@
     });
     $("#defeso-confirmadas")?.addEventListener("change", (e) => {
       state.defesoSomenteConfirmadas = !!e.target.checked;
+      if (state.defesoSomenteConfirmadas) {
+        state.defesoSomentePendentesEntrada = false;
+        const pend = $("#defeso-pendentes");
+        if (pend) pend.checked = false;
+      }
+      paintDefesoLista();
+    });
+    $("#defeso-pendentes")?.addEventListener("change", (e) => {
+      state.defesoSomentePendentesEntrada = !!e.target.checked;
+      if (state.defesoSomentePendentesEntrada) {
+        state.defesoSomenteConfirmadas = false;
+        const conf = $("#defeso-confirmadas");
+        if (conf) conf.checked = false;
+      }
       paintDefesoLista();
     });
     $("#defeso-parcelas")?.addEventListener("change", (e) => {
@@ -2471,7 +2490,9 @@
       { id: "entrada", label: "Entrada confirmada" },
       { id: "observacao", label: "Observação" },
     ];
-    const entradaCur = state.defesoSomenteConfirmadas ? "sim" : "todas";
+    const entradaCur = state.defesoSomenteConfirmadas
+      ? "sim"
+      : (state.defesoSomentePendentesEntrada ? "nao" : "todas");
     const parcelaCur = state.defesoSomenteParcelas ? "com" : "todas";
     const backdrop = createModal(`
       <div class="modal-head">Relatório Defeso Fácil</div>
@@ -2598,6 +2619,8 @@
     }
     if (state.defesoSomenteConfirmadas) {
       itens = itens.filter((x) => x.confirmada);
+    } else if (state.defesoSomentePendentesEntrada) {
+      itens = itens.filter((x) => !x.confirmada);
     }
     if (state.defesoSomenteParcelas) {
       itens = itens.filter((x) => x.tem_parcela);
