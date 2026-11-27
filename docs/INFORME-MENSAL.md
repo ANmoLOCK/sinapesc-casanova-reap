@@ -35,6 +35,7 @@ Módulo novo do SINAPESC que gera o **REAP do Informe Mensal** de cada sócio, *
 - Clique na linha (ou em **Abrir**) para abrir a caixa do sócio.
 - Botão **Peixes**: configuração exclusiva desta aba. Marque quais peixes do catálogo (11 espécies, incl. **Pacu**, **Pirambeba** e **Cascudo**) podem ser usados ao Gerar REAP. A seleção é **universal** (vale para todos os sócios), fica em `config.json` e exige no mínimo 4 peixes. Com 4 ou 5 peixes a alternância 4/5/6 é impossível: o plano usa só as quantidades que cabem, nunca 3 meses seguidos iguais, e o alvo de kg do ano se ajusta. Com menos de 8, o mês de 8 espécies não entra no plano. **Só o admin** altera a seleção.
 - **Cadastrar peixe** (só admin, dentro da janela Peixes): nome + preço R$/kg (inteiro, mínimo R$ 11). O peixe vai para a aba `InformePeixes` da planilha REAP e aparece para **todos** os computadores na próxima vez que abrirem o Informe Mensal, já ligado no cérebro. Fica registrado na auditoria ("Peixe cadastrado").
+- **Precificar** (mesmo lugar, todo mundo vê; só o admin grava): preço base de cada peixe, em real inteiro, mínimo R$ 11. A faixa ao lado ("gera R$ …") é o que o gerador pode sortear na época cara e na época barata. Ao salvar, a aba `InformePrecos` é atualizada e o **próximo Gerar REAP já usa esse preço**. Auditoria: "Precificou".
 
 ![Peixes](previews/informe-mensal/informe_17_config_peixes.png)
 

@@ -15,6 +15,10 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v2.1.0.0** — Informe Mensal: admin cadastra peixe e precifica (aba InformePrecos). O gerador usa o preço na hora; os outros usuários veem preço e faixa. Mínimo de 4 peixes, sem vaivém de listas. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
+
+**Download:** [SinapescREAP-Windows-v2.1.0.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip)
+
 **v2.0.0.0** — Versão consolidada: login online + permissões + Aprovações de exclusão, Informe v6-sazonal, Defeso pendentes e revisão de segurança em todos os módulos (só-leitura não grava em lugar nenhum; Configurações só admin; Gov.br oculta para leitura). Guia Informe: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
 
 **Download:** [SinapescREAP-Windows-v2.0.0.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip)

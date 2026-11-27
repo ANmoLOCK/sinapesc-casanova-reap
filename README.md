@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | **v2.0.0.0** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip) |
+| Versão atual | **v2.1.0.0** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v2.0.0.0)
+## Download do EXE (v2.1.0.0)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.0/SinapescREAP-Windows-v2.0.0.0.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0
 
-Versão anterior: [v1.8.5](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v1.8.5)
+Versão anterior: [v2.0.0.0](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0)
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 
@@ -51,7 +51,13 @@ O site lê só as abas **Pessoas** e **Reap**. CPF no celular fica **mascarado**
 
 ---
 
-## O que há na v2.0.0.0
+## O que há na v2.1.0.0
+
+- **Informe Mensal — Cadastrar peixe** (só admin): o peixe novo entra na planilha e aparece em todos os computadores
+- **Precificar** (só admin grava; todo mundo vê): preço base de cada peixe, ligado direto ao gerador. Real inteiro, nunca abaixo de R$ 11, com a faixa da época ao lado
+- Mínimo de peixes volta a **4** (com 4 ou 5 o ano fecha). Sorteio sem o vaivém Mar = Mai = Jul
+
+## O que havia na v2.0.0.0
 
 Versão que junta tudo desde a v1.8.5 (Informe v6, Defeso pendentes, login online, permissões e aprovações) com uma revisão de bugs em todos os módulos.
 

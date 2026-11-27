@@ -229,6 +229,7 @@
               <option value="abrir_tabela_socio" ${S.audAcao === "abrir_tabela_socio" ? "selected" : ""}>Tabela do sócio</option>
               <option value="config_especies_informe" ${S.audAcao === "config_especies_informe" ? "selected" : ""}>Peixes</option>
               <option value="cadastrar_peixe_informe" ${S.audAcao === "cadastrar_peixe_informe" ? "selected" : ""}>Peixe cadastrado</option>
+              <option value="precificar_informe" ${S.audAcao === "precificar_informe" ? "selected" : ""}>Precificou</option>
             </select>
           </div>
           <div class="im-audit-list" id="im-aud-list"></div>
@@ -396,7 +397,7 @@
     });
   }
 
-  function openConfigPeixes() {
+  function openConfigPeixes(opts) {
     const todas = S.meta.especies_todas || (S.meta.catalogo || []).map((c) => c.nome);
     const ativas = new Set(S.meta.especies_ativas || todas);
     const min = S.meta.especies_minimo || 4;
@@ -407,12 +408,28 @@
       if (c.extra) extras.add(c.nome);
     });
     if (S.modalPeixes && S.modalPeixes.isConnected) S.modalPeixes.remove();
+    const faixaTxt = (n) => {
+      const c = (S.meta.catalogo || []).find((x) => x.nome === n) || {};
+      if (!c.preco_min || !c.preco_max) return "";
+      return ` · gera R$ ${Math.round(c.preco_min)}–${Math.round(c.preco_max)}`;
+    };
     const boxes = todas.map((n) => `
       <label class="im-peixe-item">
         <input type="checkbox" data-im-peixe="${esc(n)}" ${ativas.has(n) ? "checked" : ""} />
         <span class="im-peixe-nome">${esc(n)}</span>
-        <span class="im-peixe-preco">R$ ${fmtMoney(precos[n] || 0)}/kg${extras.has(n) ? " · novo" : ""}</span>
+        <span class="im-peixe-preco">R$ ${fmtMoney(precos[n] || 0)}/kg${faixaTxt(n)}${extras.has(n) ? " · novo" : ""}</span>
       </label>`).join("");
+    const linhasPreco = todas.map((n) => {
+      const c = (S.meta.catalogo || []).find((x) => x.nome === n) || {};
+      const faixa = c.preco_min && c.preco_max
+        ? `gera R$ ${Math.round(c.preco_min)}–${Math.round(c.preco_max)}`
+        : "";
+      return `<label class="im-precos-linha">
+        <span class="im-peixe-nome">${esc(n)}${c.ajustado ? " · ajustado" : ""}</span>
+        <input type="number" data-im-preco="${esc(n)}" min="11" max="200" step="1" value="${Math.round(Number(precos[n]) || 0)}" />
+        <span class="im-precos-faixa">${faixa}</span>
+      </label>`;
+    }).join("");
     const admin = ehAdmin();
     S.modalPeixes = window.sinapescCreateModal(`
       <div class="im-peixes-box">
@@ -427,8 +444,15 @@
           <p class="im-det-help">Marque os peixes que podem ser usados ao <strong>Gerar REAP</strong>.
           Precisa de pelo menos <strong>${min}</strong>. Se marcar menos de 8, o mês com 8 espécies não entra no plano.
           O preço muda conforme a época de cada peixe (nunca abaixo de R$ 11/kg).
-          ${admin ? "" : "<br><strong>Só o admin altera a seleção e cadastra peixes.</strong>"}</p>
+          ${admin ? "" : "<br><strong>Só o admin altera a seleção, cadastra e precifica. Você pode ver os preços.</strong>"}</p>
           <div class="im-peixes-grid" id="im-peixes-grid">${boxes}</div>
+          <div id="im-precos-painel" hidden>
+            <p class="im-det-help">Preço base em R$/kg (número inteiro, mínimo R$ 11). O gerador parte deste valor e muda conforme a época do peixe — a faixa ao lado é o que pode sair no REAP. Vale para todos os computadores.</p>
+            <div class="im-precos-lista">${linhasPreco}</div>
+            ${admin
+              ? `<button type="button" class="btn btn-primary btn-sm" id="im-precos-salvar">Salvar preços</button>`
+              : `<p class="im-det-help">Só o admin grava. Estes são os preços que o gerador está usando.</p>`}
+          </div>
           ${admin ? `
           <div class="im-peixes-novo">
             <input type="text" id="im-peixe-novo-nome" maxlength="40" placeholder="Nome do peixe novo" />
@@ -438,6 +462,7 @@
           <div class="im-peixes-foot">
             <span id="im-peixes-count"></span>
             <div class="im-peixes-btns">
+              <button type="button" class="btn btn-ghost btn-sm" id="im-precos-abrir">Precificar</button>
               ${admin ? `<button type="button" class="btn btn-ghost btn-sm" id="im-peixes-todos">Marcar todos</button>
               <button type="button" class="btn btn-primary" id="im-peixes-salvar">Salvar seleção</button>` : ""}
             </div>
@@ -460,6 +485,37 @@
     };
     S.modalPeixes.querySelector("#im-peixes-close")?.addEventListener("click", () => {
       if (S.modalPeixes && S.modalPeixes._close) S.modalPeixes._close(false);
+    });
+    if (opts && opts.precos) {
+      const painelIni = S.modalPeixes.querySelector("#im-precos-painel");
+      if (painelIni) painelIni.hidden = false;
+    }
+    S.modalPeixes.querySelector("#im-precos-abrir")?.addEventListener("click", () => {
+      const painel = S.modalPeixes.querySelector("#im-precos-painel");
+      if (!painel) return;
+      painel.hidden = !painel.hidden;
+      if (!painel.hidden) painel.scrollIntoView({ block: "nearest" });
+    });
+    if (!admin) {
+      S.modalPeixes.querySelectorAll("[data-im-preco]").forEach((inp) => { inp.disabled = true; });
+    }
+    S.modalPeixes.querySelector("#im-precos-salvar")?.addEventListener("click", () => {
+      const precosNovos = [...S.modalPeixes.querySelectorAll("[data-im-preco]")].map((inp) => ({
+        nome: inp.dataset.imPreco,
+        preco: Math.round(Number(String(inp.value).replace(",", "."))),
+      }));
+      const ruim = precosNovos.find((p) => !Number.isFinite(p.preco) || p.preco < 11 || p.preco > 200);
+      if (ruim) {
+        toast(`${ruim.nome}: preço por kg de R$ 11 a R$ 200, sem centavos.`, 4200);
+        return;
+      }
+      if (S.busy) return;
+      S.busy = true;
+      toast("Salvando preços…", 2000);
+      api("salvar_informe_precos", JSON.stringify({ precos: precosNovos })).catch((e) => {
+        S.busy = false;
+        toast(String(e));
+      });
     });
     S.modalPeixes.querySelector("#im-peixes-todos")?.addEventListener("click", () => {
       S.modalPeixes.querySelectorAll("[data-im-peixe]").forEach((c) => { c.checked = true; });
@@ -894,6 +950,7 @@
     abrir_tabela_socio: "Tabela sócio",
     config_especies_informe: "Peixes",
     cadastrar_peixe_informe: "Peixe cadastrado",
+    precificar_informe: "Precificou",
   };
 
   function ehAdmin() {
@@ -1047,6 +1104,18 @@
       });
       toast(`${d.nome} cadastrado (R$ ${fmtMoney(d.preco)}/kg) — já aparece para todos.`, 5200);
       if (S.modalPeixes) openConfigPeixes();
+      if (onScreen() && S.tab === "socios") paintTable();
+    });
+    window.AppEvents.on("informe_precos_salvos", (r) => {
+      S.busy = false;
+      if (!r.ok) {
+        failed(r, "Falha ao salvar os preços.");
+        return;
+      }
+      const d = r.data || {};
+      if (d.catalogo) S.meta.catalogo = d.catalogo;
+      toast("Preços salvos. O gerador já usa esses valores.", 5200);
+      if (S.modalPeixes) openConfigPeixes({ precos: true });
       if (onScreen() && S.tab === "socios") paintTable();
     });
     window.AppEvents.on("informe_especies_salvas", (r) => {

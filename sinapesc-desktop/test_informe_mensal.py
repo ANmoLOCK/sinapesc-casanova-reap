@@ -214,6 +214,37 @@ def test_peixe_cadastrado_entra_para_todos() -> None:
     assert "Surubim" not in im.ESPECIES_TODAS
 
 
+def test_precificar_entra_no_gerador() -> None:
+    antes = im.preco_mes("Tucunaré", "out")
+    im.aplicar_precos([("tucunare", 40), ("NaoExiste", 30)])
+    try:
+        assert im.PRECOS_VAREJO["Tucunaré"] == 40.0
+        assert im.preco_mes("Tucunaré", "out") > antes
+        assert "Tucunaré" in im.PRECOS_AJUSTADOS
+        lo, hi = im.faixa_preco("Tucunaré", "out")
+        assert lo >= 11 and lo == int(lo)
+        r = im.gerar_mes(
+            person_id="p", cpf="12345678901", nome="", telefone="", ano=2026, mes="out",
+            salvos={}, especies_ativas=["Tucunaré", "Tambaqui", "Tilápia", "Curimatã"], seed=4,
+        )
+        tucs = [e for e in r.informe.especies if e.nome == "Tucunaré"]
+        assert tucs and lo <= tucs[0].valor <= hi
+        try:
+            im.validar_precos_informe([{"nome": "Tilápia", "preco": 9}])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("preço abaixo de 11 deveria falhar")
+        assert im.validar_precos_informe([{"nome": "Tilapia", "preco": "22"}]) == [("Tilápia", 22.0)]
+        cat = {c["nome"]: c for c in im.catalogo()}
+        assert cat["Tucunaré"]["ajustado"] and cat["Tucunaré"]["preco"] == 40
+        assert cat["Tucunaré"]["preco_max"] >= cat["Tucunaré"]["preco_min"] >= 11
+    finally:
+        im.definir_peixes_extras([])
+    assert im.PRECOS_VAREJO["Tucunaré"] == 18.0
+    assert "Tucunaré" not in im.PRECOS_AJUSTADOS
+
+
 def test_probabilidade_plano() -> None:
     p = im.probabilidades_plano()
     for m in im.MESES_PESCA:
@@ -554,7 +585,8 @@ def test_ui_botao_e_tela() -> None:
                   "Abrir tabela no navegador", "abrir_informe_tabela", "informe_tabela",
                   "abrir_informe_tabela_socio", "im-card-tabela", "data-im-tabela",
                   "Peixes", "salvar_informe_especies", "im-peixes-grid",
-                  "data-im-peixe"):
+                  "data-im-peixe", "Precificar", "salvar_informe_precos",
+                  "im-precos-painel"):
         assert token in im_js, token
     css = (ROOT / "web" / "css" / "informe_mensal.css").read_text(encoding="utf-8")
     assert ".im-mes-pir" in css and "not-allowed" in css
@@ -837,7 +869,10 @@ def test_api_salvar_informe_especies() -> None:
     assert r["ok"] is False and "admin" in r["error"]
     r = api.cadastrar_informe_peixe(json.dumps({"nome": "Surubim", "preco": 20}))
     assert r["ok"] is False and "admin" in r["error"]
+    r = api.salvar_informe_precos(json.dumps({"precos": [{"nome": "Tilápia", "preco": 30}]}))
+    assert r["ok"] is False and "admin" in r["error"]
     assert im.PEIXES_TAB not in cli.tabs
+    assert im.PRECOS_TAB not in cli.tabs
     api._papel = "admin"
     try:
         api.salvar_informe_especies(json.dumps({"especies": pool_in}))
@@ -862,10 +897,27 @@ def test_api_salvar_informe_especies() -> None:
         assert cli.tabs[im.PEIXES_TAB][-1][:2] == ["Surubim", "21"]
         api.cadastrar_informe_peixe(json.dumps({"nome": "SURUBIM", "preco": "25"}))
         assert not eventos[-1][1]["ok"] and "catálogo" in eventos[-1][1]["error"]
-        # outro PC (catálogo zerado) lê o peixe da planilha ao abrir o Informe
+        api.salvar_informe_precos(json.dumps({"precos": [{"nome": "Tilápia", "preco": 8}]}))
+        assert eventos[-1][0] == "informe_precos_salvos" and not eventos[-1][1]["ok"]
+        api.salvar_informe_precos(json.dumps({
+            "precos": [{"nome": "Tilápia", "preco": 30}, {"nome": "Surubim", "preco": 28}],
+        }))
+        ev, res = eventos[-1]
+        assert ev == "informe_precos_salvos" and res["ok"], res
+        assert cli.tabs[im.PRECOS_TAB][0] == im.PRECOS_HEADER
+        gravados = {row[0]: row[1] for row in cli.tabs[im.PRECOS_TAB][1:]}
+        assert gravados["Tilápia"] == "30" and gravados["Surubim"] == "28"
+        assert cli.tabs[im.PEIXES_TAB][-1][:2] == ["Surubim", "28"]
+        cat = {c["nome"]: c for c in res["data"]["catalogo"]}
+        assert cat["Tilápia"]["preco"] == 30 and cat["Tilápia"]["ajustado"]
+        assert cat["Tilápia"]["preco_min"] >= 11
+        # outro PC lê peixe e preço da planilha ao abrir o Informe
         im.definir_peixes_extras([])
         api.load_informe_mensal(2026)
-        assert eventos[-1][1]["ok"] and "Surubim" in eventos[-1][1]["data"]["especies_todas"]
+        data = eventos[-1][1]["data"]
+        assert eventos[-1][1]["ok"] and "Surubim" in data["especies_todas"]
+        cat = {c["nome"]: c for c in data["catalogo"]}
+        assert cat["Tilápia"]["preco"] == 30 and cat["Surubim"]["preco"] == 28
     finally:
         im.definir_peixes_extras([])
         cfg2 = load_config()
@@ -877,7 +929,7 @@ def test_api_salvar_informe_especies() -> None:
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "2.0.0.0"' in theme
+    assert 'APP_VERSION = "2.1.0.0"' in theme
     assert "Pacu" in (ROOT / "controle" / "informe_mensal.py").read_text(encoding="utf-8")
     assert "defeso-pendentes" in (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
 

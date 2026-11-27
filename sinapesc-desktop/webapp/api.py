@@ -2679,9 +2679,15 @@ class SinapescApi:
     def _carregar_peixes_informe(inf: InformeMensalService) -> None:
         """Peixes cadastrados na planilha entram no catálogo de todos os PCs."""
         try:
-            im.definir_peixes_extras(inf.listar_peixes())
+            extras = inf.listar_peixes()
         except Exception:  # noqa: BLE001
-            pass
+            extras = []
+        im.definir_peixes_extras(extras)
+        try:
+            precos = inf.listar_precos()
+        except Exception:  # noqa: BLE001
+            precos = []
+        im.aplicar_precos(precos)
 
     def _erro_nao_admin_informe(self) -> Optional[Dict[str, Any]]:
         try:
@@ -2689,7 +2695,7 @@ class SinapescApi:
         except Exception as exc:  # noqa: BLE001
             return err(str(exc))
         if not self._logged_in or self._papel != usuarios_mod.PAPEL_ADMIN:
-            return err("Só o admin cadastra ou configura os peixes do Informe Mensal.")
+            return err("Só o admin cadastra, precifica ou configura os peixes do Informe Mensal.")
         return None
 
     @classmethod
@@ -2918,6 +2924,25 @@ class SinapescApi:
             return {"nome": nome, "preco": preco, **self._informe_meta()}
 
         return self._run_async("informe_peixe_cadastrado", work, "Cadastrando peixe…")
+
+    def salvar_informe_precos(self, payload: Any = None) -> Dict[str, Any]:
+        """Admin grava o preço base (R$/kg). O gerador usa esse valor na hora."""
+        data = _informe_args(payload)
+        bloqueio = self._erro_nao_admin_informe()
+        if bloqueio:
+            return bloqueio
+
+        def work():
+            inf = self._ensure_informe(require_write=True)
+            self._carregar_peixes_informe(inf)
+            itens = im.validar_precos_informe(data.get("precos"))
+            inf.salvar_precos(itens)
+            self._carregar_peixes_informe(inf)
+            texto = ", ".join(f"{n} R$ {p:.0f}" for n, p in itens)
+            inf.registrar_auditoria("precificar_informe", f"Precificou: {texto}")
+            return {"precos": [{"nome": n, "preco": p} for n, p in itens], **self._informe_meta()}
+
+        return self._run_async("informe_precos_salvos", work, "Salvando preços dos peixes…")
 
     def gerar_informe_mes(self, payload: Any) -> Dict[str, Any]:
         data = _informe_args(payload)

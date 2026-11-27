@@ -77,6 +77,10 @@ MIN_ESPECIES_ATIVAS = 4
 
 PEIXES_TAB = "InformePeixes"
 PEIXES_HEADER = ["nome", "preco", "criadoEm", "criadoPor"]
+# preços base gravados pelo admin (aba InformePrecos); o gerador lê daqui
+PRECOS_TAB = "InformePrecos"
+PRECOS_HEADER = ["nome", "preco", "atualizadoEm", "atualizadoPor"]
+PRECOS_AJUSTADOS: set = set()
 # nenhum peixe sai abaixo de R$ 11/kg; preços sempre em real inteiro (sem centavos)
 PRECO_PISO = 11.0
 PEIXE_PRECO_MIN = PRECO_PISO
@@ -116,7 +120,67 @@ def definir_peixes_extras(extras: Iterable[Tuple[str, Any]]) -> None:
         PRECOS_VAREJO[nome] = float(max(PRECO_PISO, round(p)))
         chaves.add(k)
     ESPECIES_TODAS = tuple(PRECOS_VAREJO.keys())
+    PRECOS_AJUSTADOS.clear()
     _perfil_cache.cache_clear()
+
+
+def _preco_inteiro(preco: Any) -> float:
+    """R$/kg em real inteiro, entre o piso e o teto. ``ValueError`` se inválido."""
+    try:
+        p = float(round(float(str(preco).replace("R$", "").replace(",", ".").strip())))
+    except (TypeError, ValueError):
+        raise ValueError("Preço inválido (use R$ por kg, ex.: 15).") from None
+    if not (PEIXE_PRECO_MIN <= p <= PEIXE_PRECO_MAX):
+        raise ValueError(
+            f"Preço deve ficar entre R$ {PEIXE_PRECO_MIN:.0f} e R$ {PEIXE_PRECO_MAX:.0f} por kg."
+        )
+    return p
+
+
+def aplicar_precos(pares: Iterable[Tuple[str, Any]]) -> None:
+    """Grava no catálogo os preços do admin. O gerador (``preco_mes``) lê daqui."""
+    por = {_chave_peixe(n): n for n in PRECOS_VAREJO}
+    novos: set = set()
+    for nome, preco in pares or ():
+        canon = por.get(_chave_peixe(str(nome or "")))
+        if not canon:
+            continue
+        try:
+            p = float(max(PRECO_PISO, round(float(str(preco).replace("R$", "").replace(",", ".")))))
+        except (TypeError, ValueError):
+            continue
+        if p > PEIXE_PRECO_MAX:
+            continue
+        PRECOS_VAREJO[canon] = p
+        base = PRECOS_BASE.get(canon)
+        if base is None or float(base) != p:
+            novos.add(canon)
+    PRECOS_AJUSTADOS.clear()
+    PRECOS_AJUSTADOS.update(novos)
+    _perfil_cache.cache_clear()
+
+
+def validar_precos_informe(raw: Any) -> List[Tuple[str, float]]:
+    """Lista (nome do catálogo, R$/kg inteiro) vinda do botão Precificar."""
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("Informe o preço de pelo menos um peixe.")
+    por = {_chave_peixe(n): n for n in PRECOS_VAREJO}
+    out: List[Tuple[str, float]] = []
+    vistos: set = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("Preço inválido.")
+        nome = str(item.get("nome") or "").strip()
+        canon = por.get(_chave_peixe(nome))
+        if not canon:
+            raise ValueError(f"{nome or 'Peixe'} não está no catálogo.")
+        if canon in vistos:
+            continue
+        out.append((canon, _preco_inteiro(item.get("preco"))))
+        vistos.add(canon)
+    return out
 
 
 def validar_novo_peixe(nome: Any, preco: Any) -> Tuple[str, float]:
@@ -129,15 +193,7 @@ def validar_novo_peixe(nome: Any, preco: Any) -> Tuple[str, float]:
     nome_txt = nome_txt[0].upper() + nome_txt[1:]
     if _chave_peixe(nome_txt) in {_chave_peixe(n) for n in PRECOS_VAREJO}:
         raise ValueError(f"{nome_txt} já está no catálogo.")
-    try:
-        p = float(round(float(str(preco).replace("R$", "").replace(",", ".").strip())))
-    except (TypeError, ValueError):
-        raise ValueError("Preço inválido (use R$ por kg, ex.: 15).") from None
-    if not (PEIXE_PRECO_MIN <= p <= PEIXE_PRECO_MAX):
-        raise ValueError(
-            f"Preço deve ficar entre R$ {PEIXE_PRECO_MIN:.2f} e R$ {PEIXE_PRECO_MAX:.2f} por kg."
-        )
-    return nome_txt, p
+    return nome_txt, _preco_inteiro(preco)
 
 
 def especies_ativas_de_config(cfg: Dict[str, Any]) -> List[str]:
@@ -1741,13 +1797,42 @@ def texto_para_site(reg: InformeMes) -> str:
     return "\n".join(linhas)
 
 
+def faixa_ano(nome: str) -> Tuple[float, float]:
+    """Menor e maior R$/kg que o gerador pode sortear para este peixe no ano."""
+    los: List[float] = []
+    his: List[float] = []
+    for mes in MESES_PESCA:
+        lo, hi = faixa_preco(nome, mes)
+        if hi > 0:
+            los.append(lo)
+            his.append(hi)
+    if not los:
+        return 0.0, 0.0
+    return min(los), max(his)
+
+
 def catalogo(ativas: Optional[Sequence[str]] = None) -> List[Dict[str, Any]]:
-    """Catálogo completo; ``ativo`` indica se entra no cérebro (seleção universal)."""
+    """Catálogo completo; ``ativo`` indica se entra no cérebro (seleção universal).
+
+    ``preco`` é o valor base que o admin precifica. ``preco_min``/``preco_max`` é a
+    faixa que o gerador realmente sorteia (época + variação), já com esse base.
+    """
     ligados = set(normalizar_especies_ativas(ativas))
-    return [
-        {"nome": n, "preco": p, "ativo": n in ligados, "extra": n not in PRECOS_BASE}
-        for n, p in PRECOS_VAREJO.items()
-    ]
+    out: List[Dict[str, Any]] = []
+    for n, p in PRECOS_VAREJO.items():
+        lo, hi = faixa_ano(n)
+        out.append(
+            {
+                "nome": n,
+                "preco": p,
+                "preco_min": lo,
+                "preco_max": hi,
+                "ativo": n in ligados,
+                "extra": n not in PRECOS_BASE,
+                "ajustado": n in PRECOS_AJUSTADOS,
+            }
+        )
+    return out
 
 
 def resumo_especies_ativas(ativas: Optional[Sequence[str]] = None) -> Dict[str, Any]:

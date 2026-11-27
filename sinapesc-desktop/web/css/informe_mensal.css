@@ -134,6 +134,24 @@ body.screen-informe .tab-bar { display: none; }
 }
 .im-peixes-novo input[type="text"] { flex: 1; min-width: 0; }
 .im-peixes-novo input[type="number"] { width: 90px; }
+.im-precos-lista { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.im-precos-linha {
+  display: grid;
+  grid-template-columns: 1fr 96px minmax(120px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.im-precos-linha input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.im-precos-linha input:disabled { background: #F4F7F8; color: var(--primary); }
+.im-precos-faixa { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .im-peixes-warn { color: #A82E26; font-weight: 600; }
 .im-row-ok .im-nome { color: #1F7A4A; }
 .im-nome { font-weight: 600; color: var(--primary); }

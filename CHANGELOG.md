@@ -6,9 +6,13 @@ Formato: mais recente primeiro.
 
 ---
 
-## [Não lançado] — Informe Mensal: cadastro de peixes e anti-repetição
+## [v2.1.0.0] — 2026-11-27 — Informe Mensal: cadastrar e precificar peixes
+
+**Tag:** [`v2.1.0.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip
 
 - **Cadastrar peixe** (só admin) na janela Peixes do Informe Mensal: grava na aba `InformePeixes` e aparece para todos os computadores
+- **Precificar** no mesmo lugar: o admin grava o preço base (R$/kg, inteiro, mínimo R$ 11) na aba `InformePrecos`; os outros usuários veem o preço e a faixa que o gerador sorteia. O próximo Gerar REAP já usa esse valor
 - Seleção de peixes do Informe agora é só do admin
 - Mínimo de peixes volta a ser **4**; com 4 ou 5 o ano fecha sem avisos (plano e alvo de kg se ajustam)
 - Preços em **real inteiro**, nunca abaixo de **R$ 11/kg**, com época cara/barata mais forte por peixe e variação por sócio/mês (±12%); o mesmo peixe não repete o valor no mês vizinho

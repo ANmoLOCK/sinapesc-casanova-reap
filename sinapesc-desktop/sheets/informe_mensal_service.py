@@ -1,4 +1,4 @@
-"""Abas InformeMensal, InformeAuditoria e InformePeixes dentro da planilha do REAP."""
+"""Abas InformeMensal, InformeAuditoria, InformePeixes e InformePrecos na planilha do REAP."""
 
 from __future__ import annotations
 
@@ -15,7 +15,10 @@ from controle.informe_mensal import (
     INFORME_TAB,
     PEIXES_HEADER,
     PEIXES_TAB,
+    PRECOS_HEADER,
+    PRECOS_TAB,
     InformeMes,
+    _chave_peixe,
     row_to_informe,
 )
 from sheets.client import GoogleSheetsClient
@@ -43,7 +46,7 @@ class InformeMensalService:
         }
         to_add = [
             {"addSheet": {"properties": {"title": title}}}
-            for title in (INFORME_TAB, INFORME_AUDITORIA_TAB, PEIXES_TAB)
+            for title in (INFORME_TAB, INFORME_AUDITORIA_TAB, PEIXES_TAB, PRECOS_TAB)
             if title not in existing
         ]
         if to_add:
@@ -60,6 +63,9 @@ class InformeMensalService:
         px = self.client.get_values(f"{PEIXES_TAB}!A1:D1")
         if not px or not px[0]:
             self.client.update_values(f"{PEIXES_TAB}!A1", [PEIXES_HEADER])
+        pr = self.client.get_values(f"{PRECOS_TAB}!A1:D1")
+        if not pr or not pr[0]:
+            self.client.update_values(f"{PRECOS_TAB}!A1", [PRECOS_HEADER])
         self._ready = True
 
     def listar_peixes(self) -> List[Tuple[str, Any]]:
@@ -75,6 +81,58 @@ class InformeMensalService:
             f"{PEIXES_TAB}!A2",
             [[nome, str(int(round(float(preco)))), agora, (self.actor or "").strip()]],
         )
+
+    def listar_precos(self) -> List[Tuple[str, Any]]:
+        """Preços base definidos pelo admin: [(nome, R$/kg)]."""
+        self.ensure()
+        rows = self.client.get_values(f"{PRECOS_TAB}!A2:B")
+        return [(str(r[0]).strip(), r[1] if len(r) > 1 else "") for r in rows if r and str(r[0]).strip()]
+
+    def salvar_precos(self, itens: List[Tuple[str, float]]) -> None:
+        """Grava o preço base. O gerador passa a usar este valor em todo PC."""
+        self.ensure()
+        agora = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        ator = (self.actor or "").strip()
+        rows = self.client.get_values(f"{PRECOS_TAB}!A2:D") or []
+        ordem: List[str] = []
+        por: Dict[str, List[Any]] = {}
+        for r in rows:
+            if not r or not str(r[0]).strip():
+                continue
+            k = _chave_peixe(r[0])
+            if not k or k in por:
+                continue
+            por[k] = list(r)
+            ordem.append(k)
+        for nome, preco in itens:
+            k = _chave_peixe(nome)
+            linha = [nome, str(int(round(float(preco)))), agora, ator]
+            if k in por:
+                por[k] = linha
+            else:
+                por[k] = linha
+                ordem.append(k)
+        if ordem:
+            self.client.update_values(f"{PRECOS_TAB}!A2", [por[k][:4] for k in ordem])
+        self._espelhar_preco_cadastro(itens)
+
+    def _espelhar_preco_cadastro(self, itens: List[Tuple[str, float]]) -> None:
+        """Peixe cadastrado guarda o mesmo preço na aba InformePeixes."""
+        rows = self.client.get_values(f"{PEIXES_TAB}!A2:D") or []
+        por = {_chave_peixe(n): int(round(float(p))) for n, p in itens}
+        mudou = False
+        saida: List[List[Any]] = []
+        for r in rows:
+            if not r or not str(r[0]).strip():
+                continue
+            linha = (list(r) + ["", "", "", ""])[:4]
+            k = _chave_peixe(linha[0])
+            if k in por and str(linha[1]) != str(por[k]):
+                linha[1] = str(por[k])
+                mudou = True
+            saida.append(linha)
+        if mudou and saida:
+            self.client.update_values(f"{PEIXES_TAB}!A2", saida)
 
     def _linhas(self) -> List[tuple]:
         """[(row_idx, InformeMes)] — 1 GET."""
