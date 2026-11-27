@@ -3195,6 +3195,36 @@ class SinapescApi:
         except Exception as exc:  # noqa: BLE001
             return err(str(exc))
 
+    def get_emitir_dec_fontes(self) -> Dict[str, Any]:
+        """Times, Arial e Calibri do EmitirDec. Exige login; não grava planilha."""
+        try:
+            self._revalidar_sessao()
+        except Exception as exc:  # noqa: BLE001
+            return err(str(exc))
+        from controle.emitir_dec import DEFAULT_FONTE as fonte_padrao
+        from controle.emitir_dec import listar_fontes as fontes_dec
+
+        return ok(fontes=fontes_dec(), fonte=fonte_padrao)
+
+    def emitir_declaracao(self, payload: Any = None, fonte_id: str = "") -> Dict[str, Any]:
+        """Preenche endereço e/ou filiação e abre o PDF no navegador."""
+        data = _informe_args(payload)
+        fonte_arg = str(fonte_id or data.get("fonte") or "").strip()
+
+        def work():
+            self._revalidar_sessao()
+            from controle.emitir_dec import gerar_pdf, normalize_fonte as fonte_dec
+
+            fonte = fonte_dec(fonte_arg)
+            path = gerar_pdf(data, fonte_id=fonte)
+            try:
+                _abrir_no_navegador(path)
+            except OSError as exc:
+                raise ValueError(f"Não foi possível abrir a declaração: {exc}") from exc
+            return {"path": str(path), "fonte": fonte}
+
+        return self._run_async("emitir_dec", work, "Gerando declarações…")
+
     def quit_app(self) -> Dict[str, Any]:
         if webview:
             webview.destroy_window()

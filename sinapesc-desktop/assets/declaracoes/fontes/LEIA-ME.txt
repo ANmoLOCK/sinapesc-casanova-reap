@@ -1,0 +1,9 @@
+Times New Roman, Arial e Calibri neste programa usam arquivos de métrica
+equivalente, sob a SIL Open Font License:
+
+- Liberation Serif (Times New Roman)
+- Liberation Sans (Arial)
+- Carlito (Calibri) — https://github.com/google/fonts/tree/main/ofl/carlito
+
+A licença permite usar e redistribuir as fontes. O nome comercial
+(Times, Arial, Calibri) é só o rótulo na tela.

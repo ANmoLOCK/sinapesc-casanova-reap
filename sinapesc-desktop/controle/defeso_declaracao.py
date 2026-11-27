@@ -163,13 +163,33 @@ def valores_da_ficha(f: FichaDefeso) -> Dict[str, str]:
     }
 
 
+# Altura mínima da letra. Maiúscula é mais larga: aperta na horizontal
+# em vez de encolher o corpo até 8pt (aí a letra some dentro do campo).
+MIN_CORPO = 12.0
+MIN_ESCALA = 0.72
+
+
+def _encaixe(font: Any, text: str, max_w: float, want: float, *, piso: float = MIN_CORPO) -> Tuple[float, float]:
+    """(tamanho, escala horizontal). Cabe no traço sem comer o papel e sem ficar miúda."""
+    tamanho = max(float(want), float(piso))
+    if not text or max_w <= 0:
+        return tamanho, 1.0
+    largura = float(font.text_length(text, fontsize=tamanho))
+    if largura <= max_w or largura <= 0:
+        return tamanho, 1.0
+    escala = max_w / largura
+    if escala >= MIN_ESCALA:
+        return tamanho, escala
+    tamanho = max(float(piso), tamanho * (escala / MIN_ESCALA))
+    largura = float(font.text_length(text, fontsize=tamanho))
+    if largura <= 0:
+        return tamanho, 1.0
+    return tamanho, min(1.0, max_w / largura)
+
+
 def _fit_size(font: Any, text: str, max_w: float, want: float) -> float:
-    for size in (want, want - 1, want - 2, want - 3, 14, 12, 11, 10, 9, 8):
-        if size < 8:
-            break
-        if font.text_length(text, fontsize=size) <= max_w:
-            return float(size)
-    return 8.0
+    tamanho, _escala = _encaixe(font, text, max_w, want)
+    return tamanho
 
 
 def _bind_font(page: Any, fitz: Any, fonte_id: str) -> Tuple[str, Any]:
@@ -193,9 +213,25 @@ def _rng_for(fonte_id: str, field: str, text: str) -> random.Random:
     return random.Random(seed)
 
 
+def _insert(page: Any, fitz: Any, point: Tuple[float, float], text: str, *, fontname: str, fontsize: float, escala: float) -> None:
+    x, y = point
+    if escala < 0.995:
+        page.insert_text(
+            (x, y),
+            text,
+            fontname=fontname,
+            fontsize=fontsize,
+            color=PEN_BLUE,
+            morph=(fitz.Point(x, y), fitz.Matrix(escala, 1)),
+        )
+        return
+    page.insert_text((x, y), text, fontname=fontname, fontsize=fontsize, color=PEN_BLUE)
+
+
 def _draw_plain(
     page: Any,
     *,
+    fitz: Any,
     fontname: str,
     font: Any,
     text: str,
@@ -206,15 +242,16 @@ def _draw_plain(
     center: bool,
 ) -> None:
     max_w = max(8.0, x1 - x0 - 2)
-    fs = _fit_size(font, text, max_w, size)
-    tw = font.text_length(text, fontsize=fs)
+    fs, escala = _encaixe(font, text, max_w, size)
+    tw = font.text_length(text, fontsize=fs) * escala
     x = x0 + max(0.0, (max_w - tw) / 2) if center else x0 + 1.2
-    page.insert_text((x, yu - 3.4), text, fontname=fontname, fontsize=fs, color=PEN_BLUE)
+    _insert(page, fitz, (x, yu - 3.4), text, fontname=fontname, fontsize=fs, escala=escala)
 
 
 def _draw_hand(
     page: Any,
     *,
+    fitz: Any,
     fontname: str,
     font: Any,
     text: str,
@@ -226,30 +263,26 @@ def _draw_hand(
     size: float,
     center: bool,
 ) -> None:
-    """Desenha letra a letra com jitter de tamanho/Y — efeito caneta no formulário."""
+    """Desenha letra a letra com tremor de mão. Maiúscula aperta o espaçamento, não o corpo."""
     max_w = max(8.0, x1 - x0 - 2)
-    base = _fit_size(font, text, max_w * 0.98, size)
+    base, _escala = _encaixe(font, text, max_w * 0.98, size)
     rng = _rng_for(fonte_id, field, text)
 
-    # Mede largura total com jitter médio para decidir start X
     widths: List[float] = []
     sizes: List[float] = []
     for ch in text:
-        fs = base * rng.uniform(0.93, 1.08)
-        fs = max(11.0, min(fs, base + 2.8))
+        fs = base * rng.uniform(0.96, 1.04)
+        fs = max(MIN_CORPO, min(fs, base + 1.2))
         sizes.append(fs)
-        # espaço um pouco irregular
         if ch == " ":
-            widths.append(font.text_length(" ", fontsize=base) * rng.uniform(0.8, 1.25))
+            widths.append(font.text_length(" ", fontsize=base) * rng.uniform(0.85, 1.15))
         else:
-            widths.append(font.text_length(ch, fontsize=fs) * rng.uniform(0.96, 1.04))
+            widths.append(font.text_length(ch, fontsize=fs) * rng.uniform(0.97, 1.03))
 
     total = sum(widths)
-    # Se estourou, reduz proporcionalmente
     if total > max_w and total > 0:
-        scale = max_w / total
-        widths = [w * scale for w in widths]
-        sizes = [max(10.0, s * scale) for s in sizes]
+        factor = max_w / total
+        widths = [w * factor for w in widths]
         total = sum(widths)
 
     x = x0 + max(0.0, (max_w - total) / 2) if center else x0 + 1.0
@@ -334,6 +367,7 @@ def preencher_pdf(
         if hand:
             _draw_hand(
                 page,
+                fitz=fitz,
                 fontname=fontname,
                 font=font,
                 text=text,
@@ -348,6 +382,7 @@ def preencher_pdf(
         else:
             _draw_plain(
                 page,
+                fitz=fitz,
                 fontname=fontname,
                 font=font,
                 text=text,

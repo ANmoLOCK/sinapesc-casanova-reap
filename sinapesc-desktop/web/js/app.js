@@ -3763,6 +3763,7 @@
               ? window.SinapescRgpFuncoes.toolbarButtonsHtml()
               : ""}
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
+            <button type="button" class="rgp-btn rgp-btn-emitir" id="rgp-emitirdec">EmitirDec</button>
           </div>
         </div>
 
@@ -3901,6 +3902,17 @@
       window.SinapescRgpFuncoes.bindToolbar();
     }
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal());
+    $("#rgp-emitirdec")?.addEventListener("click", () => {
+      if (!window.SinapescEmitirDec) {
+        toast("Módulo EmitirDec indisponível.");
+        return;
+      }
+      const ids = selectedConsultaIds();
+      const reg = ids.length
+        ? (state.consultaRgpItens || []).find((x) => x.id === ids[0])
+        : null;
+      window.SinapescEmitirDec.open(reg || {});
+    });
     $("#rgp-excluir-sel")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
     $("#rgp-excluir-sel-2")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
     // Busca: atualiza só o tbody (não recria o input — bug «1 letra por vez»).
