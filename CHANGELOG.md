@@ -6,6 +6,19 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v2.0.0.3] — 2026-11-27 — Declarações separadas e Administração na tela inicial
+
+**Tag:** [`v2.0.0.3`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.3)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.3/SinapescREAP-Windows-v2.0.0.3.zip
+
+- EmitirDec abre com a escolha: Declaração de Residência ou Declaração de Filiação, cada uma com seus campos
+- A letra fica um pouco acima do traço: g, p, q, j e y não são mais cortados pela linha
+- Na residência, o número vai no traço depois de "número:" (segunda linha)
+- Data de filiação vazia fica em branco (não vira a data de hoje)
+- Cartão Administração (Usuários e Aprovações) na tela inicial, visível só para quem entra com papel admin
+
+---
+
 ## [v2.0.0.2] — 2026-11-27 — EmitirDec alinhado no traço
 
 **Tag:** [`v2.0.0.2`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.2)  

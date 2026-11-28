@@ -64,8 +64,8 @@ CAMPOS_ENDERECO: Dict[str, Tuple[float, float, float]] = {
     "profissao": (148.0, 193.4, 300.0),
     "cpf": (142.0, 217.7, 340.0),
     "rg": (138.0, 242.6, 280.0),
-    "endereco": (82.0, 265.9, 458.0),
-    "numero": (536.0, 265.9, 555.0),
+    "endereco": (82.0, 265.9, 548.0),
+    "numero": (444.0, 281.3, 552.0),
     "bairro": (128.0, 306.0, 350.0),
     "municipio": (430.0, 306.0, 548.0),
     "uf": (114.0, 329.8, 152.0),
@@ -164,9 +164,7 @@ def valores_de_payload(payload: Dict[str, Any]) -> Dict[str, str]:
     if not residente:
         pedacos = [p for p in (endereco, numero, bairro, f"{municipio}-{uf}" if municipio else "") if p]
         residente = ", ".join(pedacos)
-    filiacao = _limpar(data.get("data_filiacao")) or (
-        f"{dia} de {mes} de {ano}".strip(" de") if dia or mes or ano else ""
-    )
+    filiacao = _limpar(data.get("data_filiacao"))
     return {
         "nome": _limpar(data.get("nome")),
         "cpf": cpf,
@@ -198,7 +196,7 @@ def validar(valores: Dict[str, str], quais: Sequence[str]) -> Optional[str]:
     if len(cpf) != 11:
         return "CPF deve ter 11 dígitos."
     if not quais:
-        return "Marque a declaração de endereço, a de afiliação, ou as duas."
+        return "Escolha a declaração de residência ou a de filiação."
     return None
 
 
@@ -266,8 +264,10 @@ def _draw(page: Any, fitz: Any, fontname: str, font: Any, text: str, box: Tuple[
 
 def _preencher(page: Any, fitz: Any, fonte_id: str, campos: Dict[str, Tuple[float, float, float]], valores: Dict[str, str]) -> None:
     fontname, font, size = _bind(page, fitz, fonte_id)
+    # g, p, q, j e y descem abaixo da base: a letra fica acima do traço para não ser cortada
+    folga = max(2.5, -float(font.descender) * size + 0.6)
     for chave, (x0, palpite, x1) in campos.items():
-        y = _baseline(page, fitz, x0, x1, palpite)
+        y = _baseline(page, fitz, x0, x1, palpite) - folga
         _draw(page, fitz, fontname, font, valores.get(chave) or "", (x0, y, x1), size)
 
 

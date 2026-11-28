@@ -734,12 +734,21 @@
         </div>
         <div class="home-card">
           <h3>Módulo Consulta</h3>
-          <p>Planilha própria: cadastre nome, CPF, município, telefone e observação; consulte o RGP no MPA. EmitirDec gera a declaração de endereço e a de afiliação.</p>
+          <p>Planilha própria: cadastre nome, CPF, município, telefone e observação; consulte o RGP no MPA. EmitirDec emite a declaração de residência ou a de filiação, uma de cada vez.</p>
           <div class="home-card-actions">
             <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
             <button type="button" class="btn btn-primary" id="go-emitirdec">EmitirDec</button>
           </div>
         </div>
+        ${state.podeAdminUsuarios ? `
+        <div class="home-card">
+          <h3>Administração</h3>
+          <p>Só aparece para o admin. Cadastre quem pode entrar, bloqueie ou libere logins, troque senhas e aceite ou recuse pedidos de exclusão.</p>
+          <div class="home-card-actions">
+            <button type="button" class="btn btn-primary" id="go-usuarios">Usuários</button>
+            <button type="button" class="btn btn-primary" id="go-aprovacoes">Aprovações</button>
+          </div>
+        </div>` : ""}
       </div>
       <div class="tip-box">Login único ativo (online, aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
     `);
@@ -752,6 +761,14 @@
     });
     $("#go-consulta-rgp").addEventListener("click", goConsultaRgp);
     $("#go-emitirdec").addEventListener("click", goEmitirDec);
+    $("#go-usuarios")?.addEventListener("click", () => {
+      if (!requireLogin("usuarios") || !state.podeAdminUsuarios) return;
+      navigate("usuarios", { tab: "usuarios" });
+    });
+    $("#go-aprovacoes")?.addEventListener("click", () => {
+      if (!requireLogin("home") || !state.podeAdminUsuarios) return;
+      navigate("aprovacoes", { tab: "aprovacoes" });
+    });
   }
 
   function goEmitirDec() {

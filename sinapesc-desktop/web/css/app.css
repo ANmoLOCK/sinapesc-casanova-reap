@@ -1341,22 +1341,16 @@ body.screen-rgp .footer-legal {
   gap: 0 12px;
 }
 .ed-grid .span-2 { grid-column: 1 / -1; }
-.ed-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 18px;
-  margin: 4px 0 8px;
+.ed-escolha {
+  display: grid;
+  gap: 10px;
+  margin: 6px 0 4px;
 }
-.ed-checks label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-  color: #0A2F52;
-  font-weight: 650;
+.ed-escolha .btn {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
 }
-.ed-checks input { width: auto; }
 .ed-fontes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -15,6 +15,10 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v2.0.0.3** — EmitirDec separado: escolha Residência ou Filiação. Letra acima do traço. Cartão Administração na tela inicial, só para admin.
+
+**Download:** [SinapescREAP-Windows-v2.0.0.3.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.3/SinapescREAP-Windows-v2.0.0.3.zip)
+
 **v2.0.0.2** — EmitirDec com a folha de endereço endireitada, letra de 13 pt no traço, e a data de baixo em branco nas duas declarações.
 
 **Download:** [SinapescREAP-Windows-v2.0.0.2.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.2/SinapescREAP-Windows-v2.0.0.2.zip)

@@ -130,7 +130,8 @@ class EmitirDecTest(unittest.TestCase):
         v = valores_de_payload({"nome": "Ana", "cpf": "123"})
         self.assertIn("11", validar(v, ["endereco"]) or "")
         v = valores_de_payload({"nome": "Ana", "cpf": "10582575524"})
-        self.assertIn("Marque", validar(v, []) or "")
+        self.assertIn("Escolha", validar(v, []) or "")
+        self.assertEqual(valores_de_payload({"nome": "Ana"})["data_filiacao"], "")
 
     def test_tela_tem_o_botao(self) -> None:
         app = (ROOT / "web" / "js" / "app.js").read_text(encoding="utf-8")
@@ -144,10 +145,16 @@ class EmitirDecTest(unittest.TestCase):
         self.assertNotIn("rgp-emitirdec", app)
         self.assertIn("SinapescEmitirDec.open", app)
         self.assertIn("Gerar PDF", js)
-        self.assertIn("Declaração de endereço", js)
-        self.assertIn("Declaração de afiliação", js)
+        self.assertIn("Emitir Declaração de Residência", js)
+        self.assertIn("Emitir Declaração de Filiação", js)
+        self.assertNotIn("ed-checks", js)
+        self.assertIn("quais: [tipo]", js)
         self.assertIn("Times New Roman", js)
         self.assertIn("emitir_dec.js", html)
+        home = app.split("function renderHome()", 1)[1].split("function goEmitirDec", 1)[0]
+        self.assertIn('${state.podeAdminUsuarios ? `', home)
+        self.assertIn('id="go-usuarios"', home)
+        self.assertIn('id="go-aprovacoes"', home)
         self.assertIn("def emitir_declaracao", api)
 
 
