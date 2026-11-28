@@ -11,21 +11,21 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | **v2.0.0.1** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip) |
+| Versão atual | **v2.0.0.2** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.2/SinapescREAP-Windows-v2.0.0.2.zip) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v2.0.0.1)
+## Download do EXE (v2.0.0.2)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.2/SinapescREAP-Windows-v2.0.0.2.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.1
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.2
 
-Versão anterior: [v2.1.0.0](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0)
+Versão anterior: [v2.0.0.1](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.1)
 
 ## O que há na v2.0.0.1
 

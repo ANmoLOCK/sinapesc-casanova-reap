@@ -38,54 +38,48 @@ FONTES: Dict[str, Dict[str, str]] = {
         "id": "times",
         "label": "Times New Roman",
         "file": "LiberationSerif-Regular.ttf",
-        "size": "12",
+        "size": "13",
     },
     "arial": {
         "id": "arial",
         "label": "Arial",
         "file": "LiberationSans-Regular.ttf",
-        "size": "11.5",
+        "size": "13",
     },
     "calibri": {
         "id": "calibri",
         "label": "Calibri",
         "file": "Carlito-Regular.ttf",
-        "size": "12",
+        "size": "13",
     },
 }
 DEFAULT_FONTE = "times"
 
-# (x0, baseline, x1) — o texto senta no traço e não passa de x1
+# (x0, palpite da linha, x1). A base é ajustada no traço real.
+# Local, dia, mês e ano ficam em branco para preencher à mão.
 CAMPOS_ENDERECO: Dict[str, Tuple[float, float, float]] = {
-    "nome": (52.0, 152.0, 548.0),
-    "nacionalidade": (150.0, 176.0, 248.0),
-    "estado_civil": (352.0, 176.0, 530.0),
-    "profissao": (144.0, 198.0, 248.0),
-    "cpf": (142.0, 220.0, 245.0),
-    "rg": (128.0, 242.0, 225.0),
-    "endereco": (48.0, 268.0, 430.0),
-    "numero": (492.0, 268.0, 552.0),
-    "bairro": (118.0, 298.0, 275.0),
-    "municipio": (405.0, 298.0, 540.0),
-    "uf": (118.0, 324.0, 152.0),
-    "cep": (198.0, 324.0, 275.0),
-    "telefone": (408.0, 324.0, 545.0),
-    "email": (128.0, 346.0, 545.0),
-    "local": (108.0, 622.0, 200.0),
-    "dia": (218.0, 622.0, 265.0),
-    "mes": (338.0, 622.0, 420.0),
-    "ano": (485.0, 622.0, 540.0),
+    "nome": (80.0, 146.4, 538.0),
+    "nacionalidade": (170.0, 170.4, 308.0),
+    "estado_civil": (396.0, 170.4, 530.0),
+    "profissao": (148.0, 193.4, 300.0),
+    "cpf": (142.0, 217.7, 340.0),
+    "rg": (138.0, 242.6, 280.0),
+    "endereco": (82.0, 265.9, 458.0),
+    "numero": (536.0, 265.9, 555.0),
+    "bairro": (128.0, 306.0, 350.0),
+    "municipio": (430.0, 306.0, 548.0),
+    "uf": (114.0, 329.8, 152.0),
+    "cep": (204.0, 329.8, 318.0),
+    "telefone": (438.0, 329.8, 548.0),
+    "email": (136.0, 355.7, 545.0),
 }
 
 CAMPOS_FILIACAO: Dict[str, Tuple[float, float, float]] = {
     "nome": (54.0, 140.5, 408.0),
     "cpf": (452.0, 140.5, 568.0),
-    "rg": (68.0, 168.0, 174.0),
+    "rg": (76.0, 168.0, 174.0),
     "residente": (230.0, 168.0, 560.0),
     "data_filiacao": (118.0, 447.0, 545.0),
-    "dia": (210.0, 492.0, 270.0),
-    "mes": (292.0, 492.0, 382.0),
-    "ano": (398.0, 492.0, 458.0),
 }
 
 
@@ -217,6 +211,38 @@ def _bind(page: Any, fitz: Any, fonte_id: str) -> Tuple[str, Any, float]:
     return "dec", fitz.Font(fontfile=str(path)), float(meta["size"])
 
 
+def _baseline(page: Any, fitz: Any, x0: float, x1: float, guess: float) -> float:
+    """Encosta a letra no traço de verdade, numa faixa estreita em volta do palpite."""
+    if x1 - x0 < 8:
+        return guess
+    clip = fitz.Rect(x0, guess - 6, x1, guess + 6)
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), clip=clip, alpha=False)
+    w, h, n = pix.width, pix.height, pix.n
+    if w < 4 or h < 2 or n < 3:
+        return guess
+    data = pix.samples
+    scores = []
+    step = 2
+    cols = max(1, (w + step - 1) // step)
+    for row in range(h):
+        dark = 0
+        base = row * w * n
+        col = 0
+        while col < w:
+            i = base + col * n
+            if data[i] < 110 and data[i + 1] < 110 and data[i + 2] < 110:
+                dark += 1
+            col += step
+        scores.append(dark / cols)
+    pico = max(range(h), key=scores.__getitem__)
+    if scores[pico] < 0.35:
+        return guess
+    fundo = pico
+    while fundo + 1 < h and scores[fundo + 1] >= scores[pico] * 0.55:
+        fundo += 1
+    return clip.y0 + (fundo + 0.5) / 2.0
+
+
 def _draw(page: Any, fitz: Any, fontname: str, font: Any, text: str, box: Tuple[float, float, float], size: float) -> None:
     texto = (text or "").strip()
     if not texto:
@@ -240,8 +266,9 @@ def _draw(page: Any, fitz: Any, fontname: str, font: Any, text: str, box: Tuple[
 
 def _preencher(page: Any, fitz: Any, fonte_id: str, campos: Dict[str, Tuple[float, float, float]], valores: Dict[str, str]) -> None:
     fontname, font, size = _bind(page, fitz, fonte_id)
-    for chave, box in campos.items():
-        _draw(page, fitz, fontname, font, valores.get(chave) or "", box, size)
+    for chave, (x0, palpite, x1) in campos.items():
+        y = _baseline(page, fitz, x0, x1, palpite)
+        _draw(page, fitz, fontname, font, valores.get(chave) or "", (x0, y, x1), size)
 
 
 def quais_de(raw: Any) -> List[str]:

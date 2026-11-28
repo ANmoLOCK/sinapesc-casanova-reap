@@ -93,6 +93,9 @@ class EmitirDecTest(unittest.TestCase):
         self.assertIn(nome, doc[0].get_text("text"))
         self.assertIn(nome, doc[1].get_text("text"))
         self.assertIn("15 de março de 2019", doc[1].get_text("text"))
+        # local, dia, mês e ano ficam em branco nas duas folhas
+        self.assertNotIn("novembro", doc[0].get_text("text"))
+        self.assertNotIn("novembro", doc[1].get_text("text"))
         self._cabe(doc[0], CAMPOS_ENDERECO)
         self._cabe(doc[1], CAMPOS_FILIACAO)
         doc.close()

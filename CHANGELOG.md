@@ -6,6 +6,18 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v2.0.0.2] — 2026-11-27 — EmitirDec alinhado no traço
+
+**Tag:** [`v2.0.0.2`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.2)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.2/SinapescREAP-Windows-v2.0.0.2.zip
+
+- A declaração de endereço foi endireitada (a folha escaneada estava inclinada) e a letra senta no traço
+- Fonte em 13 pt. Maiúscula longa aperta só a largura e não sai do espaço
+- Local, dia, mês e ano ficam em branco na residência e na filiação, para preencher à mão
+- O restante (nome, documentos, endereço e data de filiação) continua preenchido
+
+---
+
 ## [v2.0.0.1] — 2026-11-27 — EmitirDec e pacote completo
 
 **Tag:** [`v2.0.0.1`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.1)  
