@@ -15,6 +15,10 @@ A interface padrão é **HTML/CSS** dentro da janela (WebView2), idêntica ao mo
 
 ## Versão
 
+**v2.0.0.1** — Pacote completo: peixes e preços do Informe Mensal, mais EmitirDec (declaração de endereço e de afiliação) ao lado de Abrir Consulta RGP. Maiúscula aperta só a largura, também no Defeso Fácil.
+
+**Download:** [SinapescREAP-Windows-v2.0.0.1.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip)
+
 **v2.1.0.0** — Informe Mensal: admin cadastra peixe e precifica (aba InformePrecos). O gerador usa o preço na hora; os outros usuários veem preço e faixa. Mínimo de 4 peixes, sem vaivém de listas. Guia: [../docs/INFORME-MENSAL.md](../docs/INFORME-MENSAL.md)
 
 **Download:** [SinapescREAP-Windows-v2.1.0.0.zip](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip)

@@ -105,8 +105,9 @@ jobs:
              o socio so some quando o admin aprova na tela Aprovacoes
              (aba ExclusoesPendentes da planilha).
           14. Informe Mensal: botao Peixes (minimo 4). So o admin escolhe, cadastra e precifica; todo mundo ve os precos. Preco base em real inteiro, nunca abaixo de R$ 11, e o gerador usa esse valor.
+          15. EmitirDec: na tela de modulos, ao lado de Abrir Consulta RGP. Preenche a declaracao de endereco e a de afiliacao, escolhe Times, Arial ou Calibri, e Gerar PDF abre no navegador. Letra maiuscula aperta so a largura (altura minima 12 pt), tambem no Defeso Facil.
 
-          15. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
+          16. LICENCA: software proprietario — Gabriel Lourran Da Silva Costa
              gabriel730costa@gmail.com — ver LICENSE na pasta. Proibido copiar
              ou modificar sem autorizacao.
 

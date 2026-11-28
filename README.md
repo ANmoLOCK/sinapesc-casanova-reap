@@ -11,21 +11,29 @@ Controle de **REAP** (não é pagamento): a secretaria usa o EXE no Windows; o a
 | | |
 |--|--|
 | Repositório | https://github.com/ANmoLOCK/sinapesc-casanova-reap |
-| Versão atual | **v2.1.0.0** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip) |
+| Versão atual | **v2.0.0.1** · [download do EXE](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip) |
 | Site (consulta) | https://anmolock.github.io/sinapesc-casanova-reap/consulta.html |
 | Planilha (leitor) | https://docs.google.com/spreadsheets/d/1ydaWGF53VTkXyIyhf5XKJek5PKMDZO1_cD3CrRePft4/edit?usp=sharing |
 
 ---
 
-## Download do EXE (v2.1.0.0)
+## Download do EXE (v2.0.0.1)
 
 **Link direto (ZIP):**
 
-https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.1.0.0/SinapescREAP-Windows-v2.1.0.0.zip
+https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip
 
-Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0
+Página da release: https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.1
 
-Versão anterior: [v2.0.0.0](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.0)
+Versão anterior: [v2.1.0.0](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0)
+
+## O que há na v2.0.0.1
+
+Pacote completo: tudo da v2.1.0.0 mais o EmitirDec.
+
+- **EmitirDec** ao lado de Abrir Consulta RGP, na tela de módulos
+- Declaração de endereço e declaração de afiliação, um preenchimento, **Gerar PDF** no navegador
+- Times New Roman, Arial e Calibri. Maiúscula cabe no traço sem a letra ficar miúda — no EmitirDec e no Defeso Fácil
 
 Guia Defeso: [`docs/DEFESO-FACIL.md`](./docs/DEFESO-FACIL.md)
 

@@ -6,6 +6,21 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v2.0.0.1] — 2026-11-27 — EmitirDec e pacote completo
+
+**Tag:** [`v2.0.0.1`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.1)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.1/SinapescREAP-Windows-v2.0.0.1.zip
+
+Reúne o que já estava na v2.1.0.0 (cadastro e preço dos peixes, mínimo de 4, sorteio sem vaivém) e acrescenta:
+
+- **EmitirDec** na tela de módulos, ao lado de Abrir Consulta RGP (o mesmo par de Abrir REAP e Informe Mensal)
+- Declaração de endereço e declaração de afiliação no mesmo PDF, abertas no navegador para imprimir
+- Letras em caixa: Times New Roman, Arial e Calibri. Maiúscula longa aperta só a largura; a altura não fica abaixo de 12 pt
+- O mesmo encaixe vale no Defeso Fácil, onde a maiúscula encolhia até ficar miúda
+- Quem está logado imprime, inclusive leitura. O formulário não grava na planilha
+
+---
+
 ## [v2.1.0.0] — 2026-11-27 — Informe Mensal: cadastrar e precificar peixes
 
 **Tag:** [`v2.1.0.0`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.1.0.0)  
