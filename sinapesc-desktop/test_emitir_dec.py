@@ -134,7 +134,11 @@ class EmitirDecTest(unittest.TestCase):
         js = (ROOT / "web" / "js" / "emitir_dec.js").read_text(encoding="utf-8")
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         api = (ROOT / "webapp" / "api.py").read_text(encoding="utf-8")
-        self.assertIn('id="rgp-emitirdec">EmitirDec</button>', app)
+        card = app.split('id="go-consulta-rgp"', 1)[1].split("</div>", 1)[0]
+        self.assertIn('id="go-emitirdec">EmitirDec</button>', card)
+        self.assertLess(app.index('id="go-consulta-rgp"'), app.index('id="go-emitirdec"'))
+        self.assertIn("goEmitirDec", app)
+        self.assertNotIn("rgp-emitirdec", app)
         self.assertIn("SinapescEmitirDec.open", app)
         self.assertIn("Gerar PDF", js)
         self.assertIn("Declaração de endereço", js)

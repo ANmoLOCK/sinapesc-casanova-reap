@@ -734,8 +734,11 @@
         </div>
         <div class="home-card">
           <h3>Módulo Consulta</h3>
-          <p>Planilha própria: cadastre nome, CPF, município, telefone e observação; consulte o RGP no MPA.</p>
-          <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
+          <p>Planilha própria: cadastre nome, CPF, município, telefone e observação; consulte o RGP no MPA. EmitirDec gera a declaração de endereço e a de afiliação.</p>
+          <div class="home-card-actions">
+            <button type="button" class="btn btn-primary" id="go-consulta-rgp">Abrir Consulta RGP</button>
+            <button type="button" class="btn btn-primary" id="go-emitirdec">EmitirDec</button>
+          </div>
         </div>
       </div>
       <div class="tip-box">Login único ativo (online, aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
@@ -748,6 +751,16 @@
       navigate("lista");
     });
     $("#go-consulta-rgp").addEventListener("click", goConsultaRgp);
+    $("#go-emitirdec").addEventListener("click", goEmitirDec);
+  }
+
+  function goEmitirDec() {
+    if (!requireLogin("home")) return;
+    if (!window.SinapescEmitirDec) {
+      toast("Módulo EmitirDec indisponível.");
+      return;
+    }
+    window.SinapescEmitirDec.open({});
   }
 
   function renderLogin() {
@@ -3763,7 +3776,6 @@
               ? window.SinapescRgpFuncoes.toolbarButtonsHtml()
               : ""}
             <button type="button" class="rgp-btn rgp-btn-primary" id="rgp-cadastrar">＋ Cadastrar sócio</button>
-            <button type="button" class="rgp-btn rgp-btn-emitir" id="rgp-emitirdec">EmitirDec</button>
           </div>
         </div>
 
@@ -3902,17 +3914,6 @@
       window.SinapescRgpFuncoes.bindToolbar();
     }
     $("#rgp-cadastrar")?.addEventListener("click", () => openConsultaSocioModal());
-    $("#rgp-emitirdec")?.addEventListener("click", () => {
-      if (!window.SinapescEmitirDec) {
-        toast("Módulo EmitirDec indisponível.");
-        return;
-      }
-      const ids = selectedConsultaIds();
-      const reg = ids.length
-        ? (state.consultaRgpItens || []).find((x) => x.id === ids[0])
-        : null;
-      window.SinapescEmitirDec.open(reg || {});
-    });
     $("#rgp-excluir-sel")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
     $("#rgp-excluir-sel-2")?.addEventListener("click", () => excluirConsultaRgpSelecionados());
     // Busca: atualiza só o tbody (não recria o input — bug «1 letra por vez»).

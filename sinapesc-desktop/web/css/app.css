@@ -1335,12 +1335,6 @@ body.screen-rgp .footer-legal {
   color: #fff;
 }
 .rgp-btn-primary:hover { background: #155A8C; }
-.rgp-btn-emitir {
-  background: #0F6E56;
-  border-color: #0F6E56;
-  color: #fff;
-}
-.rgp-btn-emitir:hover { background: #0C5946; }
 .ed-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
