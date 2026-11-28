@@ -95,12 +95,12 @@ def test_js_e_servico_observacao() -> None:
     assert "Obs.:" in js
     svc = (ROOT / "sheets" / "defeso_service.py").read_text(encoding="utf-8")
     assert '(24, "observacao")' in svc
-    assert "A2:Y" in svc
+    assert "A2:Z" in svc
 
 
 def test_version() -> None:
     theme = (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "2.0.0.3"' in theme
+    assert 'APP_VERSION = "2.0.0.4"' in theme
 
 
 if __name__ == "__main__":

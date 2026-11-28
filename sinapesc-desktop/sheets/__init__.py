@@ -7,8 +7,12 @@ Como usar (visão geral didática):
 3. O módulo `service` lê/grava as abas "Pessoas", "Reap", "Auditoria" e "Config".
 """
 
-from .models import MESES, MESES_LABEL, MesKey, Pessoa, PessoaComReap, ReapAno
-from .service import SheetsService, SheetsConfigError
+from .http_seguro import instalar as _instalar_http_seguro
+
+_instalar_http_seguro()
+
+from .models import MESES, MESES_LABEL, MesKey, Pessoa, PessoaComReap, ReapAno  # noqa: E402
+from .service import SheetsService, SheetsConfigError  # noqa: E402
 
 __all__ = [
     "MESES",

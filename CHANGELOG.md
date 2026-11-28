@@ -6,6 +6,21 @@ Formato: mais recente primeiro.
 
 ---
 
+## [v2.0.0.4] — 2026-11-27 — Não fecha sozinho, Notificações e Lotes
+
+**Tag:** [`v2.0.0.4`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.4)  
+**Download:** https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/download/v2.0.0.4/SinapescREAP-Windows-v2.0.0.4.zip
+
+- Programa fechando sozinho: cada tarefa usa sua própria conexão com o Google Sheets (antes várias tarefas dividiam uma só e o programa caía sem aviso)
+- Erros graves agora ficam gravados em `logs/sinapesc-erros.log`, ao lado do EXE
+- Novo papel **diretoria** (presidente/vice): cadastra sócio e faz pedidos, sem editar nem excluir
+- Abrir REAP > aba **Notificações**: a diretoria clica em «Pedir REAP» no sócio (ou cadastra e pede); o pedido aparece em Notificações até alguém marcar Feito ou Recusar
+- Defeso Fácil > menu **Pescadores | Notificações**: marque o pescador e clique «Pedir entrada no seguro»
+- **Lotes do REAP**: o lote é o ano (Lote REAP 2026). «+ Abrir novo lote» cria o Lote REAP 2027 com os 12 meses em branco para todos, e ele vira o lote atual
+- **Lotes do Defeso**: Defeso 2026 (quem entra em janeiro de 2027), Defeso 2027 etc. Um pescador pode estar em vários lotes. Marque na lista e use «Colocar selecionados no lote»
+
+---
+
 ## [v2.0.0.3] — 2026-11-27 — Declarações separadas e Administração na tela inicial
 
 **Tag:** [`v2.0.0.3`](https://github.com/ANmoLOCK/sinapesc-casanova-reap/releases/tag/v2.0.0.3)  

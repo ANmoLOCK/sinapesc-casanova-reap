@@ -2035,3 +2035,100 @@ body.screen-rgp .footer-legal {
   .rgp-kpis { grid-template-columns: 1fr; }
   .rgp-topbar-divider { display: none; }
 }
+
+/* Notificações (pedidos da diretoria) e lotes */
+.notif-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #C62828;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: middle;
+}
+.sub-menu {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 12px;
+  border-bottom: 2px solid var(--border);
+}
+.sub-menu-item {
+  border: 0;
+  background: transparent;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+.sub-menu-item.active { color: var(--primary); border-bottom-color: var(--accent); }
+.lote-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 6px 0 8px;
+  padding: 8px 10px;
+  background: #EEF5FA;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.lote-help { font-size: 12px; color: var(--muted); }
+.lote-chip {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: #DCEBF6;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+}
+.pedido-badge {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: #FFF3CD;
+  color: #7A5300;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+}
+.chip {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 14px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--primary);
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pedido-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: var(--muted);
+}
+.pedido-pendente { border-left: 4px solid #E0A800; }
+.pedido-feito { border-left: 4px solid #2E7D32; }
+.pedido-recusado { border-left: 4px solid #9E9E9E; opacity: .85; }
+.ped-escolhido { margin: 2px 0 6px; font-size: 13px; }
+.ped-resultados { display: grid; gap: 4px; margin: 4px 0 6px; max-height: 220px; overflow: auto; }
+.ped-item {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ped-item:hover { background: #EEF5FA; }
+.defeso-sel { width: auto; margin: 0 10px 0 0; transform: scale(1.2); }

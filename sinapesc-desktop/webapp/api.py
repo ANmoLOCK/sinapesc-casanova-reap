@@ -178,6 +178,8 @@ class SinapescApi:
         self._busy = False
         self._queue: List[tuple] = []
         self._lock = threading.Lock()
+        self._js_lock = threading.Lock()
+        self._fechando = False
         self._logged_in = False
         self._admin_user = ""
         self._admin_nome = ""
@@ -189,6 +191,7 @@ class SinapescApi:
         self._pode_editar = False
         self._pode_pedir_exclusao = False
         self._pode_excluir_direto = False
+        self._pode_solicitar = False
         self._permissoes: List[str] = []
         self._usuario_id = ""
         self._service: Optional[SheetsService] = None
@@ -229,6 +232,7 @@ class SinapescApi:
                 "pode_editar": bool(self._pode_editar),
                 "pode_pedir_exclusao": bool(self._pode_pedir_exclusao),
                 "pode_excluir_direto": bool(self._pode_excluir_direto),
+                "pode_solicitar": bool(self._pode_solicitar),
                 "permissoes": list(self._permissoes),
                 "papeis": list(usuarios_mod.PAPEIS),
                 "modulos_todos": list(usuarios_mod.MODULOS_TODOS),
@@ -276,6 +280,7 @@ class SinapescApi:
             self._pode_editar = False
             self._pode_pedir_exclusao = False
             self._pode_excluir_direto = False
+            self._pode_solicitar = False
             return
         self._logged_in = True
         self._admin_user = user.email or email.strip()
@@ -290,6 +295,7 @@ class SinapescApi:
         self._pode_editar = user.pode_editar
         self._pode_pedir_exclusao = user.pode_pedir_exclusao
         self._pode_excluir_direto = user.pode_excluir_direto
+        self._pode_solicitar = user.pode_solicitar
 
     def _sessao_payload(self) -> Dict[str, Any]:
         return {
@@ -304,6 +310,7 @@ class SinapescApi:
             "pode_editar": bool(self._pode_editar),
             "pode_pedir_exclusao": bool(self._pode_pedir_exclusao),
             "pode_excluir_direto": bool(self._pode_excluir_direto),
+            "pode_solicitar": bool(self._pode_solicitar),
         }
 
     def _revalidar_sessao(self) -> None:
@@ -336,6 +343,7 @@ class SinapescApi:
             usuarios_mod.PERM_EDITAR: self._pode_editar,
             usuarios_mod.PERM_PEDIR_EXCLUSAO: self._pode_pedir_exclusao,
             usuarios_mod.PERM_EXCLUIR_DIRETO: self._pode_excluir_direto,
+            usuarios_mod.PERM_SOLICITAR: self._pode_solicitar,
         }.get(perm, False)
         if not flag:
             raise SheetsConfigError(f"Sem permissão: {perm}.")
@@ -553,11 +561,341 @@ class SinapescApi:
 
     # ---- async helpers ---------------------------------------------------
 
+    # ---- pedidos da diretoria (Notificações) ------------------------------
+
+    @staticmethod
+    def _payload_dict(payload: Any) -> Dict[str, Any]:
+        if isinstance(payload, dict):
+            return payload
+        if isinstance(payload, str) and payload.strip()[:1] in "{[":
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Payload inválido.") from exc
+            return data if isinstance(data, dict) else {}
+        return {}
+
+    def _pode_decidir_pedidos(self) -> bool:
+        return self._papel == usuarios_mod.PAPEL_ADMIN or bool(self._pode_editar)
+
+    def list_pedidos(self, tipo: str = "") -> Dict[str, Any]:
+        from controle.pedidos import normalizar_tipo, resumo
+
+        if not self._logged_in:
+            return err("Faça login.")
+        t = normalizar_tipo(tipo)
+
+        def work():
+            svc = self._ensure_service()
+            itens = svc.listar_pedidos(tipo=t)
+            return {
+                "tipo": t,
+                "itens": [p.to_dict() for p in itens],
+                "resumo": resumo(itens),
+                "pode_decidir": self._pode_decidir_pedidos(),
+                "pode_solicitar": bool(self._pode_solicitar or self._papel == usuarios_mod.PAPEL_ADMIN),
+            }
+
+        return self._run_async("pedidos", work, "Carregando notificações…")
+
+    def criar_pedido(self, payload: Any = None) -> Dict[str, Any]:
+        """Diretoria pede: fazer REAP (tipo reap) ou entrada no seguro (tipo defeso)."""
+        from controle.pedidos import TIPO_DEFESO, TIPO_REAP, normalizar_tipo, novo_pedido
+
+        try:
+            data = self._payload_dict(payload)
+            self._require_perm(usuarios_mod.PERM_SOLICITAR)
+        except (ValueError, SheetsConfigError) as exc:
+            return err(str(exc))
+        tipo = normalizar_tipo(data.get("tipo"))
+        if not tipo:
+            return err("Tipo de pedido inválido.")
+
+        def work():
+            svc = self._ensure_service()
+            person_id = str(data.get("person_id") or "").strip()
+            nome = str(data.get("nome") or "").strip()
+            cpf = only_digits(str(data.get("cpf") or ""))
+            if person_id:
+                pessoa = svc.get_pessoa_com_reap(person_id)
+                if pessoa is None:
+                    raise ValueError("Sócio não encontrado.")
+                nome = pessoa.nome
+                cpf = only_digits(getattr(pessoa, "cpf", "") or cpf)
+            lote = str(data.get("lote") or "").strip()
+            if not lote:
+                cfg = svc.lotes_config()
+                lote = (
+                    f"Lote REAP {cfg['reap_atual']}" if tipo == TIPO_REAP else str(cfg["defeso_atual"])
+                )
+            elif tipo == TIPO_REAP and lote.isdigit():
+                lote = f"Lote REAP {lote}"
+            pedido = novo_pedido(
+                tipo=tipo,
+                person_id=person_id,
+                nome=nome,
+                cpf=format_cpf(cpf) if len(cpf) == 11 else cpf,
+                lote=lote,
+                pedido_por=self._admin_user,
+                pedido_por_nome=self._admin_nome,
+                obs=str(data.get("obs") or ""),
+            )
+            svc.actor = self._admin_user
+            svc.criar_pedido(pedido)
+            return {"pedido": pedido.to_dict(), "tipo": tipo, "acao": "criado"}
+
+        return self._run_async("pedido_salvo", work, "Enviando pedido…")
+
+    def decidir_pedido(self, payload: Any = None) -> Dict[str, Any]:
+        """Secretaria marca o pedido como feito, recusado, ou reabre (pendente)."""
+        from controle.pedidos import STATUS_PENDENTE, STATUS_VALIDOS, now_stamp
+
+        try:
+            data = self._payload_dict(payload)
+            self._revalidar_sessao()
+        except (ValueError, SheetsConfigError) as exc:
+            return err(str(exc))
+        if not self._pode_decidir_pedidos():
+            return err("Só a secretaria (admin ou quem edita) marca pedidos como feitos.")
+        pedido_id = str(data.get("id") or "").strip()
+        status = str(data.get("status") or "").strip().lower()
+        status = {"feita": "feito", "fazer": "feito", "recusar": "recusado", "reabrir": STATUS_PENDENTE}.get(status, status)
+        if not pedido_id or status not in STATUS_VALIDOS:
+            return err("Pedido ou situação inválida.")
+
+        def work():
+            svc = self._ensure_service()
+            alvo = next((p for p in svc.listar_pedidos() if p.id == pedido_id), None)
+            if alvo is None:
+                raise ValueError("Pedido não encontrado.")
+            alvo.status = status
+            if status == STATUS_PENDENTE:
+                alvo.decidido_em = ""
+                alvo.decidido_por = ""
+            else:
+                alvo.decidido_em = now_stamp()
+                alvo.decidido_por = self._admin_nome or self._admin_user
+            if "obs" in data:
+                alvo.obs = str(data.get("obs") or "").strip()
+            svc.actor = self._admin_user
+            svc.atualizar_pedido(alvo)
+            return {"pedido": alvo.to_dict(), "tipo": alvo.tipo, "acao": status}
+
+        return self._run_async("pedido_salvo", work, "Atualizando pedido…")
+
+    # ---- lotes (REAP = ano; Defeso = nome livre) ---------------------------
+
+    def _lotes_payload(self, *, com_defeso: bool = True) -> Dict[str, Any]:
+        from controle.lotes import nome_lote_reap, ordenar_lotes
+
+        svc = self._ensure_service()
+        cfg = svc.lotes_config()
+        anos: Dict[int, int] = {}
+        for p in svc.get_all_pessoas_com_reap():
+            for a in getattr(p, "anos", []) or []:
+                if a.ano:
+                    anos[int(a.ano)] = anos.get(int(a.ano), 0) + 1
+        anos.setdefault(int(cfg["reap_atual"]), 0)
+        reap = [
+            {"ano": a, "nome": nome_lote_reap(a), "total": anos[a]}
+            for a in sorted(anos, reverse=True)
+        ]
+        out: Dict[str, Any] = {"reap": reap, "reap_atual": int(cfg["reap_atual"])}
+        if com_defeso:
+            defeso_lotes: List[Dict[str, Any]] = []
+            aviso = ""
+            try:
+                defeso_lotes = self._ensure_defeso().listar_lotes()
+            except Exception as exc:  # noqa: BLE001
+                aviso = f"Planilha Defeso indisponível: {exc}"
+            vistos = {str(d["nome"]).lower() for d in defeso_lotes}
+            for extra in [*cfg["defeso_extras"], cfg["defeso_atual"]]:
+                if extra and extra.lower() not in vistos:
+                    defeso_lotes.append({"nome": extra, "total": 0})
+                    vistos.add(extra.lower())
+            ordem = ordenar_lotes([str(d["nome"]) for d in defeso_lotes])
+            por_nome = {str(d["nome"]).lower(): d for d in defeso_lotes}
+            out["defeso"] = [por_nome[n.lower()] for n in ordem]
+            out["defeso_atual"] = cfg["defeso_atual"]
+            out["defeso_aviso"] = aviso
+        return out
+
+    def load_lotes(self) -> Dict[str, Any]:
+        if not self._logged_in:
+            return err("Faça login.")
+        return self._run_async("lotes", lambda: self._lotes_payload(), "Carregando lotes…")
+
+    def abrir_lote_reap(self, ano: Any = None, copiar_de: Any = None) -> Dict[str, Any]:
+        """Lote REAP novo (ex.: 2027): linha do ano em branco para cada sócio."""
+        from controle.lotes import ano_do_lote_reap
+
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+            alvo = ano_do_lote_reap(ano)
+            origem = ano_do_lote_reap(copiar_de) if str(copiar_de or "").strip() else None
+        except (ValueError, SheetsConfigError) as exc:
+            return err(str(exc))
+
+        def work():
+            svc = self._ensure_service()
+            svc.actor = self._admin_user
+            res = svc.abrir_lote_reap(alvo, copiar_de=origem)
+            res["lotes"] = self._lotes_payload(com_defeso=False)
+            return res
+
+        return self._run_async("lote_reap", work, f"Abrindo o Lote REAP {alvo}…")
+
+    def definir_lote_reap_atual(self, ano: Any = None) -> Dict[str, Any]:
+        from controle.lotes import ano_do_lote_reap
+
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+            alvo = ano_do_lote_reap(ano)
+        except (ValueError, SheetsConfigError) as exc:
+            return err(str(exc))
+
+        def work():
+            svc = self._ensure_service()
+            svc.definir_lote_reap_atual(alvo)
+            return self._lotes_payload(com_defeso=False)
+
+        return self._run_async("lotes", work, "Salvando lote atual…")
+
+    def criar_lote_defeso(self, nome: Any = None, copiar_de: Any = None) -> Dict[str, Any]:
+        """Lote Defeso novo (ex.: Defeso 2027). Com copiar_de, traz todos daquele lote."""
+        from controle.lotes import normalizar_nome_lote
+
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
+        novo = normalizar_nome_lote(nome)
+        if not novo:
+            return err("Informe o nome do lote (ex.: Defeso 2027).")
+
+        def work():
+            svc = self._ensure_service()
+            svc.actor = self._admin_user
+            res = self._ensure_defeso().criar_lote(novo, copiar_de=str(copiar_de or ""))
+            svc.definir_lote_defeso(novo, atual=True)
+            svc._registrar_auditoria(
+                "lote_defeso_criar",
+                f"criou o lote {novo}" + (f" com {res['copiados']} ficha(s) de {copiar_de}" if copiar_de else ""),
+            )
+            res["lotes"] = self._lotes_payload()
+            return res
+
+        return self._run_async("lote_defeso", work, f"Criando {novo}…")
+
+    def definir_lote_defeso_atual(self, nome: Any = None) -> Dict[str, Any]:
+        from controle.lotes import normalizar_nome_lote
+
+        try:
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except SheetsConfigError as exc:
+            return err(str(exc))
+        alvo = normalizar_nome_lote(nome)
+        if not alvo:
+            return err("Lote inválido.")
+
+        def work():
+            self._ensure_service().definir_lote_defeso(alvo, atual=True)
+            return self._lotes_payload()
+
+        return self._run_async("lotes", work, "Salvando lote atual…")
+
+    def lote_defeso_pessoas(self, payload: Any = None) -> Dict[str, Any]:
+        """Coloca (ou tira) pescadores de um lote Defeso.
+
+        payload: {lote, acao: "adicionar"|"remover", itens: [{ficha_id, person_id, nome, cpf}]}
+        Quem ainda não tem ficha ganha uma ficha só com nome e CPF.
+        """
+        from controle.lotes import normalizar_nome_lote
+
+        try:
+            data = self._payload_dict(payload)
+            self._require_perm(usuarios_mod.PERM_EDITAR)
+        except (ValueError, SheetsConfigError) as exc:
+            return err(str(exc))
+        lote = normalizar_nome_lote(data.get("lote"))
+        acao = str(data.get("acao") or "adicionar").strip().lower()
+        itens = [i for i in (data.get("itens") or []) if isinstance(i, dict)]
+        if not lote or not itens:
+            return err("Escolha o lote e pelo menos um pescador.")
+
+        def work():
+            defeso = self._ensure_defeso()
+            svc = self._ensure_service()
+            svc.actor = self._admin_user
+            if acao == "remover":
+                total = 0
+                for item in itens:
+                    fid = str(item.get("ficha_id") or "").strip()
+                    if fid:
+                        total += defeso.remover_do_lote(fid, lote)
+                svc._registrar_auditoria("lote_defeso_remover", f"tirou {total} ficha(s) do {lote}")
+                return {"lote": lote, "acao": acao, "total": total, "lotes": self._lotes_payload()}
+            ids: List[str] = []
+            criadas = 0
+            pessoas: Optional[Dict[str, Any]] = None
+            for item in itens:
+                fid = str(item.get("ficha_id") or "").strip()
+                if fid:
+                    ids.append(fid)
+                    continue
+                cpf = only_digits(str(item.get("cpf") or ""))
+                pid = str(item.get("person_id") or "").strip()
+                if len(cpf) != 11 and pid:
+                    if pessoas is None:
+                        pessoas = {p.id: p for p in svc.get_all_pessoas()}
+                    p = pessoas.get(pid)
+                    if p is not None:
+                        cpf = only_digits(p.cpf)
+                        item = {**item, "nome": item.get("nome") or p.nome}
+                if len(cpf) != 11:
+                    continue
+                existente = defeso.por_cpf(cpf)
+                if existente is not None:
+                    ids.append(existente.id)
+                    continue
+                ficha = defeso.salvar(
+                    {
+                        "person_id": str(item.get("person_id") or ""),
+                        "nome": str(item.get("nome") or ""),
+                        "cpf": cpf,
+                        "lote": lote,
+                    }
+                )
+                ids.append(ficha.id)
+                criadas += 1
+            defeso.adicionar_ao_lote(ids, lote)
+            svc._registrar_auditoria("lote_defeso_adicionar", f"colocou {len(ids)} pescador(es) no {lote}")
+            return {"lote": lote, "acao": acao, "total": len(ids), "criadas": criadas, "lotes": self._lotes_payload()}
+
+        return self._run_async("lote_defeso", work, f"Atualizando {lote}…")
+
+    def on_closing(self) -> None:
+        self._fechando = True
+
     def _dispatch(self, event: str, payload: Any) -> None:
-        if not self._window:
+        if not self._window or getattr(self, "_fechando", False):
             return
-        body = json.dumps(payload, ensure_ascii=False)
-        self._window.evaluate_js(f"window.AppEvents.dispatch({json.dumps(event)}, {body})")
+        try:
+            body = json.dumps(payload, ensure_ascii=False, default=str)
+        except (TypeError, ValueError) as exc:
+            body = json.dumps(err(f"Resposta inválida: {exc}"), ensure_ascii=False)
+        script = f"window.AppEvents && window.AppEvents.dispatch({json.dumps(event)}, {body})"
+        # evaluate_js de várias threads ao mesmo tempo derruba o WebView2
+        with self._js_lock:
+            try:
+                self._window.evaluate_js(script)
+            except Exception as exc:  # noqa: BLE001
+                try:
+                    from webapp.launcher import registrar_erro
+
+                    registrar_erro(f"Falha ao avisar a tela ({event})", repr(exc))
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _run_async(self, op: str, work, busy: str = "Aguarde…") -> Dict[str, Any]:
         job = (op, work, busy)
@@ -1695,6 +2033,7 @@ class SinapescApi:
                         "tem_caf": bool(f and f.tem_caf),
                         "observacao": str(f.observacao or "").strip() if f else "",
                         "tem_observacao": bool(f and str(f.observacao or "").strip()),
+                        "lotes": f.to_dict()["lotes_lista"] if f else [],
                     }
                 )
             # Não lista fichas órfãs (existem só no Defeso, sem CPF no REAP) —

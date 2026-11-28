@@ -40,6 +40,7 @@ DEFESO_HEADER = [
     "parcelasRecebidas",
     "entradaConfirmada",
     "observacao",
+    "lotes",
 ]
 
 MESES_PT = (
@@ -85,6 +86,7 @@ class FichaDefeso:
     parcelas_recebidas: str = ""
     entrada_confirmada: str = ""
     observacao: str = ""
+    lotes: str = ""
 
     def to_row(self) -> List[str]:
         return [
@@ -113,10 +115,14 @@ class FichaDefeso:
             self.parcelas_recebidas,
             self.entrada_confirmada,
             self.observacao,
+            self.lotes,
         ]
 
     def to_dict(self) -> Dict[str, Any]:
+        from controle.lotes import lotes_efetivos
+
         d = asdict(self)
+        d["lotes_lista"] = lotes_efetivos(self.lotes)
         d["nome_display"] = display_nome(self.nome)
         d["cpf_formatado"] = format_cpf(self.cpf)
         d["tem_ficha"] = bool(self.id)
@@ -163,6 +169,7 @@ def row_to_ficha(row: List[str] | None) -> Optional[FichaDefeso]:
         parcelas_recebidas=cells[22].strip() if len(cells) > 22 else "",
         entrada_confirmada=cells[23].strip() if len(cells) > 23 else "",
         observacao=cells[24].strip() if len(cells) > 24 else "",
+        lotes=cells[25].strip() if len(cells) > 25 else "",
     )
 
 
@@ -206,7 +213,21 @@ def payload_to_ficha(payload: Dict[str, Any], *, existing: Optional[FichaDefeso]
             if "observacao" in payload
             else str(base.observacao or "").strip()
         ),
+        lotes=_lotes_do_payload(payload, base),
     )
+
+
+def _lotes_do_payload(payload: Dict[str, Any], base: FichaDefeso) -> str:
+    from controle.lotes import com_lote, lotes_para_celula
+
+    if "lotes" in payload:
+        raw = payload.get("lotes")
+        if isinstance(raw, (list, tuple)):
+            return lotes_para_celula(raw)
+        return lotes_para_celula([raw or ""])
+    if str(payload.get("lote") or "").strip():
+        return com_lote(base.lotes, str(payload.get("lote")))
+    return base.lotes
 
 
 def validar_ficha(f: FichaDefeso) -> Optional[str]:

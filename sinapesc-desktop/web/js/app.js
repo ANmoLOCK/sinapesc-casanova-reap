@@ -5,6 +5,7 @@
 
   const TABS = [
     { id: "socies", label: "Sócios", screen: "admin" },
+    { id: "notificacoes", label: "Notificações", screen: "notificacoes" },
     { id: "pendencias", label: "Pendências", screen: "pendencias" },
     { id: "relatorio", label: "Relatório", screen: "relatorio" },
     { id: "backup", label: "Backup", screen: "backup" },
@@ -81,6 +82,17 @@
     consultaRgpLoteProgress: null,
     consultaRgpDiasVencidos: 30,
     consultaRgpAlertas: [],
+    podeSolicitar: false,
+    pedidos: [],
+    pedidosPodeDecidir: false,
+    pedidosFiltro: { reap: "pendente", defeso: "pendente" },
+    lotes: null,
+    reapLote: "",
+    reapLoteEscolhido: false,
+    defesoLote: "",
+    defesoLoteEscolhido: false,
+    defesoAba: "pescadores",
+    defesoSelecionados: {},
   };
 
   window.SinapescRgpState = state;
@@ -147,6 +159,7 @@
     state.podeEditar = !!data.pode_editar;
     state.podePedirExclusao = !!data.pode_pedir_exclusao;
     state.podeExcluirDireto = !!data.pode_excluir_direto || state.papel === "admin";
+    state.podeSolicitar = !!data.pode_solicitar || state.papel === "admin";
   }
 
   function podeModulo(mod) {
@@ -495,6 +508,7 @@
   function tabForScreen(screen) {
     const map = {
       admin: "socies",
+      notificacoes: "notificacoes",
       pendencias: "pendencias",
       relatorio: "relatorio",
       backup: "backup",
@@ -523,7 +537,7 @@
     const tabId = activeTab || tabForScreen(state.screen) || "socies";
     tabInner.innerHTML = tabs.map((t) => `
       <div class="tab-cell ${t.id === tabId ? "active" : ""}" data-tab="${t.id}">
-        <div class="tab-label">${esc(t.label)}</div>
+        <div class="tab-label">${esc(t.label)}${t.id === "notificacoes" && pedidosPendentes("reap") ? ` <span class="notif-badge">${pedidosPendentes("reap")}</span>` : ""}</div>
         <div class="tab-underline"></div>
       </div>
     `).join("");
@@ -620,6 +634,12 @@
     state.podeEditar = false;
     state.podePedirExclusao = false;
     state.podeExcluirDireto = false;
+    state.podeSolicitar = false;
+    state.pedidos = [];
+    state.pedidosCarregado = false;
+    state.lotes = null;
+    state.reapLoteEscolhido = false;
+    state.defesoLoteEscolhido = false;
     state.permissoes = [];
     state.usuarios = [];
     state.exclusoesPendentes = [];
@@ -640,6 +660,7 @@
       usuarios: renderUsuarios,
       aprovacoes: renderAprovacoes,
       admin: renderAdmin,
+      notificacoes: renderNotificacoesReap,
       pendencias: renderPendencias,
       relatorio: renderRelatorio,
       backup: renderBackup,
@@ -718,14 +739,14 @@
           <h3>Secretaria</h3>
           <p>Cadastre sócios, marque REAPs e importe lotes na planilha Google. Informe Mensal gera o REAP de cada mês por sócio.</p>
           <div class="home-card-actions">
-            <button type="button" class="btn btn-primary" id="go-reap">Abrir REAP</button>
+            <button type="button" class="btn btn-primary" id="go-reap">Abrir REAP${pedidosPendentes("reap") ? ` <span class="notif-badge">${pedidosPendentes("reap")}</span>` : ""}</button>
             <button type="button" class="btn btn-primary" id="go-informe">Informe Mensal</button>
           </div>
         </div>
         <div class="home-card">
           <h3>Defeso Fácil</h3>
           <p>Ficha do pescador, declaração de residência e anexos na pasta do Google Drive.</p>
-          <button type="button" class="btn btn-primary" id="go-defeso">Abrir Defeso Fácil</button>
+          <button type="button" class="btn btn-primary" id="go-defeso">Abrir Defeso Fácil${pedidosPendentes("defeso") ? ` <span class="notif-badge">${pedidosPendentes("defeso")}</span>` : ""}</button>
         </div>
         <div class="home-card">
           <h3>Consulta &amp; QR</h3>
@@ -750,8 +771,12 @@
           </div>
         </div>` : ""}
       </div>
-      <div class="tip-box">Login único ativo (online, aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.</div>
+      <div class="tip-box">Login único ativo (online, aba Usuarios): ${esc(state.adminNome || state.adminUser)} · papel <strong>${esc(state.papel || "—")}</strong>${state.podeEscrever ? "" : " · só leitura"}${state.podeExcluirDireto ? "" : (state.podePedirExclusao ? " · exclusão via aprovação" : "")}. Troque de módulo com ← Módulos. Use Sair para encerrar.${state.papel === "diretoria" ? "<br>Diretoria: no Abrir REAP clique em <strong>📨 Pedir REAP</strong> no sócio; no Defeso Fácil clique em <strong>📨 Pedir entrada no seguro</strong>. Os pedidos aparecem em Notificações." : ""}</div>
     `);
+    if (!state.pedidosCarregado) {
+      state.pedidosCarregado = true;
+      api("list_pedidos", "");
+    }
     $("#go-reap").addEventListener("click", goReap);
     $("#go-informe").addEventListener("click", goInformeMensal);
     $("#go-defeso").addEventListener("click", goDefeso);
@@ -965,6 +990,7 @@
         <span class="page-meta" id="admin-count"></span>
         <p class="page-sub">Clique no nome para abrir o REAP</p>
       </div>
+      <div class="lote-bar" id="reap-lote-bar"></div>
       <div class="toolbar">
         <div class="search-wrap">
           <span class="search-icon">⌕</span>
@@ -1022,8 +1048,11 @@
       if (!state.podeCadastrar) { toast("Sem permissão para cadastrar."); return; }
       openLoteModal();
     });
+    paintReapLoteBar();
     renderAdminList();
     if (!state.pessoas.length) loadPessoas();
+    if (!state.lotes) api("load_lotes");
+    api("list_pedidos", "");
   }
 
   function parseToggleDate(valor) {
@@ -1063,6 +1092,9 @@
     if (state.adminLocalidade) {
       const loc = state.adminLocalidade.trim().toLowerCase();
       list = list.filter((p) => String(p.municipio || "").trim().toLowerCase() === loc);
+    }
+    if (state.reapLote) {
+      list = list.filter((p) => (p.anos || []).some((a) => String(a.ano) === String(state.reapLote)));
     }
     return sortedPessoas(list);
   }
@@ -1116,6 +1148,11 @@
     const editable = !!state.podeEditar;
     list.innerHTML = pessoas.map((p) => pessoaCardHtml(p, editable)).join("");
     bindPessoaCards(list, editable || state.podePedirExclusao || state.podeExcluirDireto);
+    list.querySelectorAll("[data-pedir-reap]").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const p = state.pessoas.find((x) => x.id === b.dataset.pedirReap);
+      if (p) openPedidoModal("reap", { person_id: p.id, nome: p.nome_display || p.nome, cpf: p.cpf_raw || p.cpf });
+    }));
   }
 
   function touchBadgeHtml(p) {
@@ -1136,7 +1173,7 @@
         p.uf ? `UF: ${esc(p.uf)}` : "",
         p.telefone ? `Tel: ${esc(p.telefone)}` : "",
       ].filter(Boolean).join(" · ");
-      const anos = (p.anos || []).map((a) => `
+      const anos = (p.anos || []).filter((a) => !state.reapLote || String(a.ano) === String(state.reapLote)).map((a) => `
         <div class="year-label">Ano ${a.ano}</div>
         <div class="pills">${renderPills(p.id, a.ano, a.meses, editable)}</div>
       `).join("") || `<div class="empty-msg" style="padding:6px 0">Nenhum ano registrado.</div>`;
@@ -1152,6 +1189,7 @@
     const canAsk = !canDel && !!state.podePedirExclusao;
     const actions = `
       <button type="button" class="icon-btn" data-qr="${p.id}">▦ QR</button>
+      ${state.podeSolicitar ? `<button type="button" class="icon-btn" data-pedir-reap="${p.id}">📨 Pedir REAP</button>` : ""}
       ${canEdit ? `<button type="button" class="icon-btn" data-edit="${p.id}">✎ Editar</button>` : ""}
       ${canDel ? `<button type="button" class="icon-btn danger" data-del="${p.id}">🗑 Excluir</button>` : ""}
       ${canAsk ? `<button type="button" class="icon-btn danger" data-del-ask="${p.id}">🗑 Pedir exclusão</button>` : ""}
@@ -1161,7 +1199,7 @@
         <div class="card-head">
           <div class="avatar">${esc(p.iniciais)}</div>
           <div class="card-info" data-toggle="${p.id}">
-            <p class="card-name">${esc(p.nome_display)}${touchBadgeHtml(p)}</p>
+            <p class="card-name">${esc(p.nome_display)}${touchBadgeHtml(p)}${pedidoBadgeHtml("reap", p.id, p.cpf_raw || p.cpf)}</p>
             <p class="card-cpf">CPF: ${esc(formatCpf(p.cpf_raw || p.cpf))}${p.municipio ? ` · ${esc(p.municipio)}` : ""}${p.telefone ? ` · ${esc(p.telefone)}` : ""}</p>
           </div>
           <div class="card-actions">
@@ -2085,9 +2123,28 @@
   function openUsuarioModal(user) {
     const u = user || {};
     const isNew = !u.id;
-    const papeis = (state.bootstrap?.papeis || ["admin", "operador", "leitura"]);
+    const papeis = (state.bootstrap?.papeis || ["admin", "operador", "diretoria", "leitura"]);
+    const papelLabel = {
+      admin: "admin — tudo, inclusive usuários",
+      operador: "operador — secretaria do dia a dia",
+      diretoria: "diretoria — presidente / vice (cadastra e faz pedidos)",
+      leitura: "leitura — só consulta",
+    };
+    const permLabel = {
+      cadastrar: "cadastrar sócio",
+      editar: "editar / marcar REAP e lotes",
+      pedir_exclusao: "pedir exclusão",
+      excluir_direto: "excluir sem aprovação",
+      solicitar: "pedir REAP e entrada no seguro (Notificações)",
+    };
+    const permPadrao = {
+      admin: ["cadastrar", "editar", "pedir_exclusao", "excluir_direto", "solicitar"],
+      operador: ["cadastrar", "editar", "pedir_exclusao"],
+      diretoria: ["cadastrar", "solicitar"],
+      leitura: [],
+    };
     const modsAll = state.bootstrap?.modulos_todos || ["reap", "defeso", "informe", "consulta_rgp", "lista"];
-    const permsAll = state.bootstrap?.permissoes_todas || ["cadastrar", "editar", "pedir_exclusao", "excluir_direto"];
+    const permsAll = state.bootstrap?.permissoes_todas || ["cadastrar", "editar", "pedir_exclusao", "excluir_direto", "solicitar"];
     const modsSel = new Set(u.modulos || []);
     const permsSel = new Set(u.permissoes || (u.papel === "leitura" ? [] : ["cadastrar", "editar", "pedir_exclusao"]));
     const backdrop = createModal(`
@@ -2100,7 +2157,7 @@
         ${isNew ? `<label>Senha inicial</label><input id="usr-m-senha" type="password" autocomplete="new-password" />` : ""}
         <label>Papel</label>
         <select id="usr-m-papel">
-          ${papeis.map((p) => `<option value="${esc(p)}" ${u.papel === p ? "selected" : ""}>${esc(p)}</option>`).join("")}
+          ${papeis.map((p) => `<option value="${esc(p)}" ${u.papel === p ? "selected" : ""}>${esc(papelLabel[p] || p)}</option>`).join("")}
         </select>
         <label class="pacote-check filter-check" style="margin-top:10px">
           <input type="checkbox" id="usr-m-ativo" ${u.ativo !== false ? "checked" : ""} /> Ativo
@@ -2117,7 +2174,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:10px">
           ${permsAll.map((p) => `
             <label class="pacote-check filter-check">
-              <input type="checkbox" class="usr-m-perm" value="${esc(p)}" ${permsSel.has(p) ? "checked" : ""} /> ${esc(p)}
+              <input type="checkbox" class="usr-m-perm" value="${esc(p)}" ${permsSel.has(p) ? "checked" : ""} /> ${esc(permLabel[p] || p)}
             </label>
           `).join("")}
         </div>
@@ -2127,6 +2184,10 @@
         <button type="button" class="btn btn-primary" id="usr-m-save">Salvar</button>
       </div>
     `);
+    backdrop.querySelector("#usr-m-papel")?.addEventListener("change", (e) => {
+      const padrao = new Set(permPadrao[e.target.value] || []);
+      backdrop.querySelectorAll(".usr-m-perm").forEach((cb) => { cb.checked = padrao.has(cb.value); });
+    });
     backdrop.querySelector("#usr-m-save")?.addEventListener("click", () => {
       const mods = [...backdrop.querySelectorAll(".usr-m-mod:checked")].map((c) => c.value);
       const perms = [...backdrop.querySelectorAll(".usr-m-perm:checked")].map((c) => c.value);
@@ -2430,12 +2491,23 @@
 
   function renderDefesoLista() {
     if (!requireLogin("defeso")) return;
+    if (!state.lotes) api("load_lotes");
+    api("list_pedidos", "");
+    if (state.defesoAba === "notificacoes") {
+      setPage(`${defesoMenuHtml()}<div id="pedidos-panel"></div>`);
+      bindDefesoMenu();
+      paintPedidosPanel("defeso");
+      if (!(state.defesoItens || []).length) api("load_defeso_lista");
+      return;
+    }
     setPage(`
+      ${defesoMenuHtml()}
       <div>
         <span class="page-title">Defeso Fácil</span>
         <span class="page-meta" id="defeso-count">Carregando…</span>
         <p class="page-sub">Sócios do REAP · abra a ficha, salve endereço e imprima a declaração</p>
       </div>
+      <div class="lote-bar" id="defeso-lote-bar"></div>
       <div class="toolbar">
         <div class="search-wrap">
           <span class="search-icon">⌕</span>
@@ -2464,10 +2536,14 @@
           </label>
           <button type="button" class="btn btn-outline-dark btn-sm" id="defeso-refresh">↻ Atualizar</button>
           <button type="button" class="btn btn-primary btn-sm" id="defeso-relatorio">Relatório HTML</button>
+          ${state.podeEditar ? `<button type="button" class="btn btn-outline-dark btn-sm" id="defeso-por-lote">⇢ Colocar selecionados no lote</button>` : ""}
         </div>
       </div>
       <div id="defeso-list"></div>
     `);
+    bindDefesoMenu();
+    paintDefesoLoteBar();
+    $("#defeso-por-lote")?.addEventListener("click", openDefesoLoteModal);
     $("#defeso-search").addEventListener("input", (e) => {
       state.defesoSearch = e.target.value;
       paintDefesoLista();
@@ -2655,6 +2731,10 @@
     if (state.defesoSomenteParcelas) {
       itens = itens.filter((x) => x.tem_parcela);
     }
+    if (state.defesoLote) {
+      const alvo = state.defesoLote.toLowerCase();
+      itens = itens.filter((x) => (x.lotes || []).some((l) => String(l).toLowerCase() === alvo));
+    }
     if (q) {
       itens = itens.filter((x) =>
         String(x.nome || "").toLowerCase().includes(q)
@@ -2664,7 +2744,10 @@
     }
     if (count) count.textContent = `${itens.length} de ${(state.defesoItens || []).length}`;
     if (!itens.length) {
-      list.innerHTML = `<div class="empty-msg">${(state.defesoItens || []).length ? "Nenhum resultado." : "Carregando ou sem sócios no REAP."}</div>`;
+      const vazioLote = state.defesoLote && (state.defesoItens || []).length
+        ? `Ninguém no ${esc(state.defesoLote)} com estes filtros. Para colocar pescadores neste lote, escolha «Todos os sócios», marque os nomes e clique em «Colocar selecionados no lote».`
+        : "";
+      list.innerHTML = `<div class="empty-msg">${vazioLote || ((state.defesoItens || []).length ? "Nenhum resultado." : "Carregando ou sem sócios no REAP.")}</div>`;
       return;
     }
     list.innerHTML = itens.map((x) => {
@@ -2679,16 +2762,24 @@
       const obsLine = obs
         ? `<p class="card-cpf" title="${esc(obs)}">Obs.: ${esc(obs.length > 90 ? obs.slice(0, 90) + "…" : obs)}</p>`
         : "";
+      const chave = x.ficha_id || x.person_id || x.cpf;
+      const marcado = !!state.defesoSelecionados[chave];
+      const lotesLinha = (x.lotes || []).length
+        ? `<p class="card-cpf card-lotes">Lotes: ${(x.lotes || []).map((l) => `<span class="lote-chip">${esc(l)}</span>`).join(" ")}</p>`
+        : `<p class="card-cpf card-lotes">Sem lote (ainda sem ficha)</p>`;
       return `
         <div class="card">
           <div class="card-head">
+            ${state.podeEditar ? `<input type="checkbox" class="defeso-sel" data-sel="${esc(chave)}" ${marcado ? "checked" : ""} title="Selecionar para colocar no lote" />` : ""}
             <div class="card-info">
-              <p class="card-name">${esc(x.nome_display || x.nome)}</p>
+              <p class="card-name">${esc(x.nome_display || x.nome)}${pedidoBadgeHtml("defeso", x.person_id, x.cpf)}</p>
               <p class="card-cpf">CPF ${esc(x.cpf_formatado || x.cpf)} · ${esc(st)}${conf}${x.municipio_reap ? ` · REAP: ${esc(x.municipio_reap)}` : ""}${x.municipio_defeso ? ` · Defeso: ${esc(x.municipio_defeso)}` : ""}${x.telefone_reap ? ` · ${esc(x.telefone_reap)}` : ""}</p>
               <p class="card-cpf">${esc(docs)}</p>
+              ${lotesLinha}
               ${obsLine}
             </div>
             <div class="card-actions">
+              ${state.podeSolicitar ? `<button type="button" class="btn btn-outline-dark btn-sm" data-pedir-defeso="${esc(chave)}">📨 Pedir entrada no seguro</button>` : ""}
               <button type="button" class="btn btn-primary btn-sm" data-defeso-open="${esc(x.person_id || "")}" data-cpf="${esc(x.cpf || "")}" data-ficha="${esc(x.ficha_id || "")}">Abrir ficha</button>
             </div>
           </div>
@@ -2704,6 +2795,412 @@
         navigate("defeso_ficha");
       });
     });
+    const porChave = (k) => (state.defesoItens || []).find((x) => (x.ficha_id || x.person_id || x.cpf) === k);
+    list.querySelectorAll(".defeso-sel").forEach((cb) => cb.addEventListener("change", () => {
+      if (cb.checked) state.defesoSelecionados[cb.dataset.sel] = true;
+      else delete state.defesoSelecionados[cb.dataset.sel];
+      const n = Object.keys(state.defesoSelecionados).length;
+      const btn = $("#defeso-por-lote");
+      if (btn) btn.textContent = n ? `⇢ Colocar ${n} selecionado(s) no lote` : "⇢ Colocar selecionados no lote";
+    }));
+    list.querySelectorAll("[data-pedir-defeso]").forEach((b) => b.addEventListener("click", () => {
+      const x = porChave(b.dataset.pedirDefeso);
+      if (x) openPedidoModal("defeso", { person_id: x.person_id, nome: x.nome_display || x.nome, cpf: x.cpf });
+    }));
+  }
+
+  // ---- Notificações (pedidos da diretoria) e lotes ------------------------
+
+  async function callApi(method, ...args) {
+    try {
+      const r = await api(method, ...args);
+      if (r && r.ok === false && !sessionExpired(r.error)) toast(r.error || "Não foi possível concluir.");
+      return r;
+    } catch (e) {
+      toast(e && e.message ? e.message : "Erro.");
+      return null;
+    }
+  }
+
+  function pedidosDo(tipo) {
+    return (state.pedidos || []).filter((p) => p.tipo === tipo);
+  }
+
+  function pedidosPendentes(tipo) {
+    return pedidosDo(tipo).filter((p) => p.status === "pendente").length;
+  }
+
+  function pedidoPendentePara(tipo, personId, cpf) {
+    const d = String(cpf || "").replace(/\D/g, "");
+    return pedidosDo(tipo).find((p) => p.status === "pendente"
+      && ((personId && p.person_id === personId) || (d && String(p.cpf || "").replace(/\D/g, "") === d)));
+  }
+
+  function pedidoBadgeHtml(tipo, personId, cpf) {
+    const p = pedidoPendentePara(tipo, personId, cpf);
+    if (!p) return "";
+    const tip = `${p.tipo_label} · ${p.lote} · pedido por ${p.pedido_por_nome || p.pedido_por} em ${p.pedido_em}`;
+    return ` <span class="pedido-badge" title="${esc(tip)}">📨 ${tipo === "reap" ? "REAP pedido" : "Entrada pedida"}</span>`;
+  }
+
+  function defesoMenuHtml() {
+    const n = pedidosPendentes("defeso");
+    const aba = state.defesoAba === "notificacoes" ? "notificacoes" : "pescadores";
+    return `
+      <div class="sub-menu" role="tablist">
+        <button type="button" class="sub-menu-item ${aba === "pescadores" ? "active" : ""}" data-defeso-aba="pescadores">Pescadores</button>
+        <button type="button" class="sub-menu-item ${aba === "notificacoes" ? "active" : ""}" data-defeso-aba="notificacoes">Notificações${n ? ` <span class="notif-badge">${n}</span>` : ""}</button>
+      </div>`;
+  }
+
+  function bindDefesoMenu() {
+    document.querySelectorAll("[data-defeso-aba]").forEach((b) => b.addEventListener("click", () => {
+      if (state.defesoAba === b.dataset.defesoAba) return;
+      state.defesoAba = b.dataset.defesoAba;
+      renderDefesoLista();
+    }));
+  }
+
+  function renderNotificacoesReap() {
+    setPage(`<div id="pedidos-panel"></div>`);
+    paintPedidosPanel("reap");
+    if (!state.pessoas.length) loadPessoas();
+    if (!state.lotes) api("load_lotes");
+    api("list_pedidos", "");
+  }
+
+  function paintPedidosPanel(tipo) {
+    const box = $("#pedidos-panel");
+    if (!box) return;
+    const filtro = state.pedidosFiltro[tipo] || "pendente";
+    const todos = pedidosDo(tipo);
+    const itens = filtro === "todos" ? todos : todos.filter((p) => p.status === filtro);
+    const cont = (st) => todos.filter((p) => p.status === st).length;
+    const titulo = tipo === "reap" ? "Notificações · pedidos de REAP" : "Notificações · pedidos de entrada no seguro";
+    const explica = tipo === "reap"
+      ? "A presidente e o vice escolhem o sócio e pedem o REAP do lote. Quando o REAP for feito, marque «Feito»."
+      : "A presidente e o vice escolhem o pescador e pedem a entrada no seguro-defeso do lote. Quando der entrada, marque «Feito».";
+    const chip = (id, label, n) => `<button type="button" class="chip ${filtro === id ? "active" : ""}" data-ped-filtro="${id}">${label}${n === undefined ? "" : ` (${n})`}</button>`;
+    const decidir = state.pedidosPodeDecidir;
+    box.innerHTML = `
+      <div>
+        <span class="page-title">${titulo}</span>
+        <span class="page-meta">${cont("pendente")} pendente(s)</span>
+        <p class="page-sub">${explica}</p>
+      </div>
+      <div class="toolbar">
+        <div class="btn-row">
+          ${chip("pendente", "Pendentes", cont("pendente"))}
+          ${chip("feito", "Feitos", cont("feito"))}
+          ${chip("recusado", "Recusados", cont("recusado"))}
+          ${chip("todos", "Todos")}
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-outline-dark btn-sm" id="ped-refresh">↻ Atualizar</button>
+          ${state.podeSolicitar ? `<button type="button" class="btn btn-primary btn-sm" id="ped-novo">+ Novo pedido</button>` : ""}
+        </div>
+      </div>
+      <div id="pedidos-list">${itens.length ? itens.map((p) => `
+        <div class="card pedido-card pedido-${esc(p.status)}">
+          <div class="card-head">
+            <div class="card-info">
+              <p class="card-name">${esc(p.nome || "(sem nome)")} <span class="lote-chip">${esc(p.lote)}</span> <span class="pedido-status">${esc(p.status)}</span></p>
+              <p class="card-cpf">${esc(p.tipo_label)}${p.cpf ? ` · CPF ${esc(p.cpf)}` : ""}</p>
+              <p class="card-cpf">Pedido por <strong>${esc(p.pedido_por_nome || p.pedido_por)}</strong> em ${esc(p.pedido_em)}${p.decidido_em ? ` · ${esc(p.status)} por ${esc(p.decidido_por)} em ${esc(p.decidido_em)}` : ""}</p>
+              ${p.obs ? `<p class="card-cpf">Obs.: ${esc(p.obs)}</p>` : ""}
+            </div>
+            <div class="card-actions">
+              ${decidir && p.status === "pendente" ? `
+                <button type="button" class="btn btn-primary btn-sm" data-ped-id="${esc(p.id)}" data-ped-st="feito">✓ Feito</button>
+                <button type="button" class="btn btn-outline-dark btn-sm" data-ped-id="${esc(p.id)}" data-ped-st="recusado">✕ Recusar</button>` : ""}
+              ${decidir && p.status !== "pendente" ? `<button type="button" class="btn btn-outline-dark btn-sm" data-ped-id="${esc(p.id)}" data-ped-st="pendente">↺ Reabrir</button>` : ""}
+            </div>
+          </div>
+        </div>`).join("") : `<div class="empty-msg">${filtro === "pendente" ? "Nenhum pedido pendente." : "Nenhum pedido aqui."}</div>`}</div>`;
+    box.querySelectorAll("[data-ped-filtro]").forEach((b) => b.addEventListener("click", () => {
+      state.pedidosFiltro[tipo] = b.dataset.pedFiltro;
+      paintPedidosPanel(tipo);
+    }));
+    $("#ped-refresh")?.addEventListener("click", () => api("list_pedidos", ""));
+    $("#ped-novo")?.addEventListener("click", () => openPedidoModal(tipo, null));
+    box.querySelectorAll("[data-ped-id]").forEach((b) => b.addEventListener("click", async () => {
+      const st = b.dataset.pedSt;
+      let obs;
+      if (st === "recusado") {
+        obs = window.prompt("Motivo da recusa (opcional):", "");
+        if (obs === null) return;
+      }
+      const payload = { id: b.dataset.pedId, status: st };
+      if (obs !== undefined) payload.obs = obs;
+      b.disabled = true;
+      await callApi("decidir_pedido", JSON.stringify(payload));
+    }));
+  }
+
+  function opcoesLote(tipo) {
+    const l = state.lotes || {};
+    if (tipo === "reap") {
+      const anos = (l.reap || []).map((x) => x.ano);
+      const atual = l.reap_atual || new Date().getFullYear();
+      if (!anos.includes(atual)) anos.unshift(atual);
+      return { lista: anos.map((a) => [String(a), `Lote REAP ${a}`]), atual: String(atual) };
+    }
+    const nomes = (l.defeso || []).map((x) => x.nome);
+    const atual = l.defeso_atual || "Defeso 2026";
+    if (!nomes.includes(atual)) nomes.unshift(atual);
+    return { lista: nomes.map((n) => [n, n]), atual };
+  }
+
+  function openPedidoModal(tipo, preset) {
+    if (!state.podeSolicitar) { toast("Seu usuário não pode fazer pedidos."); return; }
+    const op = opcoesLote(tipo);
+    const loteAtual = tipo === "reap" ? (state.reapLote || op.atual) : (state.defesoLote || op.atual);
+    const titulo = tipo === "reap" ? "Pedir REAP" : "Pedir entrada no seguro-defeso";
+    let escolhido = preset ? { ...preset } : null;
+    const fonte = () => (tipo === "reap"
+      ? (state.pessoas || []).map((p) => ({ person_id: p.id, nome: p.nome_display || p.nome, cpf: p.cpf_raw || p.cpf }))
+      : (state.defesoItens || []).map((x) => ({ person_id: x.person_id, nome: x.nome_display || x.nome, cpf: x.cpf })));
+    if (tipo === "defeso" && !(state.defesoItens || []).length) api("load_defeso_lista");
+    if (tipo === "reap" && !state.pessoas.length) loadPessoas();
+    const backdrop = createModal(`
+      <div class="modal-head">${titulo}</div>
+      <div class="modal-body">
+        <p class="page-sub" style="margin:0 0 8px">O pedido vai para Notificações. A secretaria marca como feito quando concluir.</p>
+        <label>Sócio</label>
+        <div id="ped-escolhido" class="ped-escolhido"></div>
+        <input type="search" id="ped-busca" placeholder="Buscar nome ou CPF" ${escolhido ? 'style="display:none"' : ""} />
+        <div id="ped-resultados" class="ped-resultados"></div>
+        <label>Lote</label>
+        <select id="ped-lote">${op.lista.map(([v, lab]) => `<option value="${esc(v)}" ${String(v) === String(loteAtual) ? "selected" : ""}>${esc(lab)}</option>`).join("")}</select>
+        <label>Observação (opcional)</label>
+        <input id="ped-obs" placeholder="Ex.: urgente, documentos já entregues" />
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="ped-enviar">Enviar pedido</button>
+      </div>`);
+    const pintarEscolhido = () => {
+      const box = backdrop.querySelector("#ped-escolhido");
+      const busca = backdrop.querySelector("#ped-busca");
+      if (escolhido) {
+        box.innerHTML = `<strong>${esc(escolhido.nome)}</strong> · CPF ${esc(formatCpf(escolhido.cpf))} <button type="button" class="btn btn-ghost btn-sm" id="ped-trocar">trocar</button>`;
+        busca.style.display = "none";
+        backdrop.querySelector("#ped-resultados").innerHTML = "";
+        box.querySelector("#ped-trocar").addEventListener("click", () => {
+          escolhido = null;
+          pintarEscolhido();
+          busca.focus();
+        });
+      } else {
+        box.innerHTML = "";
+        busca.style.display = "";
+      }
+    };
+    backdrop.querySelector("#ped-busca").addEventListener("input", (e) => {
+      const q = String(e.target.value || "").trim().toLowerCase();
+      const dig = q.replace(/\D/g, "");
+      const res = backdrop.querySelector("#ped-resultados");
+      if (q.length < 2) { res.innerHTML = ""; return; }
+      const achados = fonte().filter((x) => String(x.nome || "").toLowerCase().includes(q)
+        || (dig.length >= 3 && String(x.cpf || "").replace(/\D/g, "").includes(dig))).slice(0, 8);
+      res.innerHTML = achados.length
+        ? achados.map((x, i) => `<button type="button" class="ped-item" data-i="${i}">${esc(x.nome)} · ${esc(formatCpf(x.cpf))}</button>`).join("")
+        : `<div class="empty-msg" style="padding:6px 0">Ninguém encontrado. Cadastre o sócio primeiro (+ Novo sócio).</div>`;
+      res.querySelectorAll(".ped-item").forEach((b) => b.addEventListener("click", () => {
+        escolhido = achados[Number(b.dataset.i)];
+        pintarEscolhido();
+      }));
+    });
+    pintarEscolhido();
+    backdrop.querySelector("#ped-enviar").addEventListener("click", async () => {
+      if (!escolhido) { toast("Escolha o sócio."); return; }
+      const lote = backdrop.querySelector("#ped-lote").value;
+      const payload = {
+        tipo,
+        person_id: escolhido.person_id || "",
+        nome: escolhido.nome || "",
+        cpf: escolhido.cpf || "",
+        lote: tipo === "reap" ? `Lote REAP ${lote}` : lote,
+        obs: backdrop.querySelector("#ped-obs").value || "",
+      };
+      const r = await callApi("criar_pedido", JSON.stringify(payload));
+      if (r && r.ok !== false) backdrop._close(true);
+    });
+    if (!escolhido) backdrop.querySelector("#ped-busca").focus();
+  }
+
+  function paintReapLoteBar() {
+    const bar = $("#reap-lote-bar");
+    if (!bar) return;
+    const l = state.lotes;
+    if (!l) { bar.innerHTML = `<span class="page-sub">Carregando lotes…</span>`; return; }
+    if (!state.reapLoteEscolhido) {
+      state.reapLote = String(l.reap_atual || "");
+      state.reapLoteEscolhido = true;
+    }
+    const opts = (l.reap || []).map((x) => `<option value="${x.ano}" ${String(x.ano) === String(state.reapLote) ? "selected" : ""}>Lote REAP ${x.ano} (${x.total})${x.ano === l.reap_atual ? " · atual" : ""}</option>`).join("");
+    bar.innerHTML = `
+      <label class="filter-wrap">Lote
+        <select id="reap-lote-sel">
+          ${opts}
+          <option value="" ${state.reapLote ? "" : "selected"}>Todos os lotes</option>
+        </select>
+      </label>
+      ${state.podeEditar ? `<button type="button" class="btn btn-outline-dark btn-sm" id="reap-lote-novo">+ Abrir novo lote</button>` : ""}
+      <span class="lote-help">O lote do REAP é o ano: cada sócio tem os 12 meses daquele ano.</span>`;
+    $("#reap-lote-sel")?.addEventListener("change", (e) => {
+      state.reapLote = e.target.value || "";
+      renderAdminList();
+    });
+    $("#reap-lote-novo")?.addEventListener("click", openNovoLoteReapModal);
+  }
+
+  function openNovoLoteReapModal() {
+    const l = state.lotes || {};
+    const anos = (l.reap || []).map((x) => x.ano);
+    const proximo = (anos.length ? Math.max(...anos) : new Date().getFullYear()) + 1;
+    const backdrop = createModal(`
+      <div class="modal-head">Abrir novo lote do REAP</div>
+      <div class="modal-body">
+        <p class="page-sub" style="margin:0 0 8px">Exemplo: o <strong>Lote REAP ${proximo}</strong> começa em janeiro de ${proximo}. Cada sócio ganha a linha de ${proximo} com os 12 meses em branco, e você marca os meses à medida que forem feitos. O lote anterior continua guardado como está.</p>
+        <label>Ano do lote</label>
+        <input id="lr-ano" type="number" min="2000" max="2100" value="${proximo}" />
+        <label>Quem entra</label>
+        <select id="lr-origem">
+          ${(l.reap || []).map((x) => `<option value="${x.ano}">Quem está no Lote REAP ${x.ano} (${x.total})</option>`).join("")}
+          <option value="">Todos os sócios cadastrados</option>
+        </select>
+        <p class="page-sub" style="margin:8px 0 0">Depois de abrir, o lote novo vira o lote atual. Novos sócios entram nele.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="lr-abrir">Abrir lote</button>
+      </div>`);
+    backdrop.querySelector("#lr-abrir").addEventListener("click", async () => {
+      const ano = backdrop.querySelector("#lr-ano").value;
+      const origem = backdrop.querySelector("#lr-origem").value;
+      if (!(await confirmModal("Abrir lote", `Abrir o Lote REAP ${ano}${origem ? ` com quem está no Lote REAP ${origem}` : " com todos os sócios"}?`))) return;
+      const r = await callApi("abrir_lote_reap", ano, origem);
+      if (r && r.ok !== false) {
+        state.reapLote = String(ano);
+        backdrop._close(true);
+      }
+    });
+  }
+
+  function paintDefesoLoteBar() {
+    const bar = $("#defeso-lote-bar");
+    if (!bar) return;
+    const l = state.lotes;
+    if (!l) { bar.innerHTML = `<span class="page-sub">Carregando lotes…</span>`; return; }
+    if (!state.defesoLoteEscolhido) {
+      // Diretoria escolhe qualquer sócio para pedir entrada; quem edita abre no lote atual.
+      state.defesoLote = state.podeEditar ? (l.defeso_atual || "") : "";
+      state.defesoLoteEscolhido = true;
+    }
+    const opts = (l.defeso || []).map((x) => `<option value="${esc(x.nome)}" ${x.nome === state.defesoLote ? "selected" : ""}>${esc(x.nome)} (${x.total})${x.nome === l.defeso_atual ? " · atual" : ""}</option>`).join("");
+    bar.innerHTML = `
+      <label class="filter-wrap">Lote
+        <select id="defeso-lote-sel">
+          ${opts}
+          <option value="" ${state.defesoLote ? "" : "selected"}>Todos os sócios</option>
+        </select>
+      </label>
+      ${state.podeEditar ? `<button type="button" class="btn btn-outline-dark btn-sm" id="defeso-lote-novo">+ Novo lote</button>` : ""}
+      <span class="lote-help">Cada lote é uma temporada do seguro (ex.: Defeso 2026). Um pescador pode estar em vários.</span>
+      ${l.defeso_aviso ? `<span class="lote-help">${esc(l.defeso_aviso)}</span>` : ""}`;
+    $("#defeso-lote-sel")?.addEventListener("change", (e) => {
+      state.defesoLote = e.target.value || "";
+      paintDefesoLista();
+    });
+    $("#defeso-lote-novo")?.addEventListener("click", openNovoLoteDefesoModal);
+  }
+
+  function openNovoLoteDefesoModal() {
+    const l = state.lotes || {};
+    const anos = (l.defeso || []).map((x) => parseInt(String(x.nome).replace(/\D/g, ""), 10)).filter((n) => n > 1999);
+    const proximo = (anos.length ? Math.max(...anos) : new Date().getFullYear()) + 1;
+    const backdrop = createModal(`
+      <div class="modal-head">Novo lote do Defeso</div>
+      <div class="modal-body">
+        <p class="page-sub" style="margin:0 0 8px">Exemplo: o <strong>Defeso ${proximo}</strong> é a temporada que dá entrada a partir de janeiro de ${proximo}. Os lotes anteriores continuam guardados, e dá para ver de que ano é cada pescador.</p>
+        <label>Nome do lote</label>
+        <input id="ld-nome" value="Defeso ${proximo}" />
+        <label>Quem entra agora</label>
+        <select id="ld-origem">
+          <option value="">Ninguém (coloco depois, marcando na lista)</option>
+          ${(l.defeso || []).map((x) => `<option value="${esc(x.nome)}">Todos do ${esc(x.nome)} (${x.total})</option>`).join("")}
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="ld-criar">Criar lote</button>
+      </div>`);
+    backdrop.querySelector("#ld-criar").addEventListener("click", async () => {
+      const nome = backdrop.querySelector("#ld-nome").value.trim();
+      const origem = backdrop.querySelector("#ld-origem").value;
+      if (!nome) { toast("Informe o nome do lote."); return; }
+      const r = await callApi("criar_lote_defeso", nome, origem);
+      if (r && r.ok !== false) {
+        state.defesoLote = nome;
+        backdrop._close(true);
+      }
+    });
+  }
+
+  function openDefesoLoteModal() {
+    const chaves = Object.keys(state.defesoSelecionados);
+    if (!chaves.length) {
+      toast("Marque os pescadores na lista (caixinha à esquerda do nome).");
+      return;
+    }
+    const itens = (state.defesoItens || []).filter((x) => chaves.includes(x.ficha_id || x.person_id || x.cpf));
+    const op = opcoesLote("defeso");
+    const backdrop = createModal(`
+      <div class="modal-head">Lote dos selecionados</div>
+      <div class="modal-body">
+        <p class="page-sub" style="margin:0 0 8px">${itens.length} pescador(es) selecionado(s). Quem ainda não tem ficha ganha uma ficha com nome e CPF.</p>
+        <label>Lote</label>
+        <select id="dl-lote">${op.lista.map(([v, lab]) => `<option value="${esc(v)}" ${v === (state.defesoLote || op.atual) ? "selected" : ""}>${esc(lab)}</option>`).join("")}</select>
+        <label>O que fazer</label>
+        <select id="dl-acao">
+          <option value="adicionar">Colocar no lote</option>
+          <option value="remover">Tirar do lote</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-outline-dark" data-modal-close="">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="dl-ok">Confirmar</button>
+      </div>`);
+    backdrop.querySelector("#dl-ok").addEventListener("click", async () => {
+      const payload = {
+        lote: backdrop.querySelector("#dl-lote").value,
+        acao: backdrop.querySelector("#dl-acao").value,
+        itens: itens.map((x) => ({ ficha_id: x.ficha_id || "", person_id: x.person_id || "", nome: x.nome || "", cpf: x.cpf || "" })),
+      };
+      const r = await callApi("lote_defeso_pessoas", JSON.stringify(payload));
+      if (r && r.ok !== false) backdrop._close(true);
+    });
+  }
+
+  function aplicarLotes(lotes) {
+    if (!lotes) return;
+    state.lotes = { ...(state.lotes || {}), ...lotes };
+    if (state.screen === "admin") { paintReapLoteBar(); renderAdminList(); }
+    if (state.screen === "defeso" && state.defesoAba !== "notificacoes") { paintDefesoLoteBar(); paintDefesoLista(); }
+  }
+
+  function repintarPedidos() {
+    if (state.screen === "notificacoes") paintPedidosPanel("reap");
+    if (state.screen === "defeso") {
+      if (state.defesoAba === "notificacoes") paintPedidosPanel("defeso");
+      else paintDefesoLista();
+      const menu = document.querySelector(".sub-menu");
+      if (menu) { menu.outerHTML = defesoMenuHtml(); bindDefesoMenu(); }
+    }
+    if (state.screen === "admin") renderAdminList();
+    if (isSecretariaScreen(state.screen)) renderTabs();
+    if (state.screen === "home") renderHome();
   }
 
   function renderDefesoFicha() {
@@ -4230,6 +4727,47 @@
     });
     AppEvents.on("qrs", (r) => {
       toast(r.ok ? `QRs → ${r.data?.base}` : r.error);
+    });
+    AppEvents.on("pedidos", (r) => {
+      if (r.ok) {
+        state.pedidos = r.data?.itens || [];
+        state.pedidosPodeDecidir = !!r.data?.pode_decidir;
+        state.pedidosCarregado = true;
+        repintarPedidos();
+      } else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("pedido_salvo", (r) => {
+      if (r.ok) {
+        const ac = r.data?.acao;
+        toast(ac === "criado" ? "Pedido enviado para Notificações."
+          : ac === "feito" ? "Pedido marcado como feito."
+          : ac === "recusado" ? "Pedido recusado."
+          : "Pedido reaberto.");
+        api("list_pedidos", "");
+      } else if (!sessionExpired(r.error)) toast(r.error, 6000);
+    });
+    AppEvents.on("lotes", (r) => {
+      if (r.ok) aplicarLotes(r.data);
+      else if (!sessionExpired(r.error)) toast(r.error);
+    });
+    AppEvents.on("lote_reap", (r) => {
+      if (r.ok) {
+        toast(`Lote REAP ${r.data.ano} aberto: ${r.data.criados} sócio(s) entraram${r.data.ja_tinham ? `, ${r.data.ja_tinham} já estavam` : ""}.`, 6000);
+        state.reapLote = String(r.data.ano);
+        aplicarLotes(r.data.lotes);
+        loadPessoas();
+      } else if (!sessionExpired(r.error)) toast(r.error, 6000);
+    });
+    AppEvents.on("lote_defeso", (r) => {
+      if (r.ok) {
+        const d = r.data || {};
+        if (d.acao === "remover") toast(`${d.total} ficha(s) saíram do ${d.lote}.`);
+        else if (d.copiados !== undefined) toast(`${d.lote} criado${d.copiados ? ` com ${d.copiados} pescador(es)` : ""}.`);
+        else toast(`${d.total} pescador(es) no ${d.lote}${d.criadas ? ` (${d.criadas} ficha(s) nova(s))` : ""}.`);
+        state.defesoSelecionados = {};
+        aplicarLotes(d.lotes);
+        api("load_defeso_lista");
+      } else if (!sessionExpired(r.error)) toast(r.error, 6000);
     });
     AppEvents.on("defeso_lista", (r) => {
       if (r.ok) {

@@ -93,6 +93,8 @@ def normalize_sheet_id(value: str) -> str:
     return raw.strip()
 
 
+from controle.pedidos import PEDIDOS_HEADER, PEDIDOS_TAB  # noqa: E402
+
 PESSOAS_TAB = "Pessoas"
 REAP_TAB = "Reap"
 AUDITORIA_TAB = "Auditoria"
@@ -233,6 +235,7 @@ class GoogleSheetsClient:
             (CONFIG_TAB, CONFIG_HEADER),
             (USUARIOS_TAB, USUARIOS_HEADER),
             (EXCLUSOES_TAB, EXCLUSOES_HEADER),
+            (PEDIDOS_TAB, PEDIDOS_HEADER),
         )
         requests: List[dict] = []
         for title, _header in wanted:

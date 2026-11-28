@@ -26,9 +26,11 @@ USUARIOS_HEADER = [
     "permissoes",
 ]
 
-PAPEIS = ("admin", "operador", "leitura")
+PAPEIS = ("admin", "operador", "diretoria", "leitura")
 PAPEL_ADMIN = "admin"
 PAPEL_OPERADOR = "operador"
+# Presidente e vice: cadastram e pedem REAP / entrada no seguro (Notificações)
+PAPEL_DIRETORIA = "diretoria"
 PAPEL_LEITURA = "leitura"
 
 MODULOS_TODOS = ("reap", "defeso", "informe", "consulta_rgp", "lista")
@@ -38,15 +40,18 @@ PERM_CADASTRAR = "cadastrar"
 PERM_EDITAR = "editar"
 PERM_PEDIR_EXCLUSAO = "pedir_exclusao"
 PERM_EXCLUIR_DIRETO = "excluir_direto"
+PERM_SOLICITAR = "solicitar"
 PERMISSOES_TODAS = (
     PERM_CADASTRAR,
     PERM_EDITAR,
     PERM_PEDIR_EXCLUSAO,
     PERM_EXCLUIR_DIRETO,
+    PERM_SOLICITAR,
 )
 PERMISSOES_PADRAO = {
     PAPEL_ADMIN: list(PERMISSOES_TODAS),
     PAPEL_OPERADOR: [PERM_CADASTRAR, PERM_EDITAR, PERM_PEDIR_EXCLUSAO],
+    PAPEL_DIRETORIA: [PERM_CADASTRAR, PERM_SOLICITAR],
     PAPEL_LEITURA: [],
 }
 
@@ -70,6 +75,8 @@ def normalizar_papel(valor: Any) -> str:
         return PAPEL_OPERADOR
     if p in ("somente_leitura", "read", "viewer", "consulta"):
         return PAPEL_LEITURA
+    if p in ("presidente", "presidenta", "vice", "vice-presidente", "vice_presidente", "diretor", "diretora"):
+        return PAPEL_DIRETORIA
     if p in PAPEIS:
         return p
     return PAPEL_OPERADOR
@@ -144,6 +151,8 @@ def normalizar_permissoes(raw: Any = None, *, papel: str = PAPEL_OPERADOR) -> Li
             out.append(PERM_PEDIR_EXCLUSAO)
         if p in ("excluir_agora", "hard_delete") and PERM_EXCLUIR_DIRETO not in out:
             out.append(PERM_EXCLUIR_DIRETO)
+        if p in ("pedir", "solicitar_reap", "pedidos") and PERM_SOLICITAR not in out:
+            out.append(PERM_SOLICITAR)
     return out
 
 
@@ -240,6 +249,7 @@ class Usuario:
             or self.tem_permissao(PERM_EDITAR)
             or self.tem_permissao(PERM_PEDIR_EXCLUSAO)
             or self.tem_permissao(PERM_EXCLUIR_DIRETO)
+            or self.tem_permissao(PERM_SOLICITAR)
         )
 
     @property
@@ -257,6 +267,10 @@ class Usuario:
     @property
     def pode_excluir_direto(self) -> bool:
         return self.tem_permissao(PERM_EXCLUIR_DIRETO)
+
+    @property
+    def pode_solicitar(self) -> bool:
+        return self.tem_permissao(PERM_SOLICITAR)
 
     def permite_modulo(self, modulo: str) -> bool:
         if not self.ativo:
@@ -306,6 +320,7 @@ class Usuario:
             "pode_editar": self.pode_editar,
             "pode_pedir_exclusao": self.pode_pedir_exclusao,
             "pode_excluir_direto": self.pode_excluir_direto,
+            "pode_solicitar": self.pode_solicitar,
             "pode_admin_usuarios": self.pode_admin_usuarios,
         }
 

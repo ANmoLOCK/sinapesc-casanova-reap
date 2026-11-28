@@ -121,7 +121,7 @@ def test_ui_abre_modal_filtros():
 
 
 def test_version():
-    assert 'APP_VERSION = "2.0.0.3"' in (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
+    assert 'APP_VERSION = "2.0.0.4"' in (ROOT / "ui" / "theme.py").read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

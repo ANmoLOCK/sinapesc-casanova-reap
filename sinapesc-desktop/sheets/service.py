@@ -193,7 +193,10 @@ class SheetsService:
         cpf = _format_cpf(cpf)
         person_id = str(uuid.uuid4())
         now = _now_iso()
-        ano_atual = datetime.now().year
+        try:
+            ano_atual = max(int(self.lotes_config()["reap_atual"]), datetime.now().year)
+        except Exception:  # noqa: BLE001
+            ano_atual = datetime.now().year
 
         mun = str(municipio or "").strip()
         tel = str(telefone or "").strip()
@@ -825,6 +828,129 @@ class SheetsService:
             raise ValueError("Pedido de exclusão não encontrado.")
         self.client.update_values(f"{EXCLUSOES_TAB}!A{row}:J{row}", [pedido.to_row()])
         return pedido
+
+    # ---- pedidos da diretoria (aba Pedidos) -----------------------------
+
+    def listar_pedidos(self, *, tipo: str = "") -> List:
+        from controle.pedidos import PEDIDOS_TAB, STATUS_PENDENTE, row_to_pedido
+
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{PEDIDOS_TAB}!A2:M")
+        out = []
+        for r in rows:
+            p = row_to_pedido(r)
+            if p and (not tipo or p.tipo == tipo):
+                out.append(p)
+        pend = sorted([p for p in out if p.status == STATUS_PENDENTE], key=lambda p: p.pedido_em)
+        resto = sorted([p for p in out if p.status != STATUS_PENDENTE], key=lambda p: p.decidido_em or p.pedido_em, reverse=True)
+        return pend + resto
+
+    def criar_pedido(self, pedido) -> object:
+        from controle.pedidos import PEDIDOS_TAB, STATUS_PENDENTE, TIPO_LABEL
+        from ui.formatters import only_digits
+
+        cpf = only_digits(pedido.cpf)
+        for p in self.listar_pedidos(tipo=pedido.tipo):
+            if p.status != STATUS_PENDENTE or p.lote.lower() != pedido.lote.lower():
+                continue
+            if (pedido.person_id and p.person_id == pedido.person_id) or (cpf and only_digits(p.cpf) == cpf):
+                raise ValueError(f"Já existe pedido pendente para {p.nome or 'este sócio'} no {p.lote}.")
+        self.client.append_values(f"{PEDIDOS_TAB}!A2", [pedido.to_row()])
+        self._registrar_auditoria(
+            "pedido_criar",
+            f"{TIPO_LABEL.get(pedido.tipo, pedido.tipo)} — {pedido.nome} ({pedido.lote})"
+            + (f" — {pedido.obs}" if pedido.obs else ""),
+            person_id=pedido.person_id,
+            nome=pedido.nome,
+        )
+        return pedido
+
+    def atualizar_pedido(self, pedido) -> object:
+        from controle.pedidos import PEDIDOS_TAB, TIPO_LABEL
+
+        self.client.ensure_tabs()
+        rows = self.client.get_values(f"{PEDIDOS_TAB}!A2:A")
+        linha = -1
+        for i, r in enumerate(rows):
+            if r and str(r[0]).strip() == pedido.id:
+                linha = i + 2
+                break
+        if linha < 0:
+            raise ValueError("Pedido não encontrado.")
+        self.client.update_values(f"{PEDIDOS_TAB}!A{linha}:M{linha}", [pedido.to_row()])
+        self._registrar_auditoria(
+            f"pedido_{pedido.status}",
+            f"{TIPO_LABEL.get(pedido.tipo, pedido.tipo)} — {pedido.nome} ({pedido.lote}) marcado como {pedido.status}",
+            person_id=pedido.person_id,
+            nome=pedido.nome,
+        )
+        return pedido
+
+    # ---- lotes (Config compartilhada) ------------------------------------
+
+    def lotes_config(self) -> Dict[str, object]:
+        from controle.lotes import LOTE_DEFESO_PADRAO, LOTE_REAP_PADRAO, lotes_de_celula
+
+        cfg = self._config_map()
+        try:
+            reap_atual = int(str(cfg.get("lote_reap_atual") or LOTE_REAP_PADRAO).strip())
+        except ValueError:
+            reap_atual = LOTE_REAP_PADRAO
+        return {
+            "reap_atual": reap_atual,
+            "defeso_atual": str(cfg.get("lote_defeso_atual") or LOTE_DEFESO_PADRAO).strip(),
+            "defeso_extras": lotes_de_celula(cfg.get("lotes_defeso") or ""),
+        }
+
+    def definir_lote_reap_atual(self, ano: int) -> None:
+        self._config_set("lote_reap_atual", str(int(ano)))
+
+    def definir_lote_defeso(self, nome: str, *, atual: bool = True) -> None:
+        from controle.lotes import com_lote
+
+        extras = self._config_map().get("lotes_defeso") or ""
+        self._config_set("lotes_defeso", com_lote(extras, nome))
+        if atual:
+            self._config_set("lote_defeso_atual", nome)
+
+    def abrir_lote_reap(self, ano: int, *, copiar_de: Optional[int] = None) -> dict:
+        """Lote REAP novo: cada sócio ganha a linha do ano com os 12 meses em branco.
+
+        ``copiar_de`` limita aos sócios que estão no lote daquele ano;
+        sem ele, entram todos os sócios cadastrados. Quem já tem o ano fica como está.
+        """
+        ano = int(ano)
+        rows, _start = self._reap_rows()
+        tem_ano: set = set()
+        no_origem: set = set()
+        for r in rows:
+            if len(r) < 3 or not r[1] or not str(r[2]).strip().isdigit():
+                continue
+            a = int(str(r[2]).strip())
+            if a == ano:
+                tem_ano.add(r[1])
+            if copiar_de is not None and a == int(copiar_de):
+                no_origem.add(r[1])
+        pessoas = self.get_all_pessoas()
+        if copiar_de is not None:
+            pessoas = [p for p in pessoas if p.id in no_origem]
+        now = _now_iso()
+        vazios = ["FALSE"] * len(MESES)
+        novos = [
+            [str(uuid.uuid4()), p.id, ano, *vazios, now]
+            for p in pessoas
+            if p.id not in tem_ano
+        ]
+        if novos:
+            self.client.append_values(f"{REAP_TAB}!A2", novos)
+        self._config_set("lote_reap_atual", str(ano))
+        origem_txt = f"lote {copiar_de}" if copiar_de is not None else "todos os sócios"
+        self._registrar_auditoria(
+            "lote_reap_abrir",
+            f"abriu o Lote REAP {ano} ({origem_txt}): {len(novos)} sócio(s) novos, {len(tem_ano)} já tinham",
+            ano=ano,
+        )
+        return {"ano": ano, "criados": len(novos), "ja_tinham": len(tem_ano & {p.id for p in pessoas})}
 
     # ---- auditoria / config / backup (planilha compartilhada) ---------
 
